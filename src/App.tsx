@@ -136,6 +136,7 @@ export default function App() {
   }, [clientIp, user]);
 
   const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null} | null>(null);
+  const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
 
   const unsubsRef = useRef<(() => void)[]>([]);
 
@@ -316,7 +317,7 @@ export default function App() {
       // If we have a UID from URL, it MUST match the current user
       // Or if no UID from URL, we assume it's for the current user
       if (!pendingPayment.uid || user.uid === pendingPayment.uid) {
-        console.log("Updating Firestore for pending payment for user:", user.uid);
+        console.log("Updating Firestore for pending payment for user:", user.uid, "Plan:", pendingPayment.plan);
         const userDocRef = doc(db, 'users', user.uid);
         
         const expiresAt = new Date();
@@ -336,9 +337,10 @@ export default function App() {
           updateData.premiumExpiresAt = Timestamp.fromDate(expiresAt);
         }
 
+        console.log("Updating user document with data:", updateData);
         setDoc(userDocRef, updateData, { merge: true })
         .then(() => {
-          console.log("Premium status successfully updated in Firestore");
+          console.log("Premium status successfully updated in Firestore for user:", user.uid);
           
           // Trigger Upsell Modal if it was a single unlock
           if (pendingPayment.plan === 'single') {
@@ -350,6 +352,7 @@ export default function App() {
           setPendingPayment(null);
           
           // Clear localStorage ONLY after successful Firestore update
+          console.log("Clearing pending payment data from localStorage");
           localStorage.removeItem('hairvision_pending_results');
           localStorage.removeItem('hairvision_pending_selected_result');
           localStorage.removeItem('hairvision_pending_custom_results');
@@ -400,6 +403,16 @@ export default function App() {
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  // Resume checkout after login if a plan was selected
+  useEffect(() => {
+    if (user && pendingCheckoutPlan) {
+      console.log("User logged in, resuming checkout for plan:", pendingCheckoutPlan);
+      const planToResume = pendingCheckoutPlan;
+      setPendingCheckoutPlan(null);
+      handleCheckout(planToResume);
+    }
+  }, [user, pendingCheckoutPlan]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -589,11 +602,13 @@ export default function App() {
       }
 
       const resultRef = doc(db, 'users', user.uid, 'results', result.id);
+      console.log(`Saving result ${result.id} to Firestore path: users/${user.uid}/results/${result.id}`);
       await setDoc(resultRef, {
         ...finalResult,
         userId: user.uid,
         createdAt: serverTimestamp()
       });
+      console.log(`Successfully saved result ${result.id} to Firestore.`);
 
       // Clear from failed saves if it was there
       if (failedSaves.has(result.id)) {
@@ -967,6 +982,15 @@ export default function App() {
 
   const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' = 'single') => {
     console.log("Initiating checkout for plan:", plan);
+    
+    if (!user) {
+      console.log("User not logged in, prompting for login before checkout");
+      setPendingCheckoutPlan(plan);
+      setAuthMessage({ type: 'info', text: "Bitte erstelle ein kostenloses Konto oder logge dich ein, um mit der Zahlung fortzufahren." });
+      setShowLoginModal(true);
+      return;
+    }
+
     setIsCheckingOut(true);
     setError(null);
     
@@ -1025,7 +1049,24 @@ export default function App() {
       if (data.url) {
         console.log("Redirecting to Stripe:", data.url);
         
-        // Save current results to localStorage before redirecting
+        // Explicitly save results to Firestore if logged in
+        if (user && (results.length > 0 || customResults.length > 0)) {
+          console.log("Saving results to Firestore before redirecting to Stripe...");
+          try {
+            // Filter out results that are already saved to avoid redundant writes
+            const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id));
+            if (unsavedResults.length > 0) {
+              await Promise.all(unsavedResults.map(r => saveResult(r, true)));
+              console.log("All unsaved results saved to Firestore successfully.");
+            } else {
+              console.log("All results already saved to Firestore.");
+            }
+          } catch (saveErr) {
+            console.error("Failed to save some results to Firestore before checkout", saveErr);
+          }
+        }
+
+        // Save current results to localStorage before redirecting (as backup)
         try {
           if (results && results.length > 0) {
             console.log("Saving results to localStorage for post-payment restoration");
@@ -2289,15 +2330,17 @@ export default function App() {
               <div className="overflow-y-auto p-8 sm:p-10 space-y-8">
                 <div className="text-center space-y-2">
                   <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Sparkles size={32} />
+                    {pendingCheckoutPlan ? <ShoppingBag size={32} /> : <Sparkles size={32} />}
                   </div>
                   <h3 className="text-2xl font-serif font-bold">
-                    {isForgotPassword ? 'Passwort vergessen?' : isRegistering ? 'Konto erstellen' : 'Willkommen zurück'}
+                    {pendingCheckoutPlan ? 'Fast geschafft!' : isForgotPassword ? 'Passwort vergessen?' : isRegistering ? 'Konto erstellen' : 'Willkommen zurück'}
                   </h3>
                   <p className="text-brand-primary/60 text-sm">
-                    {isForgotPassword 
-                      ? 'Gib deine E-Mail ein, um einen Link zum Zurücksetzen zu erhalten.' 
-                      : 'Melde dich an, um deine Looks zu speichern und exklusive Tipps zu erhalten.'}
+                    {pendingCheckoutPlan 
+                      ? 'Bitte logge dich ein oder erstelle ein Konto, um deine Styles dauerhaft zu speichern und die Zahlung abzuschließen.'
+                      : isForgotPassword 
+                        ? 'Gib deine E-Mail ein, um einen Link zum Zurücksetzen zu erhalten.' 
+                        : 'Melde dich an, um deine Looks zu speichern und exklusive Tipps zu erhalten.'}
                   </p>
                 </div>
 
