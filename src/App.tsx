@@ -1007,17 +1007,29 @@ export default function App() {
         console.log("Redirecting to Stripe:", data.url);
         
         // Save current results to localStorage before redirecting
-        if (results && results.length > 0) {
-          console.log("Saving results to localStorage for post-payment restoration");
-          localStorage.setItem('hairvision_pending_results', JSON.stringify(results));
-          if (selectedResult) {
-            localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
+        try {
+          if (results && results.length > 0) {
+            console.log("Saving results to localStorage for post-payment restoration");
+            localStorage.setItem('hairvision_pending_results', JSON.stringify(results));
+            if (selectedResult) {
+              localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
+            }
+            if (customResults && customResults.length > 0) {
+              localStorage.setItem('hairvision_pending_custom_results', JSON.stringify(customResults));
+            }
+            if (image) {
+              localStorage.setItem('hairvision_pending_image', image);
+            }
           }
-          if (customResults && customResults.length > 0) {
-            localStorage.setItem('hairvision_pending_custom_results', JSON.stringify(customResults));
-          }
-          if (image) {
-            localStorage.setItem('hairvision_pending_image', image);
+        } catch (storageError) {
+          console.warn("Could not save all results to localStorage (quota exceeded). Continuing checkout anyway.", storageError);
+          // Try to save at least the selected result if possible
+          try {
+            if (selectedResult) {
+              localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
+            }
+          } catch (e) {
+            console.warn("Even selected result was too large for localStorage.");
           }
         }
 
