@@ -149,6 +149,15 @@ async function startServer() {
     }
   });
 
+  apiRouter.all("*", (req, res) => {
+    console.warn(`API Route not found: ${req.method} ${req.url}`);
+    res.status(404).json({ 
+      error: "API Route not found", 
+      method: req.method, 
+      url: req.url 
+    });
+  });
+
   app.use("/api", apiRouter);
 
   // Vite middleware for development
