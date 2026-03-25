@@ -142,7 +142,13 @@ export default function App() {
   useEffect(() => {
     // Fetch client IP for usage tracking
     fetch('/api/get-client-ip')
-      .then(res => res.json())
+      .then(res => {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          return res.json();
+        }
+        throw new Error("Invalid response from server");
+      })
       .then(data => setClientIp(data.ip))
       .catch(err => console.error("Failed to fetch IP", err));
 
@@ -966,8 +972,18 @@ export default function App() {
       
       clearTimeout(timeoutId);
       console.log("Response status:", response.status);
-      const data = await response.json();
-      console.log("Response data:", data);
+      
+      const contentType = response.headers.get("content-type");
+      let data;
+      
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+        console.log("Response data:", data);
+      } else {
+        const text = await response.text();
+        console.error("Received non-JSON response:", text);
+        throw new Error("Der Server hat eine ungültige Antwort gesendet. Bitte versuche es später erneut.");
+      }
       
       if (!response.ok) {
         throw new Error(data.error || "Zahlungsvorgang konnte nicht gestartet werden.");
