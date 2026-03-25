@@ -7,6 +7,8 @@ const getAI = () => {
     
     // Priority list of sources for the API key
     const sources = [
+      () => (import.meta as any).env?.VITE_GEMINI_API_KEY,
+      () => (import.meta as any).env?.VITE_API_KEY,
       () => process.env.GEMINI_API_KEY,
       () => process.env.API_KEY,
       () => win.API_KEY,
