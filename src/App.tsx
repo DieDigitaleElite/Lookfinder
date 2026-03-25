@@ -991,12 +991,20 @@ export default function App() {
           }
         }
 
-        // Try to open in a new tab first for better iframe compatibility
-        const stripeWindow = window.open(data.url, '_blank');
+        // For mobile, direct redirect is often more reliable than window.open
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         
-        if (!stripeWindow || stripeWindow.closed || typeof stripeWindow.closed === 'undefined') {
-          console.log("Popup blocked, falling back to iframe redirect");
+        if (isMobile) {
+          console.log("Mobile detected, using direct redirect");
           window.location.href = data.url;
+        } else {
+          // Try to open in a new tab first for better iframe compatibility on desktop
+          const stripeWindow = window.open(data.url, '_blank');
+          
+          if (!stripeWindow || stripeWindow.closed || typeof stripeWindow.closed === 'undefined') {
+            console.log("Popup blocked or not supported, falling back to direct redirect");
+            window.location.href = data.url;
+          }
         }
       } else {
         throw new Error("Keine Checkout-URL erhalten.");
@@ -2646,16 +2654,30 @@ export default function App() {
                     <div className="text-center mb-6 lg:mb-8">
                       <h3 className="text-xl lg:text-2xl font-bold text-brand-primary mb-2">Wähle deinen Plan</h3>
                       <p className="text-sm text-brand-primary/60">Keine versteckten Kosten. Jederzeit kündbar.</p>
+                      
+                      {error && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs border border-red-100 flex items-center gap-2 justify-center"
+                        >
+                          <AlertCircle size={14} />
+                          <span>{error}</span>
+                        </motion.div>
+                      )}
                     </div>
 
                     <div className="space-y-3 lg:space-y-4">
                       {/* Legal Checkboxes */}
-                      <div className="space-y-3 mb-6 p-4 bg-black/5 rounded-2xl border border-black/5">
+                      <div className={`space-y-3 mb-6 p-4 rounded-2xl border transition-all ${(!agreedToTerms || !agreedToWiderruf) && error ? 'bg-red-50 border-red-200' : 'bg-black/5 border-black/5'}`}>
                         <label className="flex items-start gap-3 cursor-pointer group">
                           <input 
                             type="checkbox" 
                             checked={agreedToTerms} 
-                            onChange={(e) => setAgreedToTerms(e.target.checked)}
+                            onChange={(e) => {
+                              setAgreedToTerms(e.target.checked);
+                              if (e.target.checked && agreedToWiderruf) setError(null);
+                            }}
                             className="mt-1 w-4 h-4 rounded border-gray-300 text-[#FF9EBE] focus:ring-[#FF9EBE]"
                           />
                           <span className="text-[10px] lg:text-xs text-brand-primary/60 leading-relaxed">
@@ -2666,7 +2688,10 @@ export default function App() {
                           <input 
                             type="checkbox" 
                             checked={agreedToWiderruf} 
-                            onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                            onChange={(e) => {
+                              setAgreedToWiderruf(e.target.checked);
+                              if (e.target.checked && agreedToTerms) setError(null);
+                            }}
                             className="mt-1 w-4 h-4 rounded border-gray-300 text-[#FF9EBE] focus:ring-[#FF9EBE]"
                           />
                           <span className="text-[10px] lg:text-xs text-brand-primary/60 leading-relaxed">
@@ -2684,7 +2709,7 @@ export default function App() {
                           }
                           handleCheckout('yearly');
                         }}
-                        disabled={isCheckingOut || !agreedToTerms || !agreedToWiderruf}
+                        disabled={isCheckingOut}
                         className="w-full p-6 lg:p-8 border-4 border-[#FF9EBE] rounded-3xl bg-[#FF9EBE]/5 hover:bg-[#FF9EBE]/10 transition-all text-left group relative overflow-hidden disabled:opacity-50 disabled:grayscale shadow-xl scale-105 z-10"
                       >
                         <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] lg:text-xs font-black px-3 lg:px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
@@ -2701,8 +2726,8 @@ export default function App() {
                           <p className="text-sm lg:text-base font-bold text-[#FF9EBE]">Du sparst 52 % – nur 3,33 € pro Monat</p>
                           <p className="text-xs lg:text-sm text-brand-primary/60">Unbegrenzt testen + monatlich neue Trends + Profi-Guide</p>
                         </div>
-                        <div className="mt-4 w-full py-3 bg-[#FF9EBE] text-white text-center font-black rounded-xl group-hover:bg-[#FF9EBE]/90 transition-colors uppercase tracking-widest text-sm">
-                          Jahresabo starten
+                        <div className="mt-4 w-full py-3 bg-[#FF9EBE] text-white text-center font-black rounded-xl group-hover:bg-[#FF9EBE]/90 transition-colors uppercase tracking-widest text-sm flex items-center justify-center gap-2">
+                          {isCheckingOut ? <Loader2 className="animate-spin" size={18} /> : "Jahresabo starten"}
                         </div>
                       </button>
 
@@ -2715,7 +2740,7 @@ export default function App() {
                           }
                           handleCheckout('monthly');
                         }}
-                        disabled={isCheckingOut || !agreedToTerms || !agreedToWiderruf}
+                        disabled={isCheckingOut}
                         className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
                       >
                         <div className="absolute top-0 right-0 bg-brand-primary text-white text-[9px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-widest">
@@ -2727,8 +2752,8 @@ export default function App() {
                         </div>
                         <div className="flex justify-between items-end">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Flexibel jederzeit kündbar.</p>
-                          <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors">
-                            Monatsabo starten
+                          <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
+                            {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "Monatsabo starten"}
                           </div>
                         </div>
                       </button>
@@ -2742,7 +2767,7 @@ export default function App() {
                           }
                           handleCheckout('single');
                         }}
-                        disabled={isCheckingOut || !agreedToTerms || !agreedToWiderruf}
+                        disabled={isCheckingOut}
                         className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
                       >
                         <div className="flex justify-between items-center mb-1">
@@ -2751,8 +2776,8 @@ export default function App() {
                         </div>
                         <div className="flex justify-between items-end">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Schalte alle 9 Bilder dieser Analyse frei.</p>
-                          <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors">
-                            Jetzt freischalten
+                          <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
+                            {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "Jetzt freischalten"}
                           </div>
                         </div>
                       </button>
