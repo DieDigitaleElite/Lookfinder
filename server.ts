@@ -108,7 +108,7 @@ async function startServer() {
       }
 
       const protocol = req.headers["x-forwarded-proto"] || (req.headers.host?.includes('localhost') ? 'http' : 'https');
-      const host = req.headers["host"];
+      const host = req.headers["host"] || "localhost:3000";
       const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
       console.log(`Creating checkout session with baseUrl: ${baseUrl} (Protocol: ${protocol}, Host: ${host}) for user: ${userId}`);
 
