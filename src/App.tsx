@@ -53,15 +53,39 @@ import {
 } from './firebase';
 
 export default function App() {
-  const [image, setImage] = useState<string | null>(null);
-  const [mimeType, setMimeType] = useState<string>('');
+  const [image, setImage] = useState<string | null>(() => localStorage.getItem('hairvision_pending_image'));
+  const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('hairvision_pending_mime_type') || '');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [results, setResults] = useState<GeneratedResult[]>([]);
-  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(null);
+  const [results, setResults] = useState<GeneratedResult[]>(() => {
+    const saved = localStorage.getItem('hairvision_pending_results');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse pending results", e);
+      }
+    }
+    return [];
+  });
+  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(() => {
+    const saved = localStorage.getItem('hairvision_pending_selected_result');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse pending selected result", e);
+      }
+    }
+    return null;
+  });
   const [error, setError] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
-  const [isPremium, setIsPremium] = useState(false);
+  const [isPremium, setIsPremium] = useState(() => {
+    // Initialize from localStorage if payment success is pending
+    const params = new URLSearchParams(window.location.search);
+    return params.get('payment') === 'success' || localStorage.getItem('hairvision_pending_plan') !== null;
+  });
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -73,8 +97,20 @@ export default function App() {
   const [selectedLibraryStyle, setSelectedLibraryStyle] = useState<typeof HAIRSTYLE_LIBRARY[0] | null>(null);
   const [selectedColor, setSelectedColor] = useState<typeof HAIR_COLORS[0] | null>(null);
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
-  const [customResults, setCustomResults] = useState<GeneratedResult[]>([]);
+  const [customResults, setCustomResults] = useState<GeneratedResult[]>(() => {
+    const saved = localStorage.getItem('hairvision_pending_custom_results');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse pending custom results", e);
+      }
+    }
+    return [];
+  });
   const [needsApiKey, setNeedsApiKey] = useState(false);
+  
+  const isPaymentProcessingRef = useRef(false);
   
   // Legal Modals State
   const [activeLegalModal, setActiveLegalModal] = useState<'impressum' | 'datenschutz' | 'agb' | 'widerruf' | 'about' | null>(null);
@@ -178,6 +214,13 @@ export default function App() {
             const data = docSnap.data();
             console.log("User profile loaded:", data);
             
+            // If we are currently processing a payment, don't let the snapshot overwrite our local premium state
+            // unless the snapshot itself shows premium is active
+            if (isPaymentProcessingRef.current && !data.isPremium) {
+              console.log("Ignoring non-premium snapshot during payment processing");
+              return;
+            }
+
             let premiumActive = data.isPremium || false;
             if (premiumActive && data.premiumExpiresAt) {
               const expiryDate = data.premiumExpiresAt.toDate();
@@ -223,6 +266,7 @@ export default function App() {
       
       if (isPaymentSuccess) {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid);
+        isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid });
         // Save plan/uid to localStorage in case of reloads during login
         localStorage.setItem('hairvision_pending_plan', plan);
@@ -230,43 +274,8 @@ export default function App() {
       } else if (hasPendingData && !pendingPayment) {
         // Restore pending payment state from localStorage if URL params are gone
         console.log("Restoring pending payment state from localStorage. Plan:", plan, "UID:", uid);
+        isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid });
-      }
-      
-      // Restore results from localStorage if they exist
-      const savedResultsStr = localStorage.getItem('hairvision_pending_results');
-      if (savedResultsStr && results.length === 0) {
-        try {
-          const restoredResults = JSON.parse(savedResultsStr);
-          if (restoredResults && restoredResults.length > 0) {
-            console.log("Restoring results from localStorage:", restoredResults.length);
-            setResults(restoredResults);
-            
-            // Also restore selectedResult if it was saved
-            const savedSelectedStr = localStorage.getItem('hairvision_pending_selected_result');
-            if (savedSelectedStr) {
-              const restoredSelected = JSON.parse(savedSelectedStr);
-              setSelectedResult(restoredSelected);
-            }
-
-            // Restore custom results if they exist
-            const savedCustomStr = localStorage.getItem('hairvision_pending_custom_results');
-            if (savedCustomStr) {
-              const restoredCustom = JSON.parse(savedCustomStr);
-              setCustomResults(restoredCustom);
-            }
-
-            // Restore image if it exists
-            const savedImage = localStorage.getItem('hairvision_pending_image');
-            if (savedImage) {
-              setImage(savedImage);
-            }
-            
-            // DO NOT clear them yet! We clear them in the pendingPayment effect after Firestore sync
-          }
-        } catch (err) {
-          console.error("Failed to restore results from localStorage", err);
-        }
       }
       
       // Set local state immediately for better UX
@@ -342,6 +351,11 @@ export default function App() {
         .then(() => {
           console.log("Premium status successfully updated in Firestore for user:", user.uid);
           
+          // Keep isPaymentProcessingRef true for a bit longer to ensure snapshot doesn't revert
+          setTimeout(() => {
+            isPaymentProcessingRef.current = false;
+          }, 5000);
+
           // Trigger Upsell Modal if it was a single unlock
           if (pendingPayment.plan === 'single') {
             setTimeout(() => {
@@ -351,14 +365,8 @@ export default function App() {
           
           setPendingPayment(null);
           
-          // Clear localStorage ONLY after successful Firestore update
-          console.log("Clearing pending payment data from localStorage");
-          localStorage.removeItem('hairvision_pending_results');
-          localStorage.removeItem('hairvision_pending_selected_result');
-          localStorage.removeItem('hairvision_pending_custom_results');
-          localStorage.removeItem('hairvision_pending_image');
-          localStorage.removeItem('hairvision_pending_plan');
-          localStorage.removeItem('hairvision_pending_uid');
+          // We don't clear localStorage here anymore. 
+          // We clear it only when all results are saved to Firestore.
           
           // Clean up URL
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -370,13 +378,97 @@ export default function App() {
         console.warn("Payment UID mismatch. URL UID:", pendingPayment.uid, "Current User UID:", user.uid);
       }
     } else if (!user && pendingPayment) {
-      console.log("Payment success detected but user not logged in yet.");
-      if (!showLoginModal) {
-        setAuthMessage({ type: 'info', text: "Zahlung erfolgreich! Bitte logge dich ein, um deinen Premium-Zugang zu aktivieren." });
-        setShowLoginModal(true);
+      console.log("Payment success detected but user not logged in yet. Showing results from localStorage.");
+      if (!authMessage) {
+        setAuthMessage({ type: 'info', text: "Zahlung erfolgreich! Bitte logge dich ein, um deine Ergebnisse dauerhaft in deinem Profil zu speichern." });
       }
     }
   }, [user, pendingPayment, showLoginModal]);
+
+  // Clear pending data from localStorage once everything is safely in Firestore
+  useEffect(() => {
+    if (user && results.length > 0 && results.every(r => r.imageUrl && isResultSaved(r.id))) {
+      console.log("All results saved to Firestore. Clearing localStorage backup.");
+      localStorage.removeItem('hairvision_pending_results');
+      localStorage.removeItem('hairvision_pending_selected_result');
+      localStorage.removeItem('hairvision_pending_custom_results');
+      localStorage.removeItem('hairvision_pending_image');
+      localStorage.removeItem('hairvision_pending_mime_type');
+      localStorage.removeItem('hairvision_pending_plan');
+      localStorage.removeItem('hairvision_pending_uid');
+    }
+  }, [user, results, savedResults]);
+
+  // Auto-resume generation of missing images if user becomes premium
+  useEffect(() => {
+    const resumeGeneration = async () => {
+      if (isPremium && results.length > 0 && !isGenerating && image) {
+        const missingIndices = results
+          .map((r, i) => (r.imageUrl === "" && !r.failed ? i : -1))
+          .filter(i => i !== -1);
+        
+        if (missingIndices.length > 0) {
+          console.log("Resuming generation for missing premium styles:", missingIndices);
+          setIsGenerating(true);
+          setGenerationProgress(Math.round(((results.length - missingIndices.length) / results.length) * 100));
+          
+          const base64Data = image.split(',')[1];
+          const mimeType = image.split(';')[0].split(':')[1] || 'image/jpeg';
+          
+          const generationPromises = missingIndices.map(async (i) => {
+            const suggestion = results[i];
+            try {
+              // Staggered delay
+              await new Promise(resolve => setTimeout(resolve, (i - 3) * 300));
+              
+              const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
+              
+              setResults(prev => {
+                const newResults = [...prev];
+                if (imageUrl) {
+                  newResults[i] = { ...newResults[i], imageUrl, failed: false };
+                } else {
+                  newResults[i] = { ...newResults[i], failed: true };
+                }
+                return newResults;
+              });
+            } catch (err) {
+              console.error(`Failed to resume generation for style ${i}`, err);
+              setResults(prev => {
+                const newResults = [...prev];
+                newResults[i] = { ...newResults[i], failed: true };
+                return newResults;
+              });
+            }
+          });
+
+          // Track progress
+          const progressInterval = setInterval(() => {
+            setResults(currentResults => {
+              const completedCount = currentResults.filter(r => r.imageUrl).length;
+              setGenerationProgress(Math.round((completedCount / currentResults.length) * 100));
+              return currentResults;
+            });
+          }, 500);
+
+          await Promise.all(generationPromises);
+          clearInterval(progressInterval);
+          setGenerationProgress(100);
+          setIsGenerating(false);
+          
+          // Trigger confetti again for the full unlock
+          confetti({
+            particleCount: 100,
+            spread: 60,
+            origin: { y: 0.7 },
+            colors: ['#FF9EBE', '#1a1a1a', '#ffffff']
+          });
+        }
+      }
+    };
+
+    resumeGeneration();
+  }, [isPremium, results.length, isGenerating, image]);
 
   // Auto-save results when user logs in or results are generated while logged in
   useEffect(() => {
@@ -755,6 +847,14 @@ export default function App() {
     setIsAnalyzing(true);
     setError(null);
     
+    // Clear any previous pending data when starting a new analysis
+    localStorage.removeItem('hairvision_pending_results');
+    localStorage.removeItem('hairvision_pending_selected_result');
+    localStorage.removeItem('hairvision_pending_custom_results');
+    localStorage.removeItem('hairvision_pending_image');
+    localStorage.removeItem('hairvision_pending_plan');
+    localStorage.removeItem('hairvision_pending_uid');
+    
     try {
       const base64Data = image.split(',')[1];
       const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
@@ -987,6 +1087,15 @@ export default function App() {
       console.log("User not logged in, prompting for login before checkout");
       setPendingCheckoutPlan(plan);
       setAuthMessage({ type: 'info', text: "Bitte erstelle ein kostenloses Konto oder logge dich ein, um mit der Zahlung fortzufahren." });
+      
+      // Automatically close any open paywall/pricing modals
+      setShowPricingModal(false);
+      setShowUpsellModal(false);
+      
+      // Default to registration for new users
+      setIsRegistering(true);
+      setIsForgotPassword(false);
+      
       setShowLoginModal(true);
       return;
     }
@@ -1079,6 +1188,9 @@ export default function App() {
             }
             if (image) {
               localStorage.setItem('hairvision_pending_image', image);
+            }
+            if (mimeType) {
+              localStorage.setItem('hairvision_pending_mime_type', mimeType);
             }
           }
         } catch (storageError) {
@@ -2306,7 +2418,7 @@ export default function App() {
       {/* Login Modal */}
       <AnimatePresence>
         {showLoginModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
