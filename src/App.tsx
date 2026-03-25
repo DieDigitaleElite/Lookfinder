@@ -982,7 +982,7 @@ export default function App() {
       } else {
         const text = await response.text();
         console.error("Received non-JSON response:", text);
-        throw new Error("Der Server hat eine ungültige Antwort gesendet. Bitte versuche es später erneut.");
+        throw new Error(`Der Server hat eine ungültige Antwort gesendet (${response.status}). Inhalt: ${text.substring(0, 100)}...`);
       }
       
       if (!response.ok) {

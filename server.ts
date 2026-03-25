@@ -29,6 +29,7 @@ function getStripe() {
 }
 
 async function startServer() {
+  console.log("Starting server with NODE_ENV:", process.env.NODE_ENV);
   const app = express();
   const PORT = 3000;
 
@@ -41,10 +42,12 @@ async function startServer() {
   });
 
     app.post("/api/create-checkout-session", async (req, res) => {
-    console.log("Checkout request received:", req.body);
+    console.log("Checkout request received at /api/create-checkout-session:", req.body);
     try {
       const { plan, userId } = req.body;
+      console.log(`Plan: ${plan}, UserID: ${userId}`);
       const stripeClient = getStripe();
+      console.log("Stripe client initialized");
       
       let lineItems: any[] = [];
       let mode: "payment" | "subscription" = "payment";
