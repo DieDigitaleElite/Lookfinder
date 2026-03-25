@@ -1,0 +1,56 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about the registered user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "isPremium": { "type": "boolean", "description": "Whether the user has purchased premium access" }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "HairstyleResult": {
+      "title": "Saved Hairstyle",
+      "description": "A hairstyle result saved by the user.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "rating": { "type": "number" },
+        "barberInstructions": { "type": "string" },
+        "suitabilityReason": { "type": "string" },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "recommendedProducts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["id", "userId", "name", "imageUrl", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document"
+    },
+    "/users/{userId}/results/{resultId}": {
+      "schema": "HairstyleResult",
+      "description": "Collection of saved hairstyle results for a specific user"
+    }
+  }
+}
