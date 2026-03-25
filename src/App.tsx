@@ -52,39 +52,100 @@ import {
   OperationType
 } from './firebase';
 
+// IndexedDB Helper for large data persistence (e.g. original images)
+const DB_NAME = 'hairvision_db';
+const STORE_NAME = 'pending_state';
+
+const saveToIDB = async (key: string, value: any): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      store.put(value, key);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => {
+        console.error("IDB save error", tx.error);
+        resolve(false);
+      };
+    };
+    request.onerror = () => {
+      console.error("IDB open error", request.error);
+      resolve(false);
+    };
+  });
+};
+
+const getFromIDB = async (key: string): Promise<any> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME);
+      }
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        resolve(null);
+        return;
+      }
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(key);
+      getReq.onsuccess = () => resolve(getReq.result);
+      getReq.onerror = () => {
+        console.error("IDB get error", getReq.error);
+        resolve(null);
+      };
+    };
+    request.onerror = () => {
+      console.error("IDB open error", request.error);
+      resolve(null);
+    };
+  });
+};
+
+const clearIDB = async (): Promise<void> => {
+  return new Promise((resolve) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onsuccess = () => {
+      const db = request.result;
+      if (db.objectStoreNames.contains(STORE_NAME)) {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).clear();
+        tx.oncomplete = () => resolve();
+      } else {
+        resolve();
+      }
+    };
+    request.onerror = () => resolve();
+  });
+};
+
 export default function App() {
-  const [image, setImage] = useState<string | null>(() => localStorage.getItem('hairvision_pending_image'));
-  const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('hairvision_pending_mime_type') || '');
+  const [image, setImage] = useState<string | null>(null);
+  const [mimeType, setMimeType] = useState<string>('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [results, setResults] = useState<GeneratedResult[]>(() => {
-    const saved = localStorage.getItem('hairvision_pending_results');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse pending results", e);
-      }
-    }
-    return [];
-  });
-  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(() => {
-    const saved = localStorage.getItem('hairvision_pending_selected_result');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse pending selected result", e);
-      }
-    }
-    return null;
-  });
+  const [results, setResults] = useState<GeneratedResult[]>([]);
+  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isPremium, setIsPremium] = useState(() => {
     // Initialize from localStorage if payment success is pending
     const params = new URLSearchParams(window.location.search);
     return params.get('payment') === 'success' || localStorage.getItem('hairvision_pending_plan') !== null;
+  });
+  const [isRestoring, setIsRestoring] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('payment') === 'success' || localStorage.getItem('hairvision_pending_results') !== null;
   });
   const [userPlan, setUserPlan] = useState<string | null>(null);
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
@@ -97,17 +158,7 @@ export default function App() {
   const [selectedLibraryStyle, setSelectedLibraryStyle] = useState<typeof HAIRSTYLE_LIBRARY[0] | null>(null);
   const [selectedColor, setSelectedColor] = useState<typeof HAIR_COLORS[0] | null>(null);
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
-  const [customResults, setCustomResults] = useState<GeneratedResult[]>(() => {
-    const saved = localStorage.getItem('hairvision_pending_custom_results');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Failed to parse pending custom results", e);
-      }
-    }
-    return [];
-  });
+  const [customResults, setCustomResults] = useState<GeneratedResult[]>([]);
   const [needsApiKey, setNeedsApiKey] = useState(false);
   
   const isPaymentProcessingRef = useRef(false);
@@ -175,6 +226,43 @@ export default function App() {
   const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
 
   const unsubsRef = useRef<(() => void)[]>([]);
+
+  // Restore state from IndexedDB on mount
+  useEffect(() => {
+    const restoreState = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const isPaymentSuccess = params.get('payment') === 'success';
+      const hasPendingResults = localStorage.getItem('hairvision_pending_results') !== null;
+
+      if (isPaymentSuccess || hasPendingResults) {
+        console.log("Restoration detected. Loading from IndexedDB...");
+        try {
+          const [idbResults, idbSelected, idbCustom, idbImage, idbMime] = await Promise.all([
+            getFromIDB('results'),
+            getFromIDB('selectedResult'),
+            getFromIDB('customResults'),
+            getFromIDB('image'),
+            getFromIDB('mimeType')
+          ]);
+
+          if (idbResults) setResults(idbResults);
+          if (idbSelected) setSelectedResult(idbSelected);
+          if (idbCustom) setCustomResults(idbCustom);
+          if (idbImage) setImage(idbImage);
+          if (idbMime) setMimeType(idbMime);
+          
+          console.log("Restoration from IndexedDB complete.");
+        } catch (err) {
+          console.error("Failed to restore from IndexedDB", err);
+        } finally {
+          setIsRestoring(false);
+        }
+      } else {
+        setIsRestoring(false);
+      }
+    };
+    restoreState();
+  }, []);
 
   useEffect(() => {
     // Fetch client IP for usage tracking
@@ -385,10 +473,10 @@ export default function App() {
     }
   }, [user, pendingPayment, showLoginModal]);
 
-  // Clear pending data from localStorage once everything is safely in Firestore
+  // Clear pending data from localStorage and IndexedDB once everything is safely in Firestore
   useEffect(() => {
     if (user && results.length > 0 && results.every(r => r.imageUrl && isResultSaved(r.id))) {
-      console.log("All results saved to Firestore. Clearing localStorage backup.");
+      console.log("All results saved to Firestore. Clearing temporary storage.");
       localStorage.removeItem('hairvision_pending_results');
       localStorage.removeItem('hairvision_pending_selected_result');
       localStorage.removeItem('hairvision_pending_custom_results');
@@ -396,6 +484,7 @@ export default function App() {
       localStorage.removeItem('hairvision_pending_mime_type');
       localStorage.removeItem('hairvision_pending_plan');
       localStorage.removeItem('hairvision_pending_uid');
+      clearIDB();
     }
   }, [user, results, savedResults]);
 
@@ -1175,34 +1264,29 @@ export default function App() {
           }
         }
 
-        // Save current results to localStorage before redirecting (as backup)
+        // Save current results to localStorage and IndexedDB before redirecting (as backup)
         try {
           if (results && results.length > 0) {
-            console.log("Saving results to localStorage for post-payment restoration");
-            localStorage.setItem('hairvision_pending_results', JSON.stringify(results));
-            if (selectedResult) {
-              localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
-            }
-            if (customResults && customResults.length > 0) {
-              localStorage.setItem('hairvision_pending_custom_results', JSON.stringify(customResults));
-            }
-            if (image) {
-              localStorage.setItem('hairvision_pending_image', image);
-            }
-            if (mimeType) {
-              localStorage.setItem('hairvision_pending_mime_type', mimeType);
-            }
+            console.log("Saving results to storage for post-payment restoration");
+            
+            // Save to localStorage (small metadata)
+            localStorage.setItem('hairvision_pending_results', 'true'); // Flag for restoration
+            localStorage.setItem('hairvision_pending_plan', plan);
+            if (auth.currentUser?.uid) localStorage.setItem('hairvision_pending_uid', auth.currentUser.uid);
+            
+            // Save to IndexedDB (large data)
+            await Promise.all([
+              saveToIDB('results', results),
+              saveToIDB('selectedResult', selectedResult),
+              saveToIDB('customResults', customResults),
+              saveToIDB('image', image),
+              saveToIDB('mimeType', mimeType)
+            ]);
+            
+            console.log("All data saved to IndexedDB successfully.");
           }
         } catch (storageError) {
-          console.warn("Could not save all results to localStorage (quota exceeded). Continuing checkout anyway.", storageError);
-          // Try to save at least the selected result if possible
-          try {
-            if (selectedResult) {
-              localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
-            }
-          } catch (e) {
-            console.warn("Even selected result was too large for localStorage.");
-          }
+          console.warn("Could not save all results to storage.", storageError);
         }
 
         // For mobile, direct redirect is often more reliable than window.open
@@ -1488,6 +1572,19 @@ export default function App() {
                 </div>
               )}
             </motion.div>
+          ) : isRestoring ? (
+            <div className="flex-1 flex flex-col items-center justify-center py-24 space-y-6">
+              <div className="relative">
+                <div className="w-24 h-24 border-4 border-[#FF9EBE]/20 border-t-[#FF9EBE] rounded-full animate-spin"></div>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Scissors className="text-[#FF9EBE] animate-pulse" size={32} />
+                </div>
+              </div>
+              <div className="text-center space-y-2">
+                <h3 className="text-2xl font-serif font-bold">Ergebnisse werden geladen...</h3>
+                <p className="text-brand-primary/60">Einen Moment bitte, wir stellen deine Analyse wieder her. ✨</p>
+              </div>
+            </div>
           ) : !image ? (
             <div className="space-y-16 md:space-y-40 pb-24">
               <motion.div 
