@@ -28,138 +28,139 @@ function getStripe() {
   return stripe;
 }
 
+const app = express();
+const PORT = 3000;
+
+app.use(express.json());
+
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
+// API Routes
+const apiRouter = express.Router();
+
+apiRouter.get("/test", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    message: "API is working", 
+    env: process.env.NODE_ENV,
+    time: new Date().toISOString()
+  });
+});
+
+apiRouter.get("/get-client-ip", (req, res) => {
+  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
+});
+
+apiRouter.post("/create-checkout-session", async (req, res) => {
+  console.log("Checkout request received at /api/create-checkout-session:", req.body);
+  try {
+    const { plan, userId } = req.body;
+    console.log(`Plan: ${plan}, UserID: ${userId}`);
+    const stripeClient = getStripe();
+    console.log("Stripe client initialized");
+    
+    let lineItems: any[] = [];
+    let mode: "payment" | "subscription" = "payment";
+    
+    if (plan === "monthly") {
+      mode = "subscription";
+      lineItems = [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: "HairVision Monatsabo",
+            description: "Flexibel jederzeit kündbar - Alle Styles & Trends",
+          },
+          unit_amount: 699,
+          recurring: { interval: "month" },
+        },
+        quantity: 1,
+      }];
+    } else if (plan === "upsell") {
+      mode = "subscription";
+      lineItems = [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: "HairVision Pro Upgrade (Unlimited)",
+            description: "Upgrade auf Monatsabo - Alle Styles & Trends unbegrenzt",
+          },
+          unit_amount: 400,
+          recurring: { interval: "month" },
+        },
+        quantity: 1,
+      }];
+    } else if (plan === "yearly") {
+      mode = "subscription";
+      lineItems = [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: "HairVision Styling-Flatrate Jahresabo",
+            description: "Unbegrenzt testen + monatlich neue Trends + Profi-Guide",
+          },
+          unit_amount: 3999,
+          recurring: { interval: "year" },
+        },
+        quantity: 1,
+      }];
+    } else {
+      // Default to single unlock
+      mode = "payment";
+      lineItems = [{
+        price_data: {
+          currency: "eur",
+          product_data: {
+            name: "HairVision Single Unlock",
+            description: "Schalte alle 9 Frisuren für diese Analyse frei",
+          },
+          unit_amount: 199,
+        },
+        quantity: 1,
+      }];
+    }
+
+    const protocol = req.headers["x-forwarded-proto"] || (req.headers.host?.includes('localhost') ? 'http' : 'https');
+    const host = req.headers["host"] || "localhost:3000";
+    const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
+    console.log(`Creating checkout session with baseUrl: ${baseUrl} (Protocol: ${protocol}, Host: ${host}) for user: ${userId}`);
+
+    const session = await stripeClient.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: lineItems,
+      mode: mode,
+      client_reference_id: userId,
+      success_url: `${baseUrl}?payment=success&plan=${plan || 'single'}${userId ? `&uid=${userId}` : ''}`,
+      cancel_url: `${baseUrl}?payment=cancel`,
+    });
+
+    console.log("Stripe session created:", session.id);
+    res.json({ id: session.id, url: session.url });
+  } catch (error: any) {
+    console.error("Stripe error details:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.all("*", (req, res) => {
+  console.warn(`API Route not found: ${req.method} ${req.url}`);
+  res.status(404).json({ 
+    error: "API Route not found", 
+    method: req.method, 
+    url: req.url 
+  });
+});
+
+app.use("/api", apiRouter);
+
 async function startServer() {
   console.log("Starting server with NODE_ENV:", process.env.NODE_ENV);
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json());
-
-  // Logging middleware
-  app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-  });
-
-  // API Routes
-  const apiRouter = express.Router();
-
-  apiRouter.get("/test", (req, res) => {
-    res.json({ 
-      status: "ok", 
-      message: "API is working", 
-      env: process.env.NODE_ENV,
-      time: new Date().toISOString()
-    });
-  });
-
-  apiRouter.get("/get-client-ip", (req, res) => {
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
-    res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
-  });
-
-  apiRouter.post("/create-checkout-session", async (req, res) => {
-    console.log("Checkout request received at /api/create-checkout-session:", req.body);
-    try {
-      const { plan, userId } = req.body;
-      console.log(`Plan: ${plan}, UserID: ${userId}`);
-      const stripeClient = getStripe();
-      console.log("Stripe client initialized");
-      
-      let lineItems: any[] = [];
-      let mode: "payment" | "subscription" = "payment";
-      
-      if (plan === "monthly") {
-        mode = "subscription";
-        lineItems = [{
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "HairVision Monatsabo",
-              description: "Flexibel jederzeit kündbar - Alle Styles & Trends",
-            },
-            unit_amount: 699,
-            recurring: { interval: "month" },
-          },
-          quantity: 1,
-        }];
-      } else if (plan === "upsell") {
-        mode = "subscription";
-        lineItems = [{
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "HairVision Pro Upgrade (Unlimited)",
-              description: "Upgrade auf Monatsabo - Alle Styles & Trends unbegrenzt",
-            },
-            unit_amount: 400,
-            recurring: { interval: "month" },
-          },
-          quantity: 1,
-        }];
-      } else if (plan === "yearly") {
-        mode = "subscription";
-        lineItems = [{
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "HairVision Styling-Flatrate Jahresabo",
-              description: "Unbegrenzt testen + monatlich neue Trends + Profi-Guide",
-            },
-            unit_amount: 3999,
-            recurring: { interval: "year" },
-          },
-          quantity: 1,
-        }];
-      } else {
-        // Default to single unlock
-        mode = "payment";
-        lineItems = [{
-          price_data: {
-            currency: "eur",
-            product_data: {
-              name: "HairVision Single Unlock",
-              description: "Schalte alle 9 Frisuren für diese Analyse frei",
-            },
-            unit_amount: 199,
-          },
-          quantity: 1,
-        }];
-      }
-
-      const protocol = req.headers["x-forwarded-proto"] || (req.headers.host?.includes('localhost') ? 'http' : 'https');
-      const host = req.headers["host"] || "localhost:3000";
-      const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
-      console.log(`Creating checkout session with baseUrl: ${baseUrl} (Protocol: ${protocol}, Host: ${host}) for user: ${userId}`);
-
-      const session = await stripeClient.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: lineItems,
-        mode: mode,
-        client_reference_id: userId,
-        success_url: `${baseUrl}?payment=success&plan=${plan || 'single'}${userId ? `&uid=${userId}` : ''}`,
-        cancel_url: `${baseUrl}?payment=cancel`,
-      });
-
-      console.log("Stripe session created:", session.id);
-      res.json({ id: session.id, url: session.url });
-    } catch (error: any) {
-      console.error("Stripe error details:", error);
-      res.status(500).json({ error: error.message });
-    }
-  });
-
-  apiRouter.all("*", (req, res) => {
-    console.warn(`API Route not found: ${req.method} ${req.url}`);
-    res.status(404).json({ 
-      error: "API Route not found", 
-      method: req.method, 
-      url: req.url 
-    });
-  });
-
-  app.use("/api", apiRouter);
-
+  
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -175,9 +176,14 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  // Only listen if not on Vercel
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+export default app;
