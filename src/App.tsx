@@ -982,7 +982,21 @@ export default function App() {
       } else {
         const text = await response.text();
         console.error("Received non-JSON response:", text);
-        throw new Error(`Der Server hat eine ungültige Antwort gesendet (${response.status}). Inhalt: ${text.substring(0, 100)}...`);
+        let errorMsg = `Der Server hat eine ungültige Antwort gesendet (${response.status}). Inhalt: ${text.substring(0, 100)}...`;
+        
+        // Try to check if the API prefix is even working
+        try {
+          const testRes = await fetch('/api/test');
+          if (!testRes.ok) {
+            errorMsg += ` (API-Test fehlgeschlagen: ${testRes.status})`;
+          } else {
+            const testData = await testRes.json();
+            errorMsg += ` (API-Test OK: ${testData.env})`;
+          }
+        } catch (e) {
+          errorMsg += ` (API-Test Netzwerkfehler)`;
+        }
+        throw new Error(errorMsg);
       }
       
       if (!response.ok) {

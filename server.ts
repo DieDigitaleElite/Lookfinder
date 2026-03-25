@@ -35,13 +35,30 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Logging middleware
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
+
   // API Routes
-  app.get("/api/get-client-ip", (req, res) => {
+  const apiRouter = express.Router();
+
+  apiRouter.get("/test", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      message: "API is working", 
+      env: process.env.NODE_ENV,
+      time: new Date().toISOString()
+    });
+  });
+
+  apiRouter.get("/get-client-ip", (req, res) => {
     const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
     res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
   });
 
-    app.post("/api/create-checkout-session", async (req, res) => {
+  apiRouter.post("/create-checkout-session", async (req, res) => {
     console.log("Checkout request received at /api/create-checkout-session:", req.body);
     try {
       const { plan, userId } = req.body;
@@ -131,6 +148,8 @@ async function startServer() {
       res.status(500).json({ error: error.message });
     }
   });
+
+  app.use("/api", apiRouter);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
