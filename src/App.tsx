@@ -86,7 +86,13 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('payment') === 'success' || localStorage.getItem('hairvision_pending_plan') !== null;
   });
-  const [userPlan, setUserPlan] = useState<string | null>(null);
+  const [userPlan, setUserPlan] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlPlan = params.get('plan');
+    if (urlPlan) return urlPlan === 'upsell' ? 'monthly' : urlPlan;
+    return localStorage.getItem('hairvision_pending_plan');
+  });
+  const isPro = isPremium && (userPlan === 'monthly' || userPlan === 'yearly');
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -2058,8 +2064,8 @@ export default function App() {
               })}
               </div>
 
-              {/* Premium Feature: Style Library & Color Picker */}
-              {isPremium && (
+              {/* Premium Feature: Style Library & Color Picker - ONLY FOR PRO USERS */}
+              {isPro ? (
                 <motion.div 
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -2179,6 +2185,55 @@ export default function App() {
                         </div>
                       )}
                     </div>
+                  </div>
+                </motion.div>
+              ) : (
+                /* Upsell for Style Library if not Pro */
+                <motion.div 
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-black/5 rounded-[3rem] p-8 lg:p-12 space-y-8 mt-12 text-center relative overflow-hidden group"
+                >
+                  {/* Background Decoration */}
+                  <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-[#FF9EBE]/10 rounded-full blur-3xl group-hover:bg-[#FF9EBE]/20 transition-colors" />
+                  
+                  <div className="relative z-10 space-y-6 max-w-2xl mx-auto">
+                    <div className="w-16 h-16 bg-[#FF9EBE] rounded-2xl flex items-center justify-center text-white mx-auto shadow-xl shadow-[#FF9EBE]/20 animate-pulse">
+                      <Star size={32} />
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <h2 className="text-3xl lg:text-4xl font-serif font-bold">Werde zum eigenen Stylist! ✨</h2>
+                      <p className="text-brand-primary/60 text-lg">
+                        Mit dem <span className="text-[#FF9EBE] font-bold">Pro-Upgrade</span> schaltest du die Style-Bibliothek frei und kannst unbegrenzt über 100 Frisuren & Farben direkt an dir selber testen.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+                      {[
+                        "🎨 Über 100 Frisuren & Farben testen",
+                        "🆕 Monatlich neue Trend-Kollektionen",
+                        "📖 Profi-Friseur-Guide als PDF",
+                        "💎 HD-Downloads ohne Wasserzeichen"
+                      ].map((benefit, i) => (
+                        <div key={i} className="flex items-center gap-3 bg-white/50 p-3 rounded-xl border border-white">
+                          <CheckCircle2 size={18} className="text-[#FF9EBE] shrink-0" />
+                          <span className="text-sm font-medium text-brand-primary/80">{benefit}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => setShowPricingModal(true)}
+                      className="inline-flex items-center gap-3 px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:bg-brand-primary/90 transition-all shadow-xl group"
+                    >
+                      Jetzt Pro-Upgrade sichern
+                      <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                    </button>
+                    
+                    <p className="text-xs text-brand-primary/40 font-medium">
+                      Bereits ab 3,33 € pro Monat verfügbar. Jederzeit kündbar.
+                    </p>
                   </div>
                 </motion.div>
               )}
