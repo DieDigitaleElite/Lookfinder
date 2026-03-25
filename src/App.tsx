@@ -1580,7 +1580,7 @@ export default function App() {
                                   <img key={i} src={`https://i.pravatar.cc/100?u=${i+10}`} className="w-6 h-6 rounded-full border-2 border-white" alt="User" referrerPolicy="no-referrer" />
                                 ))}
                               </div>
-                              <span className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest">50.000+ zufriedene Nutzer</span>
+                              <span className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest">1000+ zufriedene Nutzer</span>
                             </div>
                             <h3 className="text-3xl lg:text-5xl font-serif font-bold text-brand-primary leading-tight">
                               Wow – diese 3 Styles stehen dir schon unglaublich gut! 😍
@@ -1594,7 +1594,7 @@ export default function App() {
                               </p>
                               <div className="pt-4 border-t border-[#FF9EBE]/10">
                                 <p className="text-brand-primary font-bold mb-2">Oder werde zum eigenen Stylist mit der Styling-Flatrate. ✨</p>
-                                <p className="text-[#FF9EBE] font-black mb-4">Hol dir das Jahresabo und erhalte:</p>
+                                <p className="text-[#FF9EBE] font-black mb-4">Hol dir das Monats-oder Jahresabo ab 3,33€ und erhalte:</p>
                                 <ul className="text-left space-y-2 text-sm lg:text-base max-w-md mx-auto">
                                   <li className="flex items-center gap-2">🎨 Unbegrenzt über 100 Frisuren & Farben direkt an dir selber testen</li>
                                   <li className="flex items-center gap-2">✅ Alle 9 Styles dieser Analyse sofort</li>
@@ -1695,7 +1695,6 @@ export default function App() {
                           </button>
                           
                           <div className="flex flex-wrap justify-center gap-4 text-[10px] font-bold text-brand-primary/40 uppercase tracking-widest">
-                            <span className="flex items-center gap-1 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-100"><ShieldCheck size={12} className="text-emerald-500" /> 14-Tage Geld-zurück-Garantie</span>
                             <span className="flex items-center gap-1 bg-[#FF9EBE]/5 px-2 py-1 rounded-md border border-[#FF9EBE]/10"><CheckCircle2 size={12} className="text-[#FF9EBE]" /> Inkl. Friseur-Guide PDF</span>
                             <span className="flex items-center gap-1 bg-blue-50 px-2 py-1 rounded-md border border-blue-100"><Users size={12} className="text-blue-500" /> Von Stylisten empfohlen</span>
                           </div>
@@ -2773,10 +2772,10 @@ export default function App() {
                           Rechnung mit MwSt. wird automatisch per E-Mail versandt
                         </p>
                         <p className="text-[9px] lg:text-[10px] text-center text-brand-primary/40 uppercase tracking-widest font-bold flex items-center justify-center gap-2">
-                          <ShieldCheck size={12} className="text-emerald-500" /> 14-Tage Geld-zurück-Garantie • SSL Verschlüsselt
+                          <ShieldCheck size={12} className="text-emerald-500" /> SSL Verschlüsselt
                         </p>
                         <p className="text-[9px] lg:text-[10px] text-center text-brand-primary/40 uppercase tracking-widest font-bold flex items-center justify-center gap-2">
-                          <Users size={12} className="text-[#FF9EBE]" /> Über 50.000 zufriedene Nutzer weltweit
+                          <Users size={12} className="text-[#FF9EBE]" /> Über 1000+ zufriedene Nutzer weltweit
                         </p>
                       </div>
                     </div>
