@@ -211,18 +211,30 @@ export default function App() {
       }
     });
 
-    // Check for payment success in URL
+    // Check for payment success in URL or pending restoration
     const params = new URLSearchParams(window.location.search);
-    if (params.get('payment') === 'success') {
-      const plan = params.get('plan') || 'single';
-      const uid = params.get('uid');
+    const isPaymentSuccess = params.get('payment') === 'success';
+    const hasPendingData = localStorage.getItem('hairvision_pending_results') !== null;
+
+    if (isPaymentSuccess || hasPendingData) {
+      const plan = params.get('plan') || localStorage.getItem('hairvision_pending_plan') || 'single';
+      const uid = params.get('uid') || localStorage.getItem('hairvision_pending_uid');
       
-      console.log("Payment success detected in URL. Plan:", plan, "UID:", uid);
-      setPendingPayment({ plan, uid });
+      if (isPaymentSuccess) {
+        console.log("Payment success detected in URL. Plan:", plan, "UID:", uid);
+        setPendingPayment({ plan, uid });
+        // Save plan/uid to localStorage in case of reloads during login
+        localStorage.setItem('hairvision_pending_plan', plan);
+        if (uid) localStorage.setItem('hairvision_pending_uid', uid);
+      } else if (hasPendingData && !pendingPayment) {
+        // Restore pending payment state from localStorage if URL params are gone
+        console.log("Restoring pending payment state from localStorage. Plan:", plan, "UID:", uid);
+        setPendingPayment({ plan, uid });
+      }
       
       // Restore results from localStorage if they exist
       const savedResultsStr = localStorage.getItem('hairvision_pending_results');
-      if (savedResultsStr) {
+      if (savedResultsStr && results.length === 0) {
         try {
           const restoredResults = JSON.parse(savedResultsStr);
           if (restoredResults && restoredResults.length > 0) {
@@ -249,11 +261,7 @@ export default function App() {
               setImage(savedImage);
             }
             
-            // Clear them so they don't persist forever
-            localStorage.removeItem('hairvision_pending_results');
-            localStorage.removeItem('hairvision_pending_selected_result');
-            localStorage.removeItem('hairvision_pending_custom_results');
-            localStorage.removeItem('hairvision_pending_image');
+            // DO NOT clear them yet! We clear them in the pendingPayment effect after Firestore sync
           }
         } catch (err) {
           console.error("Failed to restore results from localStorage", err);
@@ -263,18 +271,20 @@ export default function App() {
       // Set local state immediately for better UX
       setIsPremium(true);
       
-      let message = "Zahlung erfolgreich! Dein Premium-Zugang ist jetzt aktiv.";
-      if (plan === 'single') message = "Erfolg! Deine 6 zusätzlichen Styles wurden freigeschaltet.";
-      if (plan === 'monthly' || plan === 'yearly') message = "Willkommen bei HairVision Pro! Du hast jetzt unbegrenzten Zugriff.";
-      
-      setAuthMessage({ type: 'success', text: message });
-      
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#FF9EBE', '#1a1a1a', '#ffffff']
-      });
+      if (isPaymentSuccess) {
+        let message = "Zahlung erfolgreich! Dein Premium-Zugang ist jetzt aktiv.";
+        if (plan === 'single') message = "Erfolg! Deine 6 zusätzlichen Styles wurden freigeschaltet.";
+        if (plan === 'monthly' || plan === 'yearly') message = "Willkommen bei HairVision Pro! Du hast jetzt unbegrenzten Zugriff.";
+        
+        setAuthMessage({ type: 'success', text: message });
+        
+        confetti({
+          particleCount: 150,
+          spread: 70,
+          origin: { y: 0.6 },
+          colors: ['#FF9EBE', '#1a1a1a', '#ffffff']
+        });
+      }
     }
 
     return () => {
@@ -338,6 +348,15 @@ export default function App() {
           }
           
           setPendingPayment(null);
+          
+          // Clear localStorage ONLY after successful Firestore update
+          localStorage.removeItem('hairvision_pending_results');
+          localStorage.removeItem('hairvision_pending_selected_result');
+          localStorage.removeItem('hairvision_pending_custom_results');
+          localStorage.removeItem('hairvision_pending_image');
+          localStorage.removeItem('hairvision_pending_plan');
+          localStorage.removeItem('hairvision_pending_uid');
+          
           // Clean up URL
           window.history.replaceState({}, document.title, window.location.pathname);
         })
