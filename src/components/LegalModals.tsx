@@ -26,7 +26,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, onClose, title, 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]"
+        className="relative w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
       >
         <div className="p-6 border-b border-black/5 flex items-center justify-between bg-brand-primary text-white">
           <div className="flex items-center gap-3">
@@ -37,7 +37,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, onClose, title, 
             <X size={20} />
           </button>
         </div>
-        <div className="p-8 md:p-12 overflow-y-auto text-brand-primary/80 leading-relaxed space-y-6 text-sm md:text-base">
+        <div className="p-6 md:p-12 overflow-y-auto text-brand-primary/80 leading-relaxed space-y-6 text-sm md:text-base">
           {content}
         </div>
       </motion.div>

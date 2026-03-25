@@ -1105,25 +1105,42 @@ export default function App() {
       {/* Header */}
       <header className="py-6 px-4 md:px-8 border-b border-black/5 bg-white/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-brand-primary rounded-full flex items-center justify-center text-[#FF9EBE]">
-              <Scissors size={20} />
+          <div className="flex flex-col items-start gap-1">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 md:w-10 md:h-10 bg-brand-primary rounded-full flex items-center justify-center text-[#FF9EBE]">
+                <Scissors size={18} className="md:hidden" />
+                <Scissors size={20} className="hidden md:block" />
+              </div>
+              <h1 className="text-xl md:text-2xl font-serif font-bold tracking-tight">HairVision</h1>
             </div>
-            <h1 className="text-2xl font-serif font-bold tracking-tight">HairVision</h1>
+            
+            {/* Mobile Badge */}
+            <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-[#FF9EBE]/5 rounded-full border border-[#FF9EBE]/10">
+              <span className="text-[8px] font-bold text-brand-primary/60 uppercase tracking-widest flex items-center gap-1">
+                Entwickelt in DE
+                <div className="flex flex-col w-3 h-2 overflow-hidden rounded-[0.5px] shadow-sm shrink-0">
+                  <div className="h-1/3 bg-black"></div>
+                  <div className="h-1/3 bg-[#FF0000]"></div>
+                  <div className="h-1/3 bg-[#FFCC00]"></div>
+                </div>
+                ❤️
+              </span>
+            </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
             {image && (
               <button 
                 onClick={reset}
-                className="text-sm font-medium flex items-center gap-2 hover:text-[#FF9EBE] transition-colors"
+                className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 hover:text-[#FF9EBE] transition-colors"
               >
-                <RefreshCcw size={16} />
+                <RefreshCcw size={14} className="md:hidden" />
+                <RefreshCcw size={16} className="hidden md:block" />
                 <span className="hidden sm:inline">Neustart</span>
               </button>
             )}
 
-            <div className="flex items-center gap-3 px-4 py-1.5 bg-[#FF9EBE]/5 rounded-full border border-[#FF9EBE]/10 flex">
+            <div className="hidden md:flex items-center gap-3 px-4 py-1.5 bg-[#FF9EBE]/5 rounded-full border border-[#FF9EBE]/10">
               <span className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest flex items-center gap-2">
                 <span className="flex items-center gap-1.5">
                   Entwickelt in Deutschland
@@ -1250,19 +1267,19 @@ export default function App() {
               )}
             </motion.div>
           ) : !image ? (
-            <div className="space-y-24 md:space-y-40 pb-24">
+            <div className="space-y-16 md:space-y-40 pb-24">
               <motion.div 
                 key="upload"
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="max-w-2xl mx-auto text-center space-y-8 py-12"
+                className="max-w-2xl mx-auto text-center space-y-8 py-8 md:py-12 px-4"
               >
                 <div className="space-y-4">
-                  <h2 className="text-5xl md:text-6xl font-serif font-bold leading-tight">
+                  <h2 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold leading-tight">
                     Finde deinen <span className="italic text-[#FF9EBE]">perfekten</span> Look.
                   </h2>
-                  <div className="text-lg text-brand-primary/60 max-w-2xl mx-auto leading-relaxed space-y-2">
+                  <div className="text-base md:text-lg text-brand-primary/60 max-w-2xl mx-auto leading-relaxed space-y-2">
                     <p>Lade ein Foto hoch und lass unsere KI in Sekunden deine Gesichtsform analysieren. ✨</p>
                     <p>Entdecke 9 maßgeschneiderte Frisuren, die perfekt zu dir passen – inklusive der Top-Trends 2026: <span className="text-brand-primary font-bold">Mixie, Federschnitt und Butterfly Cut</span>. 💇‍♀️</p>
                   </div>
@@ -1270,7 +1287,7 @@ export default function App() {
 
                 <div 
                   onClick={() => fileInputRef.current?.click()}
-                  className="group relative border-2 border-dashed border-black/10 rounded-3xl p-16 cursor-pointer hover:border-[#FF9EBE]/50 hover:bg-[#FF9EBE]/5 transition-all duration-300"
+                  className="group relative border-2 border-dashed border-black/10 rounded-[2.5rem] p-8 sm:p-16 cursor-pointer hover:border-[#FF9EBE]/50 hover:bg-[#FF9EBE]/5 transition-all duration-300"
                 >
                   <input 
                     type="file" 
@@ -1280,12 +1297,12 @@ export default function App() {
                     className="hidden" 
                   />
                   <div className="flex flex-col items-center gap-4">
-                    <div className="w-20 h-20 bg-black/5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                      <Upload className="text-brand-primary/40 group-hover:text-[#FF9EBE]" size={32} />
+                    <div className="w-16 h-16 md:w-20 md:h-20 bg-black/5 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      <Upload className="text-brand-primary/40 group-hover:text-[#FF9EBE]" size={28} />
                     </div>
                     <div className="space-y-1">
-                      <p className="text-xl font-medium">Foto hochladen</p>
-                      <p className="text-sm text-brand-primary/40">Klicke oder ziehe ein Bild hierher</p>
+                      <p className="text-lg md:text-xl font-medium">Foto hochladen</p>
+                      <p className="text-xs md:text-sm text-brand-primary/40">Klicke oder ziehe ein Bild hierher</p>
                     </div>
                   </div>
                 </div>
@@ -1459,10 +1476,10 @@ export default function App() {
 
                 <div className="space-y-8">
                   <div className="space-y-4">
-                    <h2 className="text-4xl font-serif font-bold leading-tight">
+                    <h2 className="text-2xl md:text-4xl font-serif font-bold leading-tight">
                       Perfekt! Dein Foto wurde erfolgreich hochgeladen – jetzt wird’s spannend! ✨
                     </h2>
-                    <p className="text-lg text-brand-primary/70 font-medium">
+                    <p className="text-base md:text-lg text-brand-primary/70 font-medium">
                       In wenigen Sekunden analysiert unsere KI deine Gesichtsform und zeigt dir personalisierte Frisuren, die wirklich zu dir passen.
                       <br />
                       <span className="text-[#FF9EBE]">Bereit für deinen neuen Traum-Look?</span>
@@ -1516,14 +1533,14 @@ export default function App() {
           ) : (
             <motion.div 
               key="results"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-12"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-8 md:space-y-12"
             >
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-4 max-w-2xl">
-                  <h2 className="text-4xl font-serif font-bold">Das sind deine ersten 3 personalisierten Styles🔥</h2>
-                  <p className="text-brand-primary/80 text-lg font-medium">Jeder einzelne wurde speziell für deine Gesichtsform und deinen Typ erstellt.</p>
+                  <h2 className="text-3xl md:text-4xl font-serif font-bold">Das sind deine ersten 3 personalisierten Styles🔥</h2>
+                  <p className="text-brand-primary/80 text-base md:text-lg font-medium">Jeder einzelne wurde speziell für deine Gesichtsform und deinen Typ erstellt.</p>
                   <div className="space-y-2 pt-2">
                     <p className="text-brand-primary/60 font-semibold">Tippe auf einen Look und erhalte sofort:</p>
                     <ul className="text-brand-primary/60 space-y-1 list-disc list-inside ml-1">
