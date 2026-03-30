@@ -98,12 +98,13 @@ export interface GeneratedResult extends HairstyleSuggestion {
 export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
   const model = "gemini-3-flash-preview";
   const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage EXAKT 9 verschiedene Frisuren vor, die ihr gut stehen würden.
-  WICHTIG: Du MUSST genau 9 Objekte im Array zurückgeben. Die Auswahl MUSS genau diese Verteilung haben:
-  - 3 kurze Frisuren
-  - 3 mittellange Frisuren
-  - 3 lange Frisuren
-
-  WICHTIG FÜR DIE REIHENFOLGE: Die ersten 4 Vorschläge im Array (Index 0, 1, 2, 3) MÜSSEN zwingend eine Mischung aus den Längen sein (z.B. 1x kurz, 1x mittellang, 1x lang + 1 weitere Variation), besonders wenn es sich um eine Frau handelt. Dies stellt sicher, dass der Nutzer sofort eine große Vielfalt sieht.
+  WICHTIG: Du MUSST genau 9 Objekte im Array zurückgeben. 
+  
+  ZIEL FÜR DIE VIELFALT:
+  - Bei Frauen: Versuche eine gleichmäßige Verteilung von 3x kurz, 3x mittellang und 3x lang zu erreichen.
+  - Bei Männern: Wähle eine Mischung aus sehr kurzen (z.B. Buzz Cut, Fade), klassischen (z.B. Quiff, Pompadour) und längeren Styles (z.B. Man Bun, Long Top, Surfer Look).
+  
+  WICHTIG FÜR DIE REIHENFOLGE: Die ersten 4 Vorschläge im Array (Index 0, 1, 2, 3) MÜSSEN zwingend eine Mischung aus verschiedenen Längen und Stilen sein (z.B. 1x kurz, 1x mittellang, 1x lang + 1 weitere Variation), damit der Nutzer sofort eine große Vielfalt sieht.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").
