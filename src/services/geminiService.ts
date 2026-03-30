@@ -43,7 +43,7 @@ const getAI = () => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 7): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {

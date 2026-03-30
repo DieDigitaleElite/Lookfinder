@@ -416,16 +416,18 @@ export default function App() {
         if (missingIndices.length > 0) {
           console.log("Resuming generation for missing premium styles:", missingIndices);
           setIsGenerating(true);
-          setGenerationProgress(Math.round(((results.length - missingIndices.length) / results.length) * 100));
           
           const base64Data = image.split(',')[1];
           const mimeType = image.split(';')[0].split(':')[1] || 'image/jpeg';
           
-          const generationPromises = missingIndices.map(async (i) => {
+          // Generate missing images sequentially
+          for (let idx = 0; idx < missingIndices.length; idx++) {
+            const i = missingIndices[idx];
             const suggestion = results[i];
+            
             try {
-              // Staggered delay
-              await new Promise(resolve => setTimeout(resolve, (i - 3) * 300));
+              // Small delay between requests
+              if (idx > 0) await new Promise(resolve => setTimeout(resolve, 800));
               
               const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
               
@@ -438,6 +440,10 @@ export default function App() {
                 }
                 return newResults;
               });
+              
+              // Update progress
+              const completedCount = results.filter(r => r.imageUrl || r.failed).length + 1;
+              setGenerationProgress(Math.round((completedCount / results.length) * 100));
             } catch (err) {
               console.error(`Failed to resume generation for style ${i}`, err);
               setResults(prev => {
@@ -446,19 +452,8 @@ export default function App() {
                 return newResults;
               });
             }
-          });
+          }
 
-          // Track progress
-          const progressInterval = setInterval(() => {
-            setResults(currentResults => {
-              const completedCount = currentResults.filter(r => r.imageUrl).length;
-              setGenerationProgress(Math.round((completedCount / currentResults.length) * 100));
-              return currentResults;
-            });
-          }, 500);
-
-          await Promise.all(generationPromises);
-          clearInterval(progressInterval);
           setGenerationProgress(100);
           setIsGenerating(false);
           
@@ -885,14 +880,15 @@ export default function App() {
       // Initialize results with suggestions but no images yet to show placeholders
       setResults(suggestions.map(s => ({ ...s, imageUrl: "" })));
 
-      // Generate images in parallel
+      // Generate images sequentially to avoid rate limits and improve stability
       const maxToGenerate = isPremium ? suggestions.length : 4;
       
-      const generationPromises = Array.from({ length: maxToGenerate }).map(async (_, i) => {
+      for (let i = 0; i < maxToGenerate; i++) {
         const suggestion = suggestions[i];
+        console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
         try {
-          // Small staggered delay to avoid instant burst
-          await new Promise(resolve => setTimeout(resolve, i * 300));
+          // Small delay between requests to be gentle on the API
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
           
           const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
           
@@ -905,6 +901,9 @@ export default function App() {
             }
             return newResults;
           });
+          
+          // Update progress after each image
+          setGenerationProgress(Math.round(((i + 1) / maxToGenerate) * 100));
         } catch (err) {
           console.error(`Failed to generate image for style ${i}`, err);
           setResults(prev => {
@@ -913,19 +912,8 @@ export default function App() {
             return newResults;
           });
         }
-      });
+      }
 
-      // Track progress roughly
-      const progressInterval = setInterval(() => {
-        setResults(currentResults => {
-          const completedCount = currentResults.filter(r => r.imageUrl).length;
-          setGenerationProgress(Math.round((completedCount / maxToGenerate) * 100));
-          return currentResults;
-        });
-      }, 500);
-
-      await Promise.all(generationPromises);
-      clearInterval(progressInterval);
       setGenerationProgress(100);
 
       // Increment usage count
