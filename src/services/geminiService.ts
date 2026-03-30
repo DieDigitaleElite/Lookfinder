@@ -63,8 +63,8 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 7): Promise<T> =>
                           [429, 500, 503, 504].includes(error.code);
 
       if (isRetryable) {
-        // Exponential backoff: 3s, 6s, 12s, 24s, 48s...
-        const waitTime = Math.pow(2, i) * 3000 + Math.random() * 1000;
+        // Exponential backoff: 5s, 10s, 20s, 40s, 80s...
+        const waitTime = Math.pow(2, i) * 5000 + Math.random() * 2000;
         console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms... Error: ${errorMsg}`);
         await sleep(waitTime);
         continue;

@@ -888,7 +888,7 @@ export default function App() {
         console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
         try {
           // Small delay between requests to be gentle on the API
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 800));
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 3000));
           
           const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
           
@@ -2022,7 +2022,7 @@ export default function App() {
                             </div>
                             <div className="space-y-1">
                               <p className="text-sm font-bold text-red-900">Fehlgeschlagen</p>
-                              <p className="text-[10px] text-red-600 leading-tight">Die KI ist gerade überlastet. Bitte versuche es erneut.</p>
+                              <p className="text-[10px] text-red-600 leading-tight">Die KI ist gerade überlastet (Rate Limit). Bitte warte einen Moment und versuche es erneut.</p>
                             </div>
                             <button 
                               onClick={(e) => {
@@ -2038,7 +2038,10 @@ export default function App() {
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
                             <Loader2 className="animate-spin text-[#FF9EBE]" size={32} />
-                            <p className="text-xs font-bold uppercase tracking-widest opacity-30">Wird generiert...</p>
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">Wird generiert...</p>
+                              <p className="text-[8px] text-brand-primary/40 leading-tight">Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren.</p>
+                            </div>
                           </div>
                         )}
                       </div>
