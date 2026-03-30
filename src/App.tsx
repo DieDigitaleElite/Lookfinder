@@ -1859,6 +1859,9 @@ export default function App() {
                               {/* Option 2: Yearly Subscription */}
                               <div className="bg-[#FF9EBE]/10 p-5 rounded-2xl border-2 border-[#FF9EBE] text-left relative overflow-hidden flex flex-col justify-between shadow-lg scale-105 z-10">
                                 <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest animate-pulse">Beste Wahl ★</div>
+                                <div className="absolute -left-8 top-4 -rotate-45 bg-red-500 text-white text-[7px] font-black px-8 py-1 uppercase tracking-widest shadow-sm">
+                                  -52% RABATT
+                                </div>
                                 <div>
                                   <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block mb-2">Jahresabo</span>
                                   <p className="text-sm font-bold text-brand-primary leading-snug">Styling-Flatrate: Unbegrenzt testen + monatlich neue Trends.</p>
@@ -1940,6 +1943,28 @@ export default function App() {
                               referrerPolicy="no-referrer"
                             />
                             
+                            {/* Conversion Badges for Locked/Blurred Styles */}
+                            {isLocked && index === 4 && (
+                              <div className="absolute top-4 left-4 bg-[#FF9EBE] text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10 animate-bounce">
+                                KI-FAVORIT (98% MATCH) ★
+                              </div>
+                            )}
+                            {isLocked && index === 5 && (
+                              <div className="absolute top-4 left-4 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
+                                TOP-BEWERTUNG (9.8/10) ⭐
+                              </div>
+                            )}
+                            {isLocked && index === 6 && (
+                              <div className="absolute top-4 left-4 bg-purple-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
+                                TREND 2026 🔥
+                              </div>
+                            )}
+                            {isBlurred && (
+                              <div className="absolute top-4 left-4 bg-amber-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
+                                DEIN GEHEIM-TIPP ✨
+                              </div>
+                            )}
+                            
                             {isLocked ? (
                               <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/40 backdrop-blur-sm">
                                 <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-4">
@@ -1972,11 +1997,19 @@ export default function App() {
                                   }}
                                   className="px-8 py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black hover:bg-[#FF9EBE]/90 transition-all shadow-lg leading-tight max-w-[280px]"
                                 >
-                                  {result.name} schaut auch super aus bei dir!😍
+                                  {result.name} schaut auch super aus bei dir! 😍
                                 </button>
                                 <p className="text-white/90 text-[10px] mt-4 font-medium leading-relaxed">
                                   Entdecke diesen und 5 weitere Styles die perfekt zu dir passen - Jetzt für nur 1,99€
                                 </p>
+                                <div className="mt-4 flex flex-col items-center gap-2">
+                                  <div className="flex items-center gap-1 text-[8px] text-white/60 font-bold uppercase tracking-widest">
+                                    <Users size={10} /> 432 Personen haben diesen Style gewählt
+                                  </div>
+                                  <div className="flex items-center gap-1 text-[8px] text-[#FF9EBE] font-bold uppercase tracking-widest animate-pulse">
+                                    <Eye size={10} /> Gerade 14 Personen schauen sich diesen Style an
+                                  </div>
+                                </div>
                               </div>
                             ) : (
                               <>
@@ -2046,8 +2079,14 @@ export default function App() {
                         )}
                       </div>
                       <div className="space-y-1">
-                        <h3 className={`text-xl font-bold ${isLocked ? 'opacity-30' : ''}`}>{result.name}</h3>
-                        <p className={`text-sm text-brand-primary/60 line-clamp-2 ${isLocked ? 'opacity-30' : ''}`}>{result.suitabilityReason}</p>
+                        <h3 className={`text-xl font-bold ${isLocked ? 'opacity-30' : ''}`}>
+                          {result.name} {isBlurred && <span className="text-[#FF9EBE] text-xs ml-1 font-black">(98% Match)</span>}
+                        </h3>
+                        <p className={`text-sm text-brand-primary/60 line-clamp-2 ${isLocked ? 'opacity-30' : ''}`}>
+                          {isLocked || isBlurred 
+                            ? `${result.suitabilityReason.substring(0, 40)}... [Inkl. Makeup- & Accessoire-Tipps freischalten]` 
+                            : result.suitabilityReason}
+                        </p>
                       </div>
                     </motion.div>
                   </React.Fragment>
