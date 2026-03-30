@@ -91,7 +91,12 @@ export interface GeneratedResult extends HairstyleSuggestion {
 
 export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
   const model = "gemini-3-flash-preview";
-  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden. Wähle Styles, die wirklich zur Gesichtsform passen.
+  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden. 
+  
+  WICHTIG FÜR DIE AUSWAHL:
+  - Die ersten 4 Vorschläge (Index 0 bis 3) MÜSSEN so unterschiedlich wie möglich sein (z.B. 1x kurz, 1x mittellang, 1x lang, 1x Trend-Style).
+  - Wähle Styles, die wirklich zur Gesichtsform passen.
+  - Alle 9 Vorschläge sollten insgesamt eine breite Palette abdecken.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").
