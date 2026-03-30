@@ -5,34 +5,23 @@ const getAI = () => {
   const getApiKey = () => {
     const win = window as any;
     
-    // Priority list of sources for the API key
-    // Use direct access for Vite environment variables to ensure they are replaced at build time
+    // 1. Try direct Vite env access (most reliable in local/build)
     try {
       const env = (import.meta as any).env;
       if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
       if (env?.VITE_API_KEY) return env.VITE_API_KEY;
     } catch {}
 
-    const sources = [
-      () => process.env.GEMINI_API_KEY,
-      () => process.env.API_KEY,
-      () => win.API_KEY,
-      () => win.GEMINI_API_KEY,
-      () => win.process?.env?.API_KEY,
-      () => win.process?.env?.GEMINI_API_KEY,
-      () => win.config?.API_KEY,
-      () => win._env_?.API_KEY
-    ];
+    // 2. Try global variables (often used in production/cloud environments)
+    if (win.GEMINI_API_KEY) return win.GEMINI_API_KEY;
+    if (win.API_KEY) return win.API_KEY;
+    
+    // 3. Try process.env (fallback for some environments)
+    try {
+      if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+      if (process.env.API_KEY) return process.env.API_KEY;
+    } catch {}
 
-    for (const source of sources) {
-      try {
-        const key = source();
-        if (key && typeof key === 'string' && key.length > 10 && 
-            !["MY_GEMINI_API_KEY", "sk_test_...", "TODO"].includes(key)) {
-          return key;
-        }
-      } catch {}
-    }
     return null;
   };
   
@@ -68,8 +57,8 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> =>
                           [429, 500, 503, 504].includes(status);
 
       if (isRetryable) {
-        // More patient backoff: 4s, 8s, 16s...
-        const waitTime = Math.pow(2, i) * 4000 + Math.random() * 2000;
+        // More patient backoff: 5s, 10s, 20s...
+        const waitTime = Math.pow(2, i) * 5000 + Math.random() * 2000;
         console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms... Error: ${errorMsg}`);
         await sleep(waitTime);
         continue;
@@ -102,9 +91,7 @@ export interface GeneratedResult extends HairstyleSuggestion {
 
 export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
   const model = "gemini-3-flash-preview";
-  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden.
-  
-  ZIEL: Biete eine abwechslungsreiche Mischung aus Stilen an. Die ersten 4 Vorschläge sollten besonders vielfältig sein.
+  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden. Wähle Styles, die wirklich zur Gesichtsform passen.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").
@@ -157,14 +144,10 @@ export const generateHairstyleImage = async (
   const model = "gemini-2.5-flash-image";
   const prompt = `Apply the following hairstyle to the person in the image: ${styleName}. ${description}. 
   
-  CRITICAL REQUIREMENT - ABSOLUTE FACE PRESERVATION: 
-  1. The person's face, facial features, skin tone, eye color, and bone structure MUST remain 100% ORIGINAL and UNCHANGED. 
-  2. The final image MUST be recognizable as the EXACT same person from the original photo.
-  3. ONLY the hair should be modified to match the requested style. 
-  4. Do NOT alter the eyes, nose, mouth, eyebrows, chin, or any other facial characteristics. 
-  5. The identity of the person must be perfectly preserved. It should look like a real photo of the SAME person.
-  6. Do not beautify, slim, or change the facial expression. Keep the original face exactly as it is.
-  7. The result should look like a realistic professional photograph of the original person with a new haircut.`;
+  CRITICAL: 
+  1. Keep the person's face EXACTLY as it is. Do not change any facial features.
+  2. ONLY modify the hair.
+  3. The identity must be perfectly preserved.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
