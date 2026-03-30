@@ -886,7 +886,7 @@ export default function App() {
       setResults(suggestions.map(s => ({ ...s, imageUrl: "" })));
 
       // Generate images in parallel
-      const maxToGenerate = isPremium ? suggestions.length : 4;
+      const maxToGenerate = isPremium ? suggestions.length : 3;
       
       const generationPromises = Array.from({ length: maxToGenerate }).map(async (_, i) => {
         const suggestion = suggestions[i];
