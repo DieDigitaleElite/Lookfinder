@@ -6,9 +6,14 @@ const getAI = () => {
     const win = window as any;
     
     // Priority list of sources for the API key
+    // Use direct access for Vite environment variables to ensure they are replaced at build time
+    try {
+      const env = (import.meta as any).env;
+      if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
+      if (env?.VITE_API_KEY) return env.VITE_API_KEY;
+    } catch {}
+
     const sources = [
-      () => (import.meta as any).env?.VITE_GEMINI_API_KEY,
-      () => (import.meta as any).env?.VITE_API_KEY,
       () => process.env.GEMINI_API_KEY,
       () => process.env.API_KEY,
       () => win.API_KEY,
@@ -43,24 +48,28 @@ const getAI = () => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
       lastError = error;
-      const errorMsg = error.message || "";
+      const errorMsg = (error.message || "").toUpperCase();
+      const status = error.status || error.code || 0;
+      
       const isRetryable = errorMsg.includes("429") || 
                           errorMsg.includes("503") ||
                           errorMsg.includes("504") ||
                           errorMsg.includes("500") ||
                           errorMsg.includes("RESOURCE_EXHAUSTED") || 
-                          errorMsg.includes("UNAVAILABLE");
+                          errorMsg.includes("UNAVAILABLE") ||
+                          errorMsg.includes("DEADLINE_EXCEEDED") ||
+                          [429, 500, 503, 504].includes(status);
 
       if (isRetryable) {
-        // Faster backoff: 2s, 4s, 8s...
-        const waitTime = Math.pow(2, i) * 2000 + Math.random() * 1000;
+        // More patient backoff: 4s, 8s, 16s...
+        const waitTime = Math.pow(2, i) * 4000 + Math.random() * 2000;
         console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms... Error: ${errorMsg}`);
         await sleep(waitTime);
         continue;
@@ -95,10 +104,7 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   const model = "gemini-3-flash-preview";
   const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden.
   
-  ZIEL FÜR DIE AUSWAHL:
-  - Biete eine gute Mischung aus verschiedenen Längen und Stilen an (kurz, mittel, lang).
-  - Die ersten 4 Vorschläge sollten besonders abwechslungsreich sein, damit der Nutzer sofort verschiedene Optionen sieht.
-  - Wähle Styles, die wirklich zur Gesichtsform passen.
+  ZIEL: Biete eine abwechslungsreiche Mischung aus Stilen an. Die ersten 4 Vorschläge sollten besonders vielfältig sein.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").
