@@ -43,7 +43,7 @@ const getAI = () => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 7): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -56,15 +56,11 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 7): Promise<T> =>
                           errorMsg.includes("504") ||
                           errorMsg.includes("500") ||
                           errorMsg.includes("RESOURCE_EXHAUSTED") || 
-                          errorMsg.includes("UNAVAILABLE") ||
-                          errorMsg.includes("DEADLINE_EXCEEDED") ||
-                          errorMsg.includes("INTERNAL") ||
-                          [429, 500, 503, 504].includes(error.status) ||
-                          [429, 500, 503, 504].includes(error.code);
+                          errorMsg.includes("UNAVAILABLE");
 
       if (isRetryable) {
-        // Exponential backoff: 5s, 10s, 20s, 40s, 80s...
-        const waitTime = Math.pow(2, i) * 5000 + Math.random() * 2000;
+        // Faster backoff: 2s, 4s, 8s...
+        const waitTime = Math.pow(2, i) * 2000 + Math.random() * 1000;
         console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms... Error: ${errorMsg}`);
         await sleep(waitTime);
         continue;
@@ -97,14 +93,12 @@ export interface GeneratedResult extends HairstyleSuggestion {
 
 export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
   const model = "gemini-3-flash-preview";
-  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage EXAKT 9 verschiedene Frisuren vor, die ihr gut stehen würden.
-  WICHTIG: Du MUSST genau 9 Objekte im Array zurückgeben. 
+  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden.
   
-  ZIEL FÜR DIE VIELFALT:
-  - Bei Frauen: Versuche eine gleichmäßige Verteilung von 3x kurz, 3x mittellang und 3x lang zu erreichen.
-  - Bei Männern: Wähle eine Mischung aus sehr kurzen (z.B. Buzz Cut, Fade), klassischen (z.B. Quiff, Pompadour) und längeren Styles (z.B. Man Bun, Long Top, Surfer Look).
-  
-  WICHTIG FÜR DIE REIHENFOLGE: Die ersten 4 Vorschläge im Array (Index 0, 1, 2, 3) MÜSSEN zwingend eine Mischung aus verschiedenen Längen und Stilen sein (z.B. 1x kurz, 1x mittellang, 1x lang + 1 weitere Variation), damit der Nutzer sofort eine große Vielfalt sieht.
+  ZIEL FÜR DIE AUSWAHL:
+  - Biete eine gute Mischung aus verschiedenen Längen und Stilen an (kurz, mittel, lang).
+  - Die ersten 4 Vorschläge sollten besonders abwechslungsreich sein, damit der Nutzer sofort verschiedene Optionen sieht.
+  - Wähle Styles, die wirklich zur Gesichtsform passen.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").

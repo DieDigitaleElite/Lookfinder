@@ -888,7 +888,7 @@ export default function App() {
         console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
         try {
           // Small delay between requests to be gentle on the API
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 3000));
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 1000));
           
           const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
           
