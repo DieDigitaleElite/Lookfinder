@@ -103,7 +103,7 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   - 3 mittellange Frisuren
   - 3 lange Frisuren
 
-  WICHTIG FÜR DIE REIHENFOLGE: Die ersten 3 Vorschläge im Array (Index 0, 1, 2) MÜSSEN zwingend eine Mischung aus den Längen sein (1x kurz, 1x mittellang, 1x lang), besonders wenn es sich um eine Frau handelt. Dies stellt sicher, dass der Nutzer sofort eine große Vielfalt sieht.
+  WICHTIG FÜR DIE REIHENFOLGE: Die ersten 4 Vorschläge im Array (Index 0, 1, 2, 3) MÜSSEN zwingend eine Mischung aus den Längen sein (z.B. 1x kurz, 1x mittellang, 1x lang + 1 weitere Variation), besonders wenn es sich um eine Frau handelt. Dies stellt sicher, dass der Nutzer sofort eine große Vielfalt sieht.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").
