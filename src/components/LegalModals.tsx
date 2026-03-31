@@ -169,70 +169,106 @@ Datum
   </div>
 );
 
-export const AboutContent = () => (
-  <div className="space-y-8">
-    <section className="text-center max-w-2xl mx-auto">
-      <h3 className="text-2xl font-serif font-bold text-brand-primary mb-4">Unsere Mission: Dein perfekter Look</h3>
-      <p className="text-lg text-brand-primary/70">
-        Wir glauben, dass jeder Mensch es verdient, sich in seiner Haut (und mit seinen Haaren) absolut wohlzufühlen. 
-        Oft ist der Weg zum perfekten Haarschnitt jedoch von Unsicherheit geprägt.
+export const AboutContent: React.FC<{ onCtaClick?: () => void }> = ({ onCtaClick }) => (
+  <div className="space-y-12 pb-8">
+    {/* Hero Section */}
+    <section className="text-center space-y-4">
+      <h3 className="text-2xl md:text-3xl font-serif font-bold text-brand-primary leading-tight">
+        Wir machen Frisuren-Testen einfacher, realistischer und sicherer.
+      </h3>
+      <p className="text-base md:text-lg text-brand-primary/70 max-w-3xl mx-auto">
+        HairVision ist eine <span className="font-bold text-brand-primary">KI-Frisuren-App aus München</span>, mit der du <span className="font-bold text-brand-primary">virtuell Frisuren testen</span> und verschiedene Looks in wenigen Sekunden ausprobieren kannst. Unser Ziel ist es, dir vor dem Friseurbesuch mehr Sicherheit zu geben und dir zu zeigen, welche <span className="font-bold text-brand-primary">Frisur und Haarfarbe</span> wirklich zu dir passen.
       </p>
     </section>
 
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div className="p-6 bg-brand-accent/5 rounded-3xl border border-brand-accent/10">
-        <h4 className="font-bold text-brand-primary mb-2 flex items-center gap-2">
-          <Shield className="text-brand-accent" size={20} />
-          KI mit Herz
-        </h4>
-        <p className="text-sm">
-          Wir nutzen modernste Künstliche Intelligenz nicht nur als technisches Spielerei, sondern als Werkzeug, 
-          um echte Probleme zu lösen. Unsere Algorithmen wurden mit tausenden von Profi-Frisuren trainiert.
+    {/* Story Section */}
+    <section className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+      <div className="space-y-4">
+        <h4 className="text-xl font-serif font-bold text-brand-primary">Unsere Geschichte</h4>
+        <p>Hallo, ich bin Orry Kress, Gründer von HairVision.</p>
+        <p>
+          Die Idee zu HairVision entstand aus einer ganz einfachen Frage: „Steht mir diese Frisur wirklich?“
+          Wie viele andere stand ich selbst schon oft vor dem Spiegel oder nach einem Friseurbesuch da und hatte das Gefühl, dass das Ergebnis nicht ganz zu mir passt.
+        </p>
+        <p>
+          Genau hier setzt HairVision an. Gemeinsam mit einem kleinen Team aus KI-Entwicklern, Designern und Beauty-Experten haben wir eine App entwickelt, mit der du deine <span className="font-bold text-brand-primary">Gesichtsform analysieren</span> und passende Frisuren virtuell testen kannst. Was in München als persönliche Lösung begann, ist heute eine App für alle, die sich vor dem nächsten Haarschnitt besser orientieren möchten.
         </p>
       </div>
-      <div className="p-6 bg-brand-accent/5 rounded-3xl border border-brand-accent/10">
-        <h4 className="font-bold text-brand-primary mb-2 flex items-center gap-2">
-          <Users className="text-brand-accent" size={20} />
-          Für Jeden gemacht
-        </h4>
-        <p className="text-sm">
-          Egal welche Haarstruktur, Gesichtsform oder welcher Stil – HairVision ist für alle da. 
-          Wir demokratisieren den Zugang zu professioneller Typ-Beratung.
-        </p>
+      <div className="bg-brand-accent/5 p-8 rounded-[2rem] border border-brand-accent/10 flex flex-col items-center justify-center text-center space-y-4">
+        <div className="w-20 h-20 bg-brand-accent/20 rounded-full flex items-center justify-center text-brand-accent">
+          <Users size={40} />
+        </div>
+        <p className="font-serif italic text-brand-primary/60">"Technologie trifft auf Stil-Gefühl."</p>
       </div>
-    </div>
-
-    <section className="space-y-4">
-      <h3 className="text-xl font-serif font-bold text-brand-primary">Wer wir sind</h3>
-      <p>
-        HairVision wurde 2024 von einem Team aus KI-Experten und leidenschaftlichen Stylisten in Berlin gegründet. 
-        Unsere Vision war es, die Lücke zwischen der Vorstellung im Kopf und dem Ergebnis im Friseurstuhl zu schließen.
-      </p>
-      <p>
-        Heute nutzen täglich tausende Menschen unsere Plattform, um mit mehr Selbstvertrauen neue Styles auszuprobieren. 
-        Wir arbeiten ständig daran, unsere Modelle zu verbessern und noch präzisere Ergebnisse zu liefern.
-      </p>
     </section>
 
-    <section className="p-8 bg-brand-primary text-white rounded-[2rem] text-center">
-      <h3 className="text-xl font-serif font-bold mb-2">Bereit für deine Verwandlung?</h3>
-      <p className="text-white/70 mb-6">Werde Teil unserer Community und finde heute noch deinen Traum-Look.</p>
-      <div className="flex justify-center gap-4">
-        <div className="flex flex-col items-center">
-          <span className="text-2xl font-bold text-brand-accent">50k+</span>
-          <span className="text-[10px] uppercase tracking-widest opacity-60">Nutzer</span>
+    {/* Made in Germany & Privacy */}
+    <section className="bg-brand-primary text-white p-8 md:p-12 rounded-[2rem] space-y-6">
+      <div className="flex flex-col md:flex-row gap-8 items-start">
+        <div className="flex-1 space-y-4">
+          <h4 className="text-xl font-serif font-bold text-brand-accent">Made in Germany</h4>
+          <p className="text-white/80">
+            HairVision ist ein Münchner Startup und wird in Deutschland entwickelt. 
+            Für uns bedeutet das nicht nur ein klares Qualitätsversprechen, sondern auch Verantwortung: 
+            präzise Ergebnisse, verständliches Design und ein konsequenter Fokus auf Datenschutz.
+          </p>
         </div>
-        <div className="w-px h-10 bg-white/10" />
-        <div className="flex flex-col items-center">
-          <span className="text-2xl font-bold text-brand-accent">100+</span>
-          <span className="text-[10px] uppercase tracking-widest opacity-60">Frisuren</span>
-        </div>
-        <div className="w-px h-10 bg-white/10" />
-        <div className="flex flex-col items-center">
-          <span className="text-2xl font-bold text-brand-accent">99%</span>
-          <span className="text-[10px] uppercase tracking-widest opacity-60">Zufriedenheit</span>
+        <div className="flex-1 space-y-4">
+          <h4 className="text-xl font-serif font-bold text-brand-accent flex items-center gap-2">
+            <Shield size={24} />
+            DSGVO-konforme KI
+          </h4>
+          <p className="text-white/80">
+            Deine Fotos werden ausschließlich für die Analyse und die Erstellung deiner personalisierten Frisuren verwendet und danach automatisch gelöscht. Wir speichern deine Bilder nicht dauerhaft und geben sie nicht an Dritte weiter.
+          </p>
         </div>
       </div>
+    </section>
+
+    {/* Values Section */}
+    <section className="space-y-6">
+      <h4 className="text-xl font-serif font-bold text-brand-primary text-center">Unsere Werte</h4>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {[
+          { title: "Realistische Ergebnisse", desc: "Wir zeigen Frisuren, die wirklich zu deinem Gesicht passen können." },
+          { title: "Privatsphäre zuerst", desc: "Deine Daten gehören dir." },
+          { title: "Einfachheit", desc: "Foto hochladen, analysieren lassen, Frisuren testen." },
+          { title: "Transparenz", desc: "Wir erklären klar, wie unsere KI funktioniert und was sie macht." }
+        ].map((val, i) => (
+          <div key={i} className="p-5 bg-black/5 rounded-2xl border border-black/5">
+            <h5 className="font-bold text-brand-primary mb-1">{val.title}</h5>
+            <p className="text-sm text-brand-primary/60">{val.desc}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* Team & Vision */}
+    <section className="grid grid-cols-1 md:grid-cols-2 gap-12">
+      <div className="space-y-4">
+        <h4 className="text-xl font-serif font-bold text-brand-primary">Unser Team</h4>
+        <p className="text-sm leading-relaxed">
+          Wir sind ein kleines Team aus München, das sich auf KI, Design und digitale Produkte spezialisiert hat. Unterstützt werden wir von Friseuren und Stylisten, die uns mit echtem Praxiswissen helfen, HairVision immer weiter zu verbessern. So verbinden wir Technologie mit dem Blick für das, was im Alltag wirklich funktioniert.
+        </p>
+      </div>
+      <div className="space-y-4">
+        <h4 className="text-xl font-serif font-bold text-brand-primary">Unsere Vision</h4>
+        <p className="text-sm leading-relaxed">
+          Wir wollen, dass niemand mehr unsicher aus dem Friseursalon geht. HairVision soll der erste Schritt zu einem besseren Look sein: unkompliziert, schnell und realistisch. In Zukunft möchten wir Menschen nicht nur dabei helfen, <span className="font-bold">Frisuren online zu testen</span>, sondern auch Haarfarben, Outfits und weitere Stilfragen einfacher zu entscheiden.
+        </p>
+      </div>
+    </section>
+
+    {/* Final CTA */}
+    <section className="p-10 bg-brand-accent rounded-[2rem] text-center space-y-6 shadow-xl shadow-brand-accent/20">
+      <h4 className="text-2xl font-serif font-bold text-brand-primary">Bereit für deinen perfekten Look?</h4>
+      <p className="text-brand-primary/70">Dann lade jetzt dein Foto hoch und entdecke, welche Frisuren und Haarfarben wirklich zu dir passen.</p>
+      <button 
+        onClick={onCtaClick}
+        className="px-8 py-4 bg-brand-primary text-white rounded-full font-bold hover:scale-105 transition-transform shadow-lg"
+      >
+        Jetzt meinen Style entdecken
+      </button>
     </section>
   </div>
 );

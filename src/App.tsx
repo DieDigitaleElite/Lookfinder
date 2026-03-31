@@ -2300,9 +2300,12 @@ export default function App() {
       <LegalModal 
         isOpen={activeLegalModal === 'about'} 
         onClose={() => setActiveLegalModal(null)} 
-        title="Über HairVision" 
+        title="Über uns – die KI-Frisuren-App aus München" 
         icon={<Sparkles size={24} />}
-        content={<AboutContent />}
+        content={<AboutContent onCtaClick={() => {
+          setActiveLegalModal(null);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }} />}
       />
 
       <LegalModal 
