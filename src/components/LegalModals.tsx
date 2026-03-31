@@ -79,34 +79,107 @@ export const ImpressumContent = () => (
 export const DatenschutzContent = () => (
   <div className="space-y-6">
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">1. Datenschutz auf einen Blick</h3>
-      <p>Die folgenden Hinweise geben einen einfachen Überblick darüber, was mit Ihren personenbezogenen Daten passiert, wenn Sie diese Website besuchen.</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">1. Verantwortlicher</h3>
+      <p>Verantwortlich für die Datenverarbeitung im Sinne der Datenschutz-Grundverordnung (DSGVO) ist:</p>
+      <p className="mt-2">
+        Orry Kress<br />
+        Frankfurter Ring 193A<br />
+        80807 München<br />
+        Deutschland<br />
+        E-Mail: team@hairvision-ai.de
+      </p>
     </section>
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">2. Besondere Hinweise zur KI-Verarbeitung (Foto-Uploads)</h3>
-      <p>Wenn Sie ein Foto (Selfie) hochladen, verarbeiten wir dieses wie folgt:</p>
-      <ul className="list-disc pl-5 space-y-2">
-        <li><strong>Datenarten:</strong> Biometrische Merkmale (Gesichtsform, Haarstruktur) aus Ihrem hochgeladenen Foto.</li>
-        <li><strong>Zweck:</strong> Analyse der Gesichtsform und Generierung von Frisur-Vorschlägen mittels Künstlicher Intelligenz (Gemini AI Modelle).</li>
-        <li><strong>KI-Modell:</strong> Wir nutzen Google Gemini Modelle zur Analyse und Bildgenerierung. Die Daten werden verschlüsselt an die API übertragen.</li>
-        <li><strong>Speicherung:</strong> Fotos werden temporär für die Dauer der Analyse verarbeitet. Wenn Sie ein Konto erstellen, werden die generierten Ergebnisse (Bilder) in unserer Datenbank (Google Firebase) gespeichert, damit Sie darauf zugreifen können.</li>
-        <li><strong>Löschung:</strong> Sie können Ihre gespeicherten Looks und Ihr Konto jederzeit löschen. Original-Uploads werden nach der Sitzung vom Server gelöscht, sofern sie nicht explizit gespeichert wurden.</li>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">2. Allgemeine Hinweise</h3>
+      <p>Der Schutz deiner personenbezogenen Daten ist uns wichtig. Wir verarbeiten personenbezogene Daten ausschließlich im Rahmen der gesetzlichen Vorschriften, insbesondere der DSGVO und des Bundesdatenschutzgesetzes (BDSG).</p>
+      <p>Diese Datenschutzerklärung informiert dich darüber, welche Daten wir erheben, zu welchem Zweck wir sie verwenden und welche Rechte du hast.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">3. Welche Daten wir verarbeiten</h3>
+      <p>Je nach Nutzung unserer Website bzw. App verarbeiten wir insbesondere folgende Daten:</p>
+      <ul className="list-disc pl-5 space-y-2 mt-2">
+        <li>hochgeladene Fotos oder Selfies,</li>
+        <li>Angaben zur Nutzung der App,</li>
+        <li>technische Nutzungsdaten wie IP-Adresse, Browsertyp, Gerätedaten und Zeitstempel,</li>
+        <li>Zahlungsdaten im Rahmen von Käufen oder Abonnements,</li>
+        <li>Kommunikationsdaten, wenn du uns kontaktierst.</li>
       </ul>
     </section>
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">3. Hosting und Firebase</h3>
-      <p>Unsere Website wird bei Google Cloud (Cloud Run) gehostet. Wir nutzen Firebase für die Authentifizierung und Datenbank-Speicherung. Die Serverstandorte befinden sich primär in der EU (Belgien/Frankfurt).</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">4. Zweck der Verarbeitung</h3>
+      <p>Wir verarbeiten deine Daten zu folgenden Zwecken:</p>
+      <ul className="list-disc pl-5 space-y-2 mt-2">
+        <li>Bereitstellung unserer KI-Frisuren-App,</li>
+        <li>Analyse von Gesichtsform und Haarbild,</li>
+        <li>Erstellung personalisierter Frisurenvorschläge,</li>
+        <li>Abwicklung von Zahlungen und Abonnements,</li>
+        <li>technische Bereitstellung, Sicherheit und Fehleranalyse,</li>
+        <li>Bearbeitung von Support-Anfragen,</li>
+        <li>Erfüllung gesetzlicher Pflichten.</li>
+      </ul>
     </section>
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">4. Ihre Rechte</h3>
-      <p>Sie haben im Rahmen der geltenden gesetzlichen Bestimmungen jederzeit folgende Rechte:</p>
-      <ul className="list-disc pl-5 space-y-2">
-        <li><strong>Auskunftsrecht:</strong> Sie können Informationen über Ihre von uns verarbeiteten Daten verlangen.</li>
-        <li><strong>Recht auf Berichtigung:</strong> Sie können die Korrektur unrichtiger Daten verlangen.</li>
-        <li><strong>Recht auf Löschung:</strong> Sie können die Löschung Ihrer Daten verlangen (über die Profil-Einstellungen möglich).</li>
-        <li><strong>Recht auf Datenübertragbarkeit:</strong> Sie haben das Recht, Daten, die wir auf Grundlage Ihrer Einwilligung oder in Erfüllung eines Vertrags automatisiert verarbeiten, an sich oder an einen Dritten in einem gängigen, maschinenlesbaren Format aushändigen zu lassen.</li>
-        <li><strong>Beschwerderecht:</strong> Sie haben das Recht, sich bei der zuständigen Datenschutz-Aufsichtsbehörde zu beschweren.</li>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">5. Verarbeitung deiner Fotos</h3>
+      <p>Wenn du ein Foto hochlädst, verwenden wir dieses ausschließlich zur Analyse und zur Erstellung deiner personalisierten Frisurenvorschläge.</p>
+      <p>Die Fotoverarbeitung erfolgt nur für den jeweiligen Analysevorgang. Soweit technisch vorgesehen, werden die Bilder nach Abschluss der Analyse automatisch gelöscht oder nicht dauerhaft gespeichert.</p>
+      <p>Eine Weitergabe deiner Fotos an Dritte erfolgt nicht, sofern dies nicht für die technische Bereitstellung erforderlich ist.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">6. Rechtsgrundlagen</h3>
+      <p>Wir verarbeiten personenbezogene Daten auf folgenden Rechtsgrundlagen:</p>
+      <ul className="list-disc pl-5 space-y-2 mt-2">
+        <li>Art. 6 Abs. 1 lit. b DSGVO zur Erfüllung des Nutzungsvertrags,</li>
+        <li>Art. 6 Abs. 1 lit. c DSGVO zur Erfüllung gesetzlicher Pflichten,</li>
+        <li>Art. 6 Abs. 1 lit. f DSGVO auf Grundlage unseres berechtigten Interesses an sicherem und funktionsfähigem Betrieb,</li>
+        <li>Art. 6 Abs. 1 lit. a DSGVO, soweit wir eine Einwilligung einholen, etwa für bestimmte Analyse- oder Trackingfunktionen.</li>
       </ul>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">7. Zahlungsabwicklung über Stripe</h3>
+      <p>Für die Zahlungsabwicklung nutzen wir Stripe. Dabei werden folgende Daten an Stripe übermittelt:</p>
+      <ul className="list-disc pl-5 space-y-1 mt-2">
+        <li>Name, E-Mail, Rechnungsadresse</li>
+        <li>Zahlungsdaten (nur an Stripe)</li>
+        <li>IP-Adresse, Geräteinformationen</li>
+      </ul>
+      <p className="mt-2"><strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO (Vertragserfüllung)</p>
+      <p className="mt-2">Stripe ist verpflichtet, Ihre Daten gemäß DSGVO zu verarbeiten. Weitere Informationen finden Sie in der Stripe-Datenschutzerklärung: <a href="https://stripe.com/de/privacy" target="_blank" rel="noopener noreferrer" className="text-[#FF9EBE] underline">https://stripe.com/de/privacy</a></p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">8. Hosting und technische Bereitstellung</h3>
+      <p>Unsere Website wird bei einem Hosting-Anbieter betrieben (Google Cloud/Firebase). Dabei werden technische Daten verarbeitet, die für den Betrieb, die Sicherheit und die Auslieferung der Website erforderlich sind.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">9. Cookies und Tracking</h3>
+      <p>Sofern wir Cookies oder ähnliche Technologien einsetzen, geschieht dies zur technischen Bereitstellung, zur Reichweitenmessung oder zur Verbesserung unseres Angebots.</p>
+      <p>Soweit dafür eine Einwilligung erforderlich ist, holen wir diese vorab über ein Consent-Banner ein.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">10. Empfänger der Daten</h3>
+      <p>Deine Daten werden nur dann an Dritte weitergegeben, wenn dies erforderlich ist, etwa an:</p>
+      <ul className="list-disc pl-5 space-y-2 mt-2">
+        <li>Hosting-Dienstleister,</li>
+        <li>Zahlungsdienstleister,</li>
+        <li>Analyse- und Sicherheitsdienste,</li>
+        <li>technische Dienstleister zur Wartung der Website.</li>
+      </ul>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">11. Speicherdauer</h3>
+      <p>Wir speichern personenbezogene Daten nur so lange, wie dies für die jeweiligen Zwecke erforderlich ist oder gesetzliche Aufbewahrungsfristen bestehen.</p>
+      <p>Fotos werden, soweit technisch vorgesehen, nach Abschluss der Analyse gelöscht.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">12. Deine Rechte</h3>
+      <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der Verarbeitung, Datenübertragbarkeit, Widerspruch gegen bestimmte Verarbeitungen sowie Widerruf einer erteilten Einwilligung mit Wirkung für die Zukunft.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">13. Beschwerderecht</h3>
+      <p>Du hast außerdem das Recht, dich bei einer Datenschutzaufsichtsbehörde zu beschweren.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">14. Änderungen dieser Datenschutzerklärung</h3>
+      <p>Wir behalten uns vor, diese Datenschutzerklärung anzupassen, wenn sich unsere Website, unsere App oder die rechtlichen Anforderungen ändern.</p>
     </section>
   </div>
 );
@@ -115,23 +188,53 @@ export const AGBContent = () => (
   <div className="space-y-6">
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">1. Geltungsbereich</h3>
-      <p>Diese Allgemeinen Geschäftsbedingungen gelten für alle über HairVision AI abgeschlossenen Verträge zwischen uns und unseren Kunden.</p>
+      <p>Diese Allgemeinen Geschäftsbedingungen gelten für die Nutzung der HairVision-Website und der HairVision-App sowie für den Erwerb kostenpflichtiger Funktionen, Einmalfreischaltungen und Abonnements.</p>
     </section>
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">2. Leistungen und Preise</h3>
-      <p>Wir bieten KI-basierte Frisurenberatung an. Die Preise gestalten sich wie folgt:</p>
-      <ul className="list-disc pl-5 space-y-2">
-        <li><strong>Quick Unlock (Einmalig):</strong> 1,99 € inkl. MwSt. für die Freischaltung einer Analyse.</li>
-        <li><strong>Styling-Flatrate (Abo):</strong> 2,49 € / Monat (jährliche Abrechnung) für unbegrenzten Zugriff.</li>
-      </ul>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">2. Leistungsbeschreibung</h3>
+      <p>HairVision bietet eine digitale Anwendung zur virtuellen Frisurenanalyse und zur Erstellung personalisierter Frisurenvorschläge auf Basis hochgeladener Fotos.</p>
+      <p>Die angebotenen Ergebnisse dienen der Orientierung. Es wird keine Garantie übernommen, dass eine Frisur im realen Leben exakt dem digitalen Ergebnis entspricht.</p>
     </section>
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">3. Vertragsschluss</h3>
-      <p>Der Vertrag kommt durch den Abschluss des Bezahlvorgangs (Stripe) zustande. Sie erhalten eine Bestätigung per E-Mail, die gleichzeitig als Rechnung dient.</p>
+      <p>Der Vertrag über kostenpflichtige Leistungen kommt zustande, wenn der Nutzer den Bezahlvorgang abschließt und die Zahlung erfolgreich verarbeitet wurde.</p>
     </section>
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">4. Rechnungsstellung</h3>
-      <p>Rechnungen werden elektronisch im PDF-Format erstellt und an die bei der Registrierung hinterlegte E-Mail-Adresse versandt.</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">4. Zahlungsabwicklung</h3>
+      <p>Die Zahlung erfolgt über den Zahlungsdienstleister Stripe. Die Nutzer werden während des Bestellvorgangs auf die sichere Checkout-Seite von Stripe weitergeleitet. Sensible Zahlungsdaten werden ausschließlich von Stripe verarbeitet und nicht auf unseren Servern gespeichert.</p>
+      <p className="mt-2">Alle Preise werden im Bestellprozess klar angezeigt.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">5. Einmalige Freischaltungen</h3>
+      <p>Einmalige Freischaltungen berechtigen zur Nutzung der jeweils beschriebenen zusätzlichen Funktionen oder Ergebnisse. Ein Anspruch auf Rückerstattung besteht nur, soweit gesetzlich vorgesehen oder ausdrücklich zugesagt.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">6. Abonnements</h3>
+      <p>Abonnements verlängern sich automatisch um die jeweils angegebene Laufzeit, sofern sie nicht rechtzeitig gekündigt werden. Kündigungsmöglichkeiten, Laufzeiten und Preise werden vor Abschluss des Abonnements transparent angezeigt.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">7. Nutzung der Inhalte</h3>
+      <p>Die über HairVision erzeugten Inhalte dürfen ausschließlich privat genutzt werden, sofern nichts anderes vereinbart wurde. Eine Weitergabe, der Weiterverkauf oder die kommerzielle Nutzung der Ergebnisse ist nur mit ausdrücklicher Zustimmung gestattet.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">8. Pflichten der Nutzer</h3>
+      <p>Nutzer verpflichten sich, nur eigene oder rechtmäßig verwendete Fotos hochzuladen und die App nicht missbräuchlich zu verwenden.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">9. Verfügbarkeit</h3>
+      <p>Wir bemühen uns um eine hohe Verfügbarkeit der Dienste, können jedoch keine unterbrechungsfreie Nutzung garantieren.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">10. Haftung</h3>
+      <p>Wir haften nur im Rahmen der gesetzlichen Bestimmungen. Eine Haftung für Schäden, die durch eine abweichende reale Umsetzung einer empfohlenen Frisur entstehen, ist ausgeschlossen, soweit gesetzlich zulässig.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">11. Widerruf</h3>
+      <p>Soweit Verbraucher digitale Inhalte oder Dienstleistungen erwerben, gelten die gesetzlichen Widerrufsrechte, soweit kein gesetzlicher Ausschluss greift. Details finden Sie in unserer separaten Widerrufsbelehrung.</p>
+    </section>
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">12. Schlussbestimmungen</h3>
+      <p>Es gilt deutsches Recht. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Regelungen unberührt.</p>
     </section>
   </div>
 );
@@ -139,31 +242,53 @@ export const AGBContent = () => (
 export const WiderrufContent = () => (
   <div className="space-y-6">
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Widerrufsbelehrung</h3>
-      <p>Sie haben das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">Widerrufsbelehrung für HairVision</h3>
+      <h4 className="font-bold text-brand-primary mb-2">Widerrufsrecht</h4>
+      <p>Verbraucher haben grundsätzlich das Recht, binnen vierzehn Tagen ohne Angabe von Gründen einen Vertrag zu widerrufen.</p>
       <p>Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>
+      <p>Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels einer eindeutigen Erklärung über Ihren Entschluss informieren, diesen Vertrag zu widerrufen. Sie können dafür das unten aufgeführte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.</p>
+      <p>Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>
     </section>
+
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Besonderer Hinweis zum vorzeitigen Erlöschen</h3>
-      <p className="bg-brand-accent/5 p-4 rounded-xl border border-brand-accent/20">Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten auch dann, wenn wir mit der Ausführung des Vertrags begonnen haben, nachdem Sie ausdrücklich zugestimmt haben, dass wir mit der Ausführung des Vertrags vor Ablauf der Widerrufsfrist beginnen, und Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung des Vertrags Ihr Widerrufsrecht verlieren.</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">Erlöschen des Widerrufsrechts bei digitalen Inhalten</h3>
+      <p>Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten, wenn wir mit der Ausführung des Vertrags begonnen haben, nachdem Sie:</p>
+      <ul className="list-disc pl-5 space-y-2 mt-2">
+        <li>ausdrücklich zugestimmt haben, dass wir vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags beginnen, und</li>
+        <li>Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung Ihr Widerrufsrecht verlieren.</li>
+      </ul>
+      <p className="mt-4 bg-brand-accent/5 p-4 rounded-xl border border-brand-accent/20">
+        Bei HairVision bedeutet das: Sobald Sie den sofortigen Zugriff auf die digitalen Inhalte aktivieren und mit der Analyse bzw. Freischaltung begonnen wurde, kann das Widerrufsrecht unter den gesetzlichen Voraussetzungen entfallen.
+      </p>
     </section>
+
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">Folgen des Widerrufs</h3>
+      <p>Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf bei uns eingegangen ist.</p>
+      <p>Für die Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart.</p>
+    </section>
+
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">Muster-Widerrufsformular</h3>
+      <p className="text-sm mb-4">Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück:</p>
       <div className="p-6 bg-black/5 rounded-xl font-mono text-xs whitespace-pre-wrap">
 {`An:
-HairVision AI Solutions
-Musterstraße 123
-10115 Berlin
-E-Mail: support@hairvision-ai.de
+Orry Kress
+Frankfurter Ring 193A
+80807 München
+E-Mail: team@hairvision-ai.de
 
-Hiermit widerrufe(n) ich/wir (*) den von mir/uns (*) abgeschlossenen Vertrag über den Kauf der folgenden Waren (*)/die Erbringung der folgenden Dienstleistung (*)
+Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über den Kauf der folgenden digitalen Inhalte:
 
-Bestellt am (*)/erhalten am (*)
-Name des/der Verbraucher(s)
-Anschrift des/der Verbraucher(s)
-Unterschrift des/der Verbraucher(s) (nur bei Mitteilung auf Papier)
-Datum
-(*) Unzutreffendes streichen.`}
+Bestellt am:
+
+Name des Verbrauchers:
+
+Anschrift des Verbrauchers:
+
+Datum:
+
+Unterschrift des Verbrauchers (nur bei Mitteilung auf Papier)`}
       </div>
     </section>
   </div>

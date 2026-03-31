@@ -2999,7 +2999,7 @@ export default function App() {
                             className="mt-1 w-4 h-4 rounded border-gray-300 text-[#FF9EBE] focus:ring-[#FF9EBE]"
                           />
                           <span className="text-[10px] lg:text-xs text-brand-primary/60 leading-relaxed">
-                            Ich verlange ausdrücklich, dass Sie vor Ende der Widerrufsfrist mit der Ausführung des Vertrags beginnen. Mir ist bekannt, dass ich bei vollständiger Vertragserfüllung mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.
+                            Ich stimme ausdrücklich zu, dass HairVision vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags über digitale Inhalte beginnt. Mir ist bekannt, dass ich dadurch mit Beginn der Ausführung mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.
                           </span>
                         </label>
                       </div>
@@ -3085,6 +3085,10 @@ export default function App() {
                           </div>
                         </div>
                       </button>
+
+                      <p className="text-[10px] text-center text-brand-primary/40 mt-2">
+                        Die Freischaltung der digitalen Inhalte erfolgt sofort nach erfolgreichem Kauf.
+                      </p>
                     </div>
 
                     <div className="mt-6 lg:mt-8 pt-6 border-t border-black/5 space-y-4">
@@ -3106,6 +3110,12 @@ export default function App() {
                         <p className="text-[9px] lg:text-[10px] text-center text-brand-primary/40 uppercase tracking-widest font-bold flex items-center justify-center gap-2">
                           <Users size={12} className="text-[#FF9EBE]" /> Über 1000+ zufriedene Nutzer weltweit
                         </p>
+                        <div className="flex items-center justify-center gap-4 pt-2">
+                          <button onClick={() => setActiveLegalModal('impressum')} className="text-[9px] text-brand-primary/40 hover:text-brand-primary underline">Impressum</button>
+                          <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[9px] text-brand-primary/40 hover:text-brand-primary underline">Datenschutz</button>
+                          <button onClick={() => setActiveLegalModal('agb')} className="text-[9px] text-brand-primary/40 hover:text-brand-primary underline">AGB</button>
+                          <button onClick={() => setActiveLegalModal('widerruf')} className="text-[9px] text-brand-primary/40 hover:text-brand-primary underline">Widerruf</button>
+                        </div>
                       </div>
                     </div>
                   </div>
