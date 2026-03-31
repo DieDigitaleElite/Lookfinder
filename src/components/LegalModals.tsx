@@ -186,92 +186,71 @@ export const DatenschutzContent = () => (
 
 export const AGBContent = () => (
   <div className="space-y-6">
+    <p className="text-sm text-brand-primary/60 italic">Stand: 31. März 2026</p>
+
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">1. Geltungsbereich</h3>
-      <p>Diese Allgemeinen Geschäftsbedingungen gelten für die Nutzung der HairVision-Website und der HairVision-App sowie für den Erwerb kostenpflichtiger Funktionen, Einmalfreischaltungen und Abonnements.</p>
+      <p>Die folgenden Allgemeinen Geschäftsbedingungen (AGB) regeln die Nutzung der HairVision-Website und der HairVision-App sowie den Erwerb von kostenpflichtigen Funktionen, Einmalfreischaltungen und Abonnements.</p>
     </section>
+
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">2. Leistungsbeschreibung</h3>
-      <p>HairVision bietet eine digitale Anwendung zur virtuellen Frisurenanalyse und zur Erstellung personalisierter Frisurenvorschläge auf Basis hochgeladener Fotos.</p>
-      <p>Die angebotenen Ergebnisse dienen der Orientierung. Es wird keine Garantie übernommen, dass eine Frisur im realen Leben exakt dem digitalen Ergebnis entspricht.</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">2. Vertragsgegenstand</h3>
+      <p>HairVision bietet eine digitale Anwendung zur Analyse von Gesichtsformen und zur Erstellung personalisierter Frisurenvorschläge auf Basis hochgeladener Fotos.</p>
+      <p className="mt-2">Die angebotenen Ergebnisse dienen der Orientierung und Inspiration. Es wird keine Garantie übernommen, dass eine Frisur im realen Leben exakt dem digitalen Ergebnis entspricht.</p>
     </section>
+
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">3. Vertragsschluss</h3>
       <p>Der Vertrag über kostenpflichtige Leistungen kommt zustande, wenn der Nutzer den Bezahlvorgang abschließt und die Zahlung erfolgreich verarbeitet wurde.</p>
     </section>
+
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">4. Zahlungsabwicklung</h3>
-      <p>Die Zahlung erfolgt über den Zahlungsdienstleister Stripe. Die Nutzer werden während des Bestellvorgangs auf die sichere Checkout-Seite von Stripe weitergeleitet. Sensible Zahlungsdaten werden ausschließlich von Stripe verarbeitet und nicht auf unseren Servern gespeichert.</p>
-      <p className="mt-2">Alle Preise werden im Bestellprozess klar angezeigt.</p>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">4. Preise und Zahlungsabwicklung</h3>
+      <p>Alle Preise werden im Bestellprozess klar angezeigt. Die Zahlung erfolgt über den jeweils angebotenen Zahlungsdienstleister (Stripe).</p>
+      <p className="mt-2">Die Nutzer werden während des Bestellvorgangs auf die sichere Checkout-Seite von Stripe weitergeleitet. Sensible Zahlungsdaten werden ausschließlich von Stripe verarbeitet und nicht auf unseren Servern gespeichert.</p>
     </section>
+
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">5. Einmalige Freischaltungen</h3>
-      <p>Einmalige Freischaltungen berechtigen zur Nutzung der jeweils beschriebenen zusätzlichen Funktionen oder Ergebnisse. Ein Anspruch auf Rückerstattung besteht nur, soweit gesetzlich vorgesehen oder ausdrücklich zugesagt.</p>
+      <p>Einmalige Freischaltungen berechtigen zur sofortigen Nutzung der jeweils beschriebenen zusätzlichen Funktionen oder Ergebnisse. Ein Anspruch auf Rückerstattung besteht nur, soweit gesetzlich vorgesehen oder ausdrücklich zugesagt.</p>
     </section>
+
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">6. Abonnements</h3>
-      <p>Abonnements verlängern sich automatisch um die jeweils angegebene Laufzeit, sofern sie nicht rechtzeitig gekündigt werden. Kündigungsmöglichkeiten, Laufzeiten und Preise werden vor Abschluss des Abonnements transparent angezeigt.</p>
-    </section>
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">7. Nutzung der Inhalte</h3>
-      <p>Die über HairVision erzeugten Inhalte dürfen ausschließlich privat genutzt werden, sofern nichts anderes vereinbart wurde. Eine Weitergabe, der Weiterverkauf oder die kommerzielle Nutzung der Ergebnisse ist nur mit ausdrücklicher Zustimmung gestattet.</p>
-    </section>
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">8. Pflichten der Nutzer</h3>
-      <p>Nutzer verpflichten sich, nur eigene oder rechtmäßig verwendete Fotos hochzuladen und die App nicht missbräuchlich zu verwenden.</p>
-    </section>
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">9. Verfügbarkeit</h3>
-      <p>Wir bemühen uns um eine hohe Verfügbarkeit der Dienste, können jedoch keine unterbrechungsfreie Nutzung garantieren.</p>
-    </section>
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">10. Haftung</h3>
-      <p>Wir haften nur im Rahmen der gesetzlichen Bestimmungen. Eine Haftung für Schäden, die durch eine abweichende reale Umsetzung einer empfohlenen Frisur entstehen, ist ausgeschlossen, soweit gesetzlich zulässig.</p>
-    </section>
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">11. Widerruf</h3>
-      <p>Soweit Verbraucher digitale Inhalte oder Dienstleistungen erwerben, gelten die gesetzlichen Widerrufsrechte, soweit kein gesetzlicher Ausschluss greift. Details finden Sie in unserer separaten Widerrufsbelehrung.</p>
-    </section>
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">12. Schlussbestimmungen</h3>
-      <p>Es gilt deutsches Recht. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Regelungen unberührt.</p>
-    </section>
-  </div>
-);
-
-export const WiderrufContent = () => (
-  <div className="space-y-6">
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Widerrufsbelehrung für HairVision</h3>
-      <h4 className="font-bold text-brand-primary mb-2">Widerrufsrecht</h4>
-      <p>Verbraucher haben grundsätzlich das Recht, binnen vierzehn Tagen ohne Angabe von Gründen einen Vertrag zu widerrufen.</p>
-      <p>Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>
-      <p>Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels einer eindeutigen Erklärung über Ihren Entschluss informieren, diesen Vertrag zu widerrufen. Sie können dafür das unten aufgeführte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.</p>
-      <p>Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>
+      <p>Abonnements verlängern sich automatisch um die jeweils angegebene Laufzeit, sofern sie nicht vor Ablauf der Kündigungsfrist gekündigt werden.</p>
+      <p className="mt-2">Kündigungsmöglichkeiten, Laufzeiten und Preise werden vor Abschluss des Abonnements transparent angezeigt.</p>
     </section>
 
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Erlöschen des Widerrufsrechts bei digitalen Inhalten</h3>
-      <p>Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten, wenn wir mit der Ausführung des Vertrags begonnen haben, nachdem Sie:</p>
-      <ul className="list-disc pl-5 space-y-2 mt-2">
-        <li>ausdrücklich zugestimmt haben, dass wir vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags beginnen, und</li>
-        <li>Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung Ihr Widerrufsrecht verlieren.</li>
-      </ul>
-      <p className="mt-4 bg-brand-accent/5 p-4 rounded-xl border border-brand-accent/20">
-        Bei HairVision bedeutet das: Sobald Sie den sofortigen Zugriff auf die digitalen Inhalte aktivieren und mit der Analyse bzw. Freischaltung begonnen wurde, kann das Widerrufsrecht unter den gesetzlichen Voraussetzungen entfallen.
-      </p>
-    </section>
+    <section className="bg-black/5 p-6 rounded-2xl border border-black/10">
+      <h3 className="text-lg font-bold text-brand-primary mb-4">7. Widerrufsbelehrung</h3>
+      
+      <div className="space-y-4">
+        <div>
+          <h4 className="font-bold text-brand-primary mb-1">Widerrufsrecht</h4>
+          <p className="text-sm">Verbraucher haben grundsätzlich das Recht, binnen vierzehn Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen.</p>
+          <p className="text-sm mt-1">Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>
+          <p className="text-sm mt-1">Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels einer eindeutigen Erklärung über Ihren Entschluss informieren, diesen Vertrag zu widerrufen. Sie können dafür das unten aufgeführte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.</p>
+          <p className="text-sm mt-1">Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>
+        </div>
 
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Folgen des Widerrufs</h3>
-      <p>Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf bei uns eingegangen ist.</p>
-      <p>Für die Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart.</p>
-    </section>
+        <div>
+          <h4 className="font-bold text-brand-primary mb-1">Erlöschen des Widerrufsrechts bei digitalen Inhalten</h4>
+          <p className="text-sm">Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten, wenn wir mit der Ausführung des Vertrags begonnen haben, nachdem Sie:</p>
+          <ul className="list-disc pl-5 space-y-1 mt-2 text-sm">
+            <li>ausdrücklich zugestimmt haben, dass wir vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags beginnen, und</li>
+            <li>Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung Ihr Widerrufsrecht verlieren.</li>
+          </ul>
+        </div>
 
-    <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Muster-Widerrufsformular</h3>
-      <p className="text-sm mb-4">Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück:</p>
-      <div className="p-6 bg-black/5 rounded-xl font-mono text-xs whitespace-pre-wrap">
+        <div>
+          <h4 className="font-bold text-brand-primary mb-1">Folgen des Widerrufs</h4>
+          <p className="text-sm">Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf bei uns eingegangen ist.</p>
+          <p className="text-sm mt-1">Für die Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart.</p>
+        </div>
+
+        <div>
+          <h4 className="font-bold text-brand-primary mb-1">Muster-Widerrufsformular</h4>
+          <div className="p-4 bg-white rounded-xl font-mono text-[10px] whitespace-pre-wrap border border-black/5 mt-2">
 {`An:
 Orry Kress
 Frankfurter Ring 193A
@@ -289,6 +268,92 @@ Anschrift des Verbrauchers:
 Datum:
 
 Unterschrift des Verbrauchers (nur bei Mitteilung auf Papier)`}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">8. Nutzungsrechte</h3>
+      <p>Die über HairVision erzeugten Inhalte dürfen ausschließlich privat genutzt werden, sofern nichts anderes vereinbart wurde.</p>
+      <p className="mt-2">Eine Weitergabe, der Weiterverkauf oder die kommerzielle Nutzung der Ergebnisse ist nur mit ausdrücklicher Zustimmung gestattet.</p>
+    </section>
+
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">9. Pflichten der Nutzer</h3>
+      <p>Nutzer verpflichten sich, nur eigene oder rechtmäßig verwendete Fotos hochzuladen und die App nicht missbräuchlich zu verwenden.</p>
+    </section>
+
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">10. Verfügbarkeit</h3>
+      <p>Wir bemühen uns um eine hohe Verfügbarkeit der Dienste, können jedoch keine unterbrechungsfreie Nutzung garantieren.</p>
+    </section>
+
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">11. Haftung</h3>
+      <p>Wir haften nur im Rahmen der gesetzlichen Bestimmungen. Eine Haftung für Schäden, die durch eine abweichende reale Umsetzung einer empfohlenen Frisur entstehen, ist ausgeschlossen, soweit gesetzlich zulässig.</p>
+    </section>
+
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">12. Schlussbestimmungen</h3>
+      <p>Es gilt deutsches Recht. Sollten einzelne Bestimmungen unwirksam sein, bleibt die Wirksamkeit der übrigen Regelungen unberührt.</p>
+    </section>
+  </div>
+);
+
+
+export const WiderrufContent = () => (
+  <div className="space-y-6">
+    <section>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">Widerrufsbelehrung für HairVision</h3>
+      
+      <div className="space-y-6">
+        <div>
+          <h4 className="font-bold text-brand-primary mb-2">Widerrufsrecht</h4>
+          <p>Verbraucher haben grundsätzlich das Recht, binnen vierzehn Tagen ohne Angabe von Gründen einen Vertrag zu widerrufen.</p>
+          <p className="mt-2">Die Widerrufsfrist beträgt vierzehn Tage ab dem Tag des Vertragsabschlusses.</p>
+          <p className="mt-2">Um Ihr Widerrufsrecht auszuüben, müssen Sie uns mittels einer eindeutigen Erklärung über Ihren Entschluss informieren, diesen Vertrag zu widerrufen. Sie können dafür das unten aufgeführte Muster-Widerrufsformular verwenden, das jedoch nicht vorgeschrieben ist.</p>
+          <p className="mt-2">Zur Wahrung der Widerrufsfrist reicht es aus, dass Sie die Mitteilung über die Ausübung des Widerrufsrechts vor Ablauf der Widerrufsfrist absenden.</p>
+        </div>
+
+        <div className="bg-brand-primary/5 p-4 rounded-xl border border-brand-primary/10">
+          <h4 className="font-bold text-brand-primary mb-2">Erlöschen des Widerrufsrechts bei digitalen Inhalten</h4>
+          <p>Das Widerrufsrecht erlischt bei einem Vertrag über die Lieferung von nicht auf einem körperlichen Datenträger befindlichen digitalen Inhalten, wenn wir mit der Ausführung des Vertrags begonnen haben, nachdem Sie:</p>
+          <ul className="list-disc pl-5 space-y-2 mt-3">
+            <li>ausdrücklich zugestimmt haben, dass wir vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags beginnen, und</li>
+            <li>Ihre Kenntnis davon bestätigt haben, dass Sie durch Ihre Zustimmung mit Beginn der Ausführung Ihr Widerrufsrecht verlieren.</li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 className="font-bold text-brand-primary mb-2">Folgen des Widerrufs</h4>
+          <p>Wenn Sie diesen Vertrag widerrufen, haben wir Ihnen alle Zahlungen, die wir von Ihnen erhalten haben, unverzüglich und spätestens binnen vierzehn Tagen ab dem Tag zurückzuzahlen, an dem die Mitteilung über Ihren Widerruf bei uns eingegangen ist.</p>
+          <p className="mt-2">Für die Rückzahlung verwenden wir dasselbe Zahlungsmittel, das Sie bei der ursprünglichen Transaktion eingesetzt haben, es sei denn, mit Ihnen wurde ausdrücklich etwas anderes vereinbart; in keinem Fall werden Ihnen wegen dieser Rückzahlung Entgelte berechnet.</p>
+        </div>
+
+        <div>
+          <h4 className="font-bold text-brand-primary mb-2">Muster-Widerrufsformular</h4>
+          <p className="mb-4 text-sm text-brand-primary/60">(Wenn Sie den Vertrag widerrufen wollen, dann füllen Sie bitte dieses Formular aus und senden Sie es zurück.)</p>
+          <div className="p-6 bg-black/5 rounded-2xl font-mono text-xs whitespace-pre-wrap border border-black/10">
+{`An:
+Orry Kress
+Frankfurter Ring 193A
+80807 München
+E-Mail: team@hairvision-ai.de
+
+Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über den Kauf der folgenden digitalen Inhalte:
+
+Bestellt am:
+
+Name des Verbrauchers:
+
+Anschrift des Verbrauchers:
+
+Datum:
+
+Unterschrift des Verbrauchers (nur bei Mitteilung auf Papier)`}
+          </div>
+        </div>
       </div>
     </section>
   </div>

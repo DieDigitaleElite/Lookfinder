@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, Shield, Scale, ArrowRightLeft, Heart, Zap, Target } from 'lucide-react';
+import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeFaceAndSuggestStyles, generateHairstyleImage, GeneratedResult, HairstyleSuggestion } from './services/geminiService';
 import { compressBase64Image } from './services/imageUtils';
@@ -1803,14 +1803,14 @@ export default function App() {
                             </h3>
                             <div className="space-y-6 text-lg lg:text-xl text-brand-primary/70 font-medium max-w-2xl mx-auto mt-4">
                               <p>
-                                Entdecke jetzt alle <span className="text-[#FF9EBE] font-black">6 weitere personalisierte Styles</span> dieser Analyse – für nur <span className="font-black">1,99 € einmalig</span>. 🚀
+                                Entdecke jetzt alle <span className="text-[#FF9EBE] font-black">6 weitere personalisierte Styles</span> dieser Analyse – für nur <span className="font-black">2,99 € einmalig</span>. 🚀
                               </p>
                               <p className="text-base lg:text-lg opacity-80 italic">
                                 Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
                               </p>
                               <div className="pt-4 border-t border-[#FF9EBE]/10">
                                 <p className="text-brand-primary font-bold mb-2">Oder werde zum eigenen Stylist mit der Styling-Flatrate. ✨</p>
-                                <p className="text-[#FF9EBE] font-black mb-4">Hol dir das Monats-oder Jahresabo ab 3,33€ und erhalte:</p>
+                                <p className="text-[#FF9EBE] font-black mb-4">Hol dir das Monats-oder Jahresabo ab 3,33 € und erhalte:</p>
                                 <ul className="text-left space-y-2 text-sm lg:text-base max-w-md mx-auto">
                                   <li className="flex items-center gap-2">🎨 Unbegrenzt über 100 Frisuren & Farben direkt an dir selber testen</li>
                                   <li className="flex items-center gap-2">✅ Alle 9 Styles dieser Analyse sofort</li>
@@ -1822,7 +1822,7 @@ export default function App() {
                               </div>
                               <div className="pt-4 space-y-2">
                                 <p className="text-[#FF9EBE] font-black text-2xl">Nur 39,99 € für das ganze Jahr 💸</p>
-                                <p className="text-sm opacity-60">(statt 83,88 €) – das sind nur 3,33 € pro Monat.</p>
+                                <p className="text-sm opacity-60">(statt 119,88 €) – das sind nur 3,33 € pro Monat.</p>
                                 <p className="text-brand-primary font-bold">Kein Rätselraten mehr. Keine teuren Fehlgriffe beim Friseur. ❌</p>
                                 <p className="text-brand-primary font-bold">Nur noch Looks, die wirklich zu dir passen. ✅</p>
                                 <p className="text-[#FF9EBE] font-black text-xl mt-4">Finde jetzt deinen echten Traum-Look. ✨</p>
@@ -1852,7 +1852,7 @@ export default function App() {
                                   <p className="text-sm font-bold text-brand-primary leading-snug">Schalte alle 9 Bilder dieser Analyse sofort frei.</p>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-black/5">
-                                  <span className="text-lg font-black text-brand-primary">Nur 1,99€</span>
+                                  <span className="text-lg font-black text-brand-primary">Nur 2,99€</span>
                                 </div>
                               </div>
 
@@ -1867,8 +1867,8 @@ export default function App() {
                                   <p className="text-sm font-bold text-brand-primary leading-snug">Styling-Flatrate: Unbegrenzt testen + monatlich neue Trends.</p>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-[#FF9EBE]/10">
-                                  <span className="text-lg font-black text-[#FF9EBE]">Nur 3,33€ / Monat</span>
-                                  <span className="text-[10px] text-brand-primary/40 block">39,99€ jährlich</span>
+                                  <span className="text-lg font-black text-[#FF9EBE]">Nur 3,33 € / Monat</span>
+                                  <span className="text-[10px] text-brand-primary/40 block">39,99 € jährlich</span>
                                 </div>
                               </div>
 
@@ -1880,7 +1880,7 @@ export default function App() {
                                   <p className="text-sm font-bold text-brand-primary leading-snug">Flexibel jederzeit kündbar. Alle Styles & Trends.</p>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-black/5">
-                                  <span className="text-lg font-black text-brand-primary">6,99€ / Monat</span>
+                                  <span className="text-lg font-black text-brand-primary">9,99€ / Monat</span>
                                 </div>
                               </div>
                             </div>
@@ -1893,8 +1893,8 @@ export default function App() {
                                 <span className="text-3xl font-mono font-bold text-brand-primary">{formatTime(timeLeft)}</span>
                                 <div className="h-8 w-px bg-black/10" />
                                 <div className="text-left">
-                                  <span className="block text-xs font-bold text-brand-primary/40 line-through">83,88€</span>
-                                  <span className="text-xl font-black text-[#FF9EBE]">Nur 39,99€ / Jahr</span>
+                                  <span className="block text-xs font-bold text-brand-primary/40 line-through">119,88€</span>
+                                  <span className="text-xl font-black text-[#FF9EBE]">Nur 39,99 € / Jahr</span>
                                 </div>
                               </div>
                             </div>
@@ -2000,7 +2000,7 @@ export default function App() {
                                   {result.name} schaut auch super aus bei dir! 😍
                                 </button>
                                 <p className="text-white/90 text-[10px] mt-4 font-medium leading-relaxed">
-                                  Entdecke diesen und 5 weitere Styles die perfekt zu dir passen - Jetzt für nur 1,99€
+                                  Entdecke diesen und 5 weitere Styles die perfekt zu dir passen - Jetzt für nur 2,99€
                                 </p>
                                 <div className="mt-4 flex flex-col items-center gap-2">
                                   <div className="flex items-center gap-1 text-[8px] text-white/60 font-bold uppercase tracking-widest">
@@ -2920,7 +2920,7 @@ export default function App() {
                     </h2>
                     
                     <p className="text-white/80 mb-6 text-sm lg:text-base">
-                      Entdecke jetzt alle 6 weitere personalisierte Styles dieser Analyse – für nur 1,99 € einmalig. Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
+                      Entdecke jetzt alle 6 weitere personalisierte Styles dieser Analyse – für nur 2,99 € einmalig. Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
                     </p>
                     
                     <p className="text-[#FF9EBE] font-bold mb-4 text-sm lg:text-base">
@@ -2929,8 +2929,9 @@ export default function App() {
                     
                     <ul className="space-y-3 lg:space-y-4 mb-8">
                       {[
-                        "🎨 Unbegrenzt über 100 Frisuren & Farben direkt an dir selber testen",
-                        "✅ Alle 9 Styles dieser Analyse sofort freigeschaltet",
+                        "🎨 Unbegrenzt Frisuren & Farben testen",
+                        "✅ Premium-Bibliothek (12.000+ Styles)",
+                        "Für alle zukünftigen Analysen 🆕",
                         "Jeden Monat komplett neue Trend-Kollektionen 🆕",
                         "Dein persönlicher Profi-Friseur-Guide als PDF 📖",
                         "HD-Downloads ohne Wasserzeichen 💎",
@@ -3005,35 +3006,58 @@ export default function App() {
                       </div>
 
                       {/* Yearly Subscription - BEST DEAL */}
-                      <button 
-                        onClick={() => {
-                          if (!agreedToTerms || !agreedToWiderruf) {
-                            setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
-                            return;
-                          }
-                          handleCheckout('yearly');
-                        }}
-                        disabled={isCheckingOut}
-                        className="w-full p-6 lg:p-8 border-4 border-[#FF9EBE] rounded-3xl bg-[#FF9EBE]/5 hover:bg-[#FF9EBE]/10 transition-all text-left group relative overflow-hidden disabled:opacity-50 disabled:grayscale shadow-xl scale-105 z-10"
-                      >
-                        <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] lg:text-xs font-black px-3 lg:px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
-                          ★ Beste Wahl ★
-                        </div>
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="font-black text-xl lg:text-2xl text-brand-primary">Styling-Flatrate Jahresabo</span>
-                          <div className="text-right">
-                            <span className="text-2xl lg:text-3xl font-black text-brand-primary block">39,99€</span>
-                            <span className="text-xs lg:text-sm text-brand-primary/40 line-through">statt 83,88€</span>
+                      <div className="relative">
+                        <button 
+                          onClick={() => {
+                            if (!agreedToTerms || !agreedToWiderruf) {
+                              setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                              return;
+                            }
+                            handleCheckout('yearly');
+                          }}
+                          disabled={isCheckingOut}
+                          className="w-full p-6 lg:p-8 border-4 border-[#FF9EBE] rounded-3xl bg-[#FF9EBE]/5 hover:bg-[#FF9EBE]/10 transition-all text-left group relative overflow-hidden disabled:opacity-50 disabled:grayscale shadow-xl scale-105 z-10"
+                        >
+                          <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] lg:text-xs font-black px-3 lg:px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
+                            ★ Empfohlen ★
                           </div>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-sm lg:text-base font-bold text-[#FF9EBE]">Du sparst 52 % – nur 3,33 € pro Monat</p>
-                          <p className="text-xs lg:text-sm text-brand-primary/60">Unbegrenzt testen + monatlich neue Trends + Profi-Guide</p>
-                        </div>
-                        <div className="mt-4 w-full py-3 bg-[#FF9EBE] text-white text-center font-black rounded-xl group-hover:bg-[#FF9EBE]/90 transition-colors uppercase tracking-widest text-sm flex items-center justify-center gap-2">
-                          {isCheckingOut ? <Loader2 className="animate-spin" size={18} /> : "Jahresabo starten"}
-                        </div>
-                      </button>
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-black text-xl lg:text-2xl text-brand-primary">Styling-Flatrate</span>
+                            <div className="text-right">
+                              <span className="text-2xl lg:text-3xl font-black text-brand-primary block">39,99 € / Jahr</span>
+                              <span className="text-xs lg:text-sm text-brand-primary/40 line-through">statt 119,88 €</span>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <div className="flex flex-col gap-1">
+                              <p className="text-sm lg:text-base font-bold text-[#FF9EBE]">Spare 66% – entspricht 3,33 € / Monat</p>
+                              <p className="text-[10px] lg:text-xs text-brand-primary/60">Erste Zahlung: 39,99 €, dann 39,99 € jährlich</p>
+                            </div>
+                            
+                            <div className="space-y-1 py-2 border-y border-black/5">
+                              <p className="text-[10px] lg:text-xs text-brand-primary/80 flex items-center gap-2">
+                                <Calendar size={12} className="text-[#FF9EBE]" />
+                                <span>Vertrag läuft 12 Monate, dann automatisch jährlich verlängerbar</span>
+                              </p>
+                              <p className="text-[10px] lg:text-xs text-brand-primary/80 flex items-center gap-2">
+                                <RefreshCw size={12} className="text-[#FF9EBE]" />
+                                <span>Jederzeit zum Monatsende kündbar</span>
+                              </p>
+                            </div>
+                            
+                            <ul className="space-y-1">
+                              {["Unbegrenzt Frisuren & Farben testen", "Premium-Bibliothek (12.000+ Styles)", "Für alle zukünftigen Analysen"].map((f, i) => (
+                                <li key={i} className="flex items-center gap-2 text-[10px] lg:text-xs text-brand-primary/60">
+                                  <Check size={10} className="text-emerald-500" /> {f}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="mt-4 w-full py-3 bg-[#FF9EBE] text-white text-center font-black rounded-xl group-hover:bg-[#FF9EBE]/90 transition-colors uppercase tracking-widest text-sm flex items-center justify-center gap-2">
+                            {isCheckingOut ? <Loader2 className="animate-spin" size={18} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 39,99 €"}
+                          </div>
+                        </button>
+                      </div>
 
                       {/* Monthly Subscription */}
                       <button 
@@ -3047,17 +3071,16 @@ export default function App() {
                         disabled={isCheckingOut}
                         className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
                       >
-                        <div className="absolute top-0 right-0 bg-brand-primary text-white text-[9px] font-black px-2 py-0.5 rounded-bl-lg uppercase tracking-widest">
-                          BELIEBT ⭐
-                        </div>
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-base lg:text-lg text-brand-primary">Monatsabo</span>
-                          <span className="text-xl lg:text-2xl font-black text-brand-primary">6,99€</span>
+                          <span className="text-xl lg:text-2xl font-black text-brand-primary">9,99 €</span>
                         </div>
-                        <div className="flex justify-between items-end">
-                          <p className="text-xs lg:text-sm text-brand-primary/60">Flexibel jederzeit kündbar.</p>
-                          <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
-                            {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "Monatsabo starten"}
+                        <div className="space-y-2">
+                          <p className="text-xs lg:text-sm text-brand-primary/60">Flexibel monatlich kündbar. Erste Zahlung: 9,99 €, dann monatlich.</p>
+                          <div className="flex justify-end">
+                            <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
+                              {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 9,99 €"}
+                            </div>
                           </div>
                         </div>
                       </button>
@@ -3076,12 +3099,14 @@ export default function App() {
                       >
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-base lg:text-lg text-brand-primary">Einmalige Analyse</span>
-                          <span className="text-xl lg:text-2xl font-black text-brand-primary">1,99€</span>
+                          <span className="text-xl lg:text-2xl font-black text-brand-primary">2,99 €</span>
                         </div>
-                        <div className="flex justify-between items-end">
-                          <p className="text-xs lg:text-sm text-brand-primary/60">Schalte alle 9 Bilder dieser Analyse frei.</p>
-                          <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
-                            {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "Jetzt freischalten"}
+                        <div className="space-y-2">
+                          <p className="text-xs lg:text-sm text-brand-primary/60">Schalte alle 9 Bilder dieser Analyse frei. Keine Folgekosten.</p>
+                          <div className="flex justify-end">
+                            <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
+                              {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 2,99 €"}
+                            </div>
                           </div>
                         </div>
                       </button>
