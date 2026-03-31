@@ -3041,7 +3041,7 @@ export default function App() {
                               </p>
                               <p className="text-[10px] lg:text-xs text-brand-primary/80 flex items-center gap-2">
                                 <RefreshCw size={12} className="text-[#FF9EBE]" />
-                                <span>Jederzeit zum Monatsende kündbar</span>
+                                <span>Jederzeit zum Jahresende kündbar</span>
                               </p>
                             </div>
                             
