@@ -41,6 +41,31 @@
         }
       },
       "required": ["id", "userId", "name", "imageUrl", "createdAt"]
+    },
+    "Poll": {
+      "title": "Voting Poll",
+      "description": "A public poll where friends can vote on hairstyles.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "creatorName": { "type": "string" },
+        "originalImage": { "type": "string", "format": "uri" },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "resultId": { "type": "string" },
+              "name": { "type": "string" },
+              "imageUrl": { "type": "string", "format": "uri" },
+              "votes": { "type": "number" }
+            }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "creatorId", "options", "createdAt"]
     }
   },
   "firestore": {
@@ -51,6 +76,10 @@
     "/users/{userId}/results/{resultId}": {
       "schema": "HairstyleResult",
       "description": "Collection of saved hairstyle results for a specific user"
+    },
+    "/polls/{pollId}": {
+      "schema": "Poll",
+      "description": "Public voting polls"
     }
   }
 }

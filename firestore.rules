@@ -96,6 +96,14 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
+    // Public Polls (Viral Loop)
+    match /polls/{pollId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
+      // Allow incrementing votes
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options']);
+    }
+
     // Usage Tracking
     match /usage/{id} {
       // Allow read if it's the user's own UID or if it's an IP (guest)

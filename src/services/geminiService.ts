@@ -140,6 +140,75 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   }
 };
 
+export const generateBaseAvatarSketch = async (
+  originalBase64: string, 
+  mimeType: string
+): Promise<string | null> => {
+  const model = "gemini-2.5-flash-image";
+  const prompt = `Create a minimalist charcoal fashion sketch of the face in this image.
+  
+  SPECIFIC REQUIREMENTS:
+  - Focus on facial features and silhouette.
+  - Render the person with VERY short or pulled back hair (like a bald cap or simple outline) to act as a base for hairstyle testing.
+  - Artistic, clean ink lines on a white/creamy paper background.
+  - Elegant, chic, high-fashion vibe.
+  - No background elements.`;
+
+  const response = await withRetry(() => getAI().models.generateContent({
+    model,
+    contents: {
+      parts: [
+        { inlineData: { data: originalBase64, mimeType } },
+        { text: prompt }
+      ]
+    }
+  }));
+
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+
+  return null;
+};
+
+export const generateFashionSketch = async (
+  originalBase64: string, 
+  mimeType: string, 
+  styleName: string,
+  gender: string = 'female'
+): Promise<string | null> => {
+  const model = "gemini-2.5-flash-image";
+  const prompt = `Create a high-end fashion illustration sketch of the person in the image with a ${styleName} hairstyle.
+  
+  STYLE REQUIREMENTS:
+  - Minimalist charcoal and ink sketch style on creamy paper texture.
+  - Elegant, artistic lines (like a 60s fashion plate or modern boutique illustration).
+  - Use subtle watercolor accents for the ${styleName} hair.
+  - Maintain the person's basic facial proportions and identity, but in an artistic drawn form.
+  - Focus on the silhouette and the chic vibe of the ${styleName}.
+  - High contrast, clean background.`;
+
+  const response = await withRetry(() => getAI().models.generateContent({
+    model,
+    contents: {
+      parts: [
+        { inlineData: { data: originalBase64, mimeType } },
+        { text: prompt }
+      ]
+    }
+  }));
+
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
+  }
+
+  return null;
+};
+
 export const generateHairstyleImage = async (
   originalBase64: string, 
   mimeType: string, 

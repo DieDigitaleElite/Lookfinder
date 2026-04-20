@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check } from 'lucide-react';
+import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { analyzeFaceAndSuggestStyles, generateHairstyleImage, GeneratedResult, HairstyleSuggestion } from './services/geminiService';
-import { compressBase64Image } from './services/imageUtils';
+import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion } from './services/geminiService';
+import { compressBase64Image, fastResizeImage } from './services/imageUtils';
 import { HAIRSTYLE_LIBRARY, HAIR_COLORS } from './constants';
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
 import { CookieBanner } from './components/CookieBanner';
+import StylingStudio from './components/StylingStudio';
 
 declare global {
   interface Window {
@@ -40,8 +41,11 @@ import {
   doc, 
   setDoc, 
   getDoc, 
+  updateDoc,
+  addDoc,
   collection, 
   query, 
+  where,
   orderBy, 
   onSnapshot, 
   serverTimestamp,
@@ -145,10 +149,23 @@ export default function App() {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
+  const [authInitializing, setAuthInitializing] = useState(true);
   const [authMessage, setAuthMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showStylingStudio, setShowStylingStudio] = useState(false);
+  const [faceAnalysis, setFaceAnalysis] = useState<any>(null);
+  const [userSketch, setUserSketch] = useState<string | null>(null);
+  const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [clientIp, setClientIp] = useState<string | null>(null);
+
+  const [activePoll, setActivePoll] = useState<any>(null);
+  const [votedId, setVotedId] = useState<string | null>(null);
+  const [isCreatingPoll, setIsCreatingPoll] = useState(false);
+  const [pollShareUrl, setPollShareUrl] = useState<string | null>(null);
+  const [userPolls, setUserPolls] = useState<any[]>([]);
+  const [userHistory, setUserHistory] = useState<any[]>([]);
+  const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -177,6 +194,304 @@ export default function App() {
     };
   }, [clientIp, user]);
 
+  // Handle URL Poll ID with real-time updates
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pollId = params.get('poll');
+    let unsubscribe: (() => void) | undefined;
+
+    if (pollId) {
+      setAuthInitializing(true); // Ensure we wait for auth to check if user is creator
+      // Check local storage for previous vote on this poll
+      const savedVote = localStorage.getItem(`hairvision_vote_${pollId}`);
+      if (savedVote) setVotedId(savedVote);
+
+      const pollDocRef = doc(db, 'polls', pollId);
+      unsubscribe = onSnapshot(pollDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+          setActivePoll({ id: docSnap.id, ...docSnap.data() });
+        }
+      }, (err) => console.error("Failed to sync poll", err));
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activePoll]);
+
+  // Fetch user polls when profile modal is open
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    if (showProfileModal && user) {
+      const pollsRef = collection(db, 'polls');
+      const q = query(
+        pollsRef, 
+        where('creatorId', '==', user.uid),
+        orderBy('createdAt', 'desc')
+      );
+      
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const polls = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        }));
+        setUserPolls(polls);
+      });
+    }
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [showProfileModal, user]);
+
+  // Fetch user history results for gallery
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    
+    if (showProfileModal && user) {
+      const historyRef = collection(db, 'users', user.uid, 'results');
+      const q = query(
+        historyRef, 
+        orderBy('createdAt', 'desc')
+      );
+      
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const history = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        }));
+        setUserHistory(history);
+      });
+    }
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [showProfileModal, user]);
+
+  const handleCreatePoll = async (result: GeneratedResult) => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setIsCreatingPoll(true);
+    try {
+      // Use faster compression for polls (target max ~100KB per image)
+      let pollImage = image;
+      if (image && image.startsWith('data:')) {
+        pollImage = await fastResizeImage(image, 800, 0.6);
+      }
+
+      // Filter results to only those that have an image
+      const resultsWithImages = results.filter(r => r.imageUrl);
+      
+      // Compress all result images in parallel using fastResizeImage
+      const compressedOptions = await Promise.all(
+        resultsWithImages.map(async (r) => {
+          let compressedUrl = r.imageUrl;
+          if (r.imageUrl && r.imageUrl.startsWith('data:')) {
+            try {
+              compressedUrl = await fastResizeImage(r.imageUrl, 800, 0.6);
+            } catch (err) {
+              console.warn(`Could not compress option image for ${r.id}`, err);
+            }
+          }
+          return {
+            resultId: r.id,
+            name: r.name,
+            imageUrl: compressedUrl,
+            votes: 0
+          };
+        })
+      );
+
+      // Create a poll with the current result and a few others (A vs B or Multiple)
+      const pollData = {
+        creatorId: user.uid,
+        creatorName: user.displayName || 'Dein Freund',
+        originalImage: pollImage,
+        options: compressedOptions,
+        createdAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(db, 'polls'), pollData);
+      const url = `${window.location.origin}${window.location.pathname}?poll=${docRef.id}`;
+      setPollShareUrl(url);
+      
+      // Try to copy to clipboard, but don't fail if it doesn't work
+      try {
+        await navigator.clipboard.writeText(url);
+        setAuthMessage({ type: 'success', text: "Link kopiert & Umfrage im neuen Fenster geöffnet! 🗳️" });
+      } catch (clipErr) {
+        console.warn("Clipboard copy failed", clipErr);
+        setAuthMessage({ type: 'success', text: "Umfrage bereit! Link wurde erstellt." });
+      }
+
+      // Open in new tab
+      window.open(url, '_blank');
+
+      // Auto-clear success message
+      setTimeout(() => setAuthMessage(null), 5000);
+      
+      // Auto-scroll to show the sharing link if we're in results view
+      if (!activePoll && !selectedResult) {
+        window.scrollTo({ top: 100, behavior: 'smooth' });
+      }
+    } catch (err) {
+      console.error("Failed to create poll", err);
+      setError("Umfrage konnte nicht erstellt werden. Bitte versuche es erneut.");
+    } finally {
+      setIsCreatingPoll(false);
+    }
+  };
+
+  const handleVote = async (resultId: string) => {
+    if (!activePoll || votedId) return;
+
+    try {
+      const pollDocRef = doc(db, 'polls', activePoll.id);
+      const updatedOptions = activePoll.options.map((opt: any) => {
+        if (opt.resultId === resultId) {
+          return { ...opt, votes: (opt.votes || 0) + 1 };
+        }
+        return opt;
+      });
+
+      await updateDoc(pollDocRef, {
+        options: updatedOptions
+      });
+
+      setVotedId(resultId);
+      localStorage.setItem(`hairvision_vote_${activePoll.id}`, resultId);
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#FF9EBE', '#000000', '#ffffff']
+      });
+
+      // Update local state for immediate feedback
+      setActivePoll({ ...activePoll, options: updatedOptions });
+    } catch (err) {
+      console.error("Failed to vote", err);
+      handleFirestoreError(err, OperationType.UPDATE, `polls/${activePoll.id}`);
+    }
+  };
+
+  const handleCreateInstagramStory = async (result: GeneratedResult) => {
+    if (!image) return;
+
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Story size (9:16)
+      const width = 1080;
+      const height = 1920;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Background
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, width, height);
+
+      // Load images
+      const loadImg = (src: string) => new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+
+      const [beforeImg, afterImg] = await Promise.all([
+        loadImg(image),
+        loadImg(result.imageUrl)
+      ]);
+
+      // Draw Before
+      const drawCover = (img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
+        const imgRatio = img.width / img.height;
+        const targetRatio = w / h;
+        let sx, sy, sw, sh;
+        if (imgRatio > targetRatio) { sh = img.height; sw = sh * targetRatio; sx = (img.width - sw) / 2; sy = 0; }
+        else { sw = img.width; sh = sw / targetRatio; sx = 0; sy = (img.height - sh) / 2; }
+        ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+      };
+
+      drawCover(beforeImg, 0, 0, width, height / 2);
+      drawCover(afterImg, 0, height / 2, width, height / 2);
+
+      // Gradient overlays for better text readability at edges
+      const topGradient = ctx.createLinearGradient(0, 0, 0, 200);
+      topGradient.addColorStop(0, 'rgba(0,0,0,0.6)');
+      topGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = topGradient;
+      ctx.fillRect(0, 0, width, 200);
+
+      const bottomGradient = ctx.createLinearGradient(0, height, 0, height - 300);
+      bottomGradient.addColorStop(0, 'rgba(0,0,0,0.7)');
+      bottomGradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = bottomGradient;
+      ctx.fillRect(0, height - 300, width, 300);
+
+      // Divider line
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(0, height / 2 - 1, width, 2);
+
+      // Smaller Circular Badge in middle (Less obstructive)
+      const badgeSize = 80;
+      ctx.beginPath();
+      ctx.arc(width / 2, height / 2, badgeSize, 0, Math.PI * 2);
+      ctx.fillStyle = '#FF9EBE';
+      ctx.fill();
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.lineWidth = 6;
+      ctx.stroke();
+
+      // "VS" Text
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('VS', width / 2, height / 2);
+
+      // Header Labels (Moved slightly)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.fillText('VORHER', width / 2, 80);
+      ctx.fillText('NACHHER', width / 2, height / 2 + 120);
+
+      // Logo/CTA at bottom (Moved to bottom area to avoid covering the face/hair)
+      ctx.fillStyle = '#FF9EBE';
+      ctx.font = 'bold 60px serif';
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = 10;
+      ctx.fillText('HairVision KI', width / 2, height - 160);
+      
+      ctx.shadowBlur = 0;
+      ctx.font = 'normal 32px sans-serif';
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText('Entdecke deinen neuen Look auf hairvision.de', width / 2, height - 90);
+
+      // Download
+      const link = document.createElement('a');
+      link.download = `HairVision_Story_${result.name}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      console.error("Failed to generate story image", err);
+      alert("Bild konnte nicht erstellt werden. Bitte versuche es erneut.");
+    }
+  };
+
   const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null} | null>(null);
   const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
 
@@ -202,6 +517,7 @@ export default function App() {
       unsubsRef.current = [];
 
       setUser(currentUser);
+      setAuthInitializing(false);
       if (currentUser) {
         // Sync user profile and listen for changes (like premium status)
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -518,11 +834,13 @@ export default function App() {
       if (err.code === 'auth/popup-closed-by-user') return;
       if (err.code === 'auth/cancelled-popup-request') return;
       if (err.code === 'auth/operation-not-allowed') {
-        setError("Google Login ist im Firebase Console noch nicht aktiviert.");
+        setError("Google Login ist derzeit nicht verfügbar.");
       } else if (err.code === 'auth/invalid-credential') {
-        setError("Ungültige Anmeldedaten. Bitte versuche es erneut.");
+        setError("E-Mail oder Passwort ist nicht korrekt. Bitte überprüfe deine Daten.");
+      } else if (err.code === 'auth/network-request-failed') {
+        setError("Netzwerkfehler. Bitte überprüfe deine Internetverbindung.");
       } else {
-        setError("Login fehlgeschlagen. Bitte versuche es erneut.");
+        setError("Die Anmeldung ist fehlgeschlagen. Bitte versuche es erneut.");
       }
     } finally {
       setAuthLoading(false);
@@ -554,13 +872,24 @@ export default function App() {
       setLoginName('');
     } catch (err: any) {
       console.error("Auth failed", err);
-      let message = "Authentifizierung fehlgeschlagen.";
-      if (err.code === 'auth/email-already-in-use') message = "Diese E-Mail wird bereits verwendet.";
-      if (err.code === 'auth/invalid-email') message = "Ungültige E-Mail-Adresse.";
-      if (err.code === 'auth/weak-password') message = "Das Passwort ist zu schwach.";
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') message = "E-Mail oder Passwort falsch.";
-      if (err.code === 'auth/too-many-requests') message = "Zu viele Versuche. Bitte später erneut versuchen.";
-      if (err.code === 'auth/operation-not-allowed') message = "Diese Anmeldemethode ist im Firebase Console noch nicht aktiviert.";
+      let message = "Authentifizierung fehlgeschlagen. Bitte versuche es später erneut.";
+      
+      if (err.code === 'auth/email-already-in-use') {
+        message = "Diese E-Mail-Adresse wird bereits verwendet. Bitte logge dich stattdessen ein.";
+      } else if (err.code === 'auth/invalid-email') {
+        message = "Die eingegebene E-Mail-Adresse ist ungültig.";
+      } else if (err.code === 'auth/weak-password') {
+        message = "Das Passwort ist zu kurz. Es muss aus mindestens 6 Zeichen bestehen.";
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        message = "E-Mail oder Passwort ist nicht korrekt. Bitte überprüfe deine Daten.";
+      } else if (err.code === 'auth/too-many-requests') {
+        message = "Zu viele fehlgeschlagene Versuche. Bitte warte einen Moment und versuche es dann erneut.";
+      } else if (err.code === 'auth/operation-not-allowed') {
+        message = "Diese Anmeldemethode ist derzeit nicht verfügbar.";
+      } else if (err.code === 'auth/popup-closed-by-user') {
+        return; // Ignore
+      }
+      
       setAuthMessage({ type: 'error', text: message });
     } finally {
       setAuthLoading(false);
@@ -684,9 +1013,8 @@ export default function App() {
       if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
         try {
           console.log(`Compressing image for ${result.id}...`);
-          const base64Data = result.imageUrl.split(',')[1];
           const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.imageUrl = await compressBase64Image(base64Data, mimeType, 800000);
+          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 800000);
           console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
         } catch (compressErr) {
           console.error("Compression failed", compressErr);
@@ -755,10 +1083,12 @@ export default function App() {
       const reader = new FileReader();
       reader.onload = (event) => {
         const base64 = event.target?.result as string;
-        setImage(base64);
-        setMimeType(file.type);
+        
+        // Reset current generation state immediately
         setResults([]);
         setError(null);
+        setMimeType(file.type);
+        setImage(base64); // Set original image immediately for zero-lag UI
       };
       reader.readAsDataURL(file);
     }
@@ -804,6 +1134,35 @@ export default function App() {
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `usage/${usageId}`);
+    }
+  };
+
+  const saveResultToHistory = async (result: GeneratedResult) => {
+    if (!user || !result.imageUrl) return;
+
+    try {
+      // Compress the image before saving to Firestore to avoid size limits
+      let finalImageUrl = result.imageUrl;
+      if (finalImageUrl.startsWith('data:')) {
+        try {
+          finalImageUrl = await compressBase64Image(finalImageUrl, 'image/jpeg', 800000);
+        } catch (compErr) {
+          console.warn("Compression failed in saveResultToHistory", compErr);
+        }
+      }
+
+      const historyRef = collection(db, 'users', user.uid, 'results');
+      await addDoc(historyRef, {
+        name: result.name,
+        description: result.description,
+        barberInstructions: result.barberInstructions || '',
+        suitabilityReason: result.suitabilityReason || '',
+        imageUrl: finalImageUrl,
+        createdAt: serverTimestamp(),
+        faceShape: result.faceShape || 'unbekannt'
+      });
+    } catch (err) {
+      console.warn("Failed to save result to history", err);
     }
   };
 
@@ -895,7 +1254,13 @@ export default function App() {
           setResults(prev => {
             const newResults = [...prev];
             if (imageUrl) {
-              newResults[i] = { ...newResults[i], imageUrl, failed: false };
+              const updatedResult = { ...newResults[i], imageUrl, failed: false };
+              newResults[i] = updatedResult;
+              
+              // NEW: Auto-save to history for premium users
+              if (isPremium && user) {
+                saveResultToHistory(updatedResult);
+              }
             } else {
               newResults[i] = { ...newResults[i], failed: true };
             }
@@ -976,6 +1341,93 @@ export default function App() {
     }
   };
 
+  const handleStudioTryOn = async (style: any, color: any, lighting: any) => {
+    if (!image) return;
+    setIsGenerating(true);
+    setError(null);
+    try {
+      const base64Data = image.split(',')[1];
+      const lightingPrompt = lighting.prompt || '';
+      const customPrompt = `${style.name}, ${style.description}. Farbe: ${color.name}. Lighting: ${lightingPrompt}. Make it look realistic, high quality, consistent with the person's face.`;
+      
+      const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
+      if (imageUrl) {
+        const result: GeneratedResult = {
+          id: `studio-${Date.now()}`,
+          name: style.name,
+          description: style.description,
+          imageUrl,
+          rating: 9.8,
+          suitabilityReason: `Perfekte Abstimmung auf Basis von ${lighting.name} und der Farbwahl ${color.name}.`,
+          barberInstructions: `Schnitt: ${style.name}. Nuance: ${color.name}. ${style.description}`,
+          faceShape: faceAnalysis?.faceShape || 'unbekannt',
+          recommendedProducts: [
+            { name: "Pro-Protect Shampoo", type: "Care", reason: "Schützt die neue Nuance vor dem Verblassen." },
+            { name: "Texture Clay", type: "Styling", reason: "Hält den Look den ganzen Tag in Form." }
+          ]
+        };
+        
+        // Auto-save for premium
+        if (isPremium && user) {
+          saveResultToHistory(result);
+        }
+        
+        setSelectedResult(result);
+        // We stay in styling studio but show result
+      }
+    } catch (err) {
+      console.error("Studio Try-On failed", err);
+      setError("Entschuldigung, die Simulation konnte nicht gestartet werden.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAnalyzeFace = async () => {
+    if (!image) return;
+    setIsGenerating(true);
+    try {
+      const base64Data = image.split(',')[1];
+      const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
+      
+      const faceShape = analysis[0]?.faceShape || 'Oval';
+      setFaceAnalysis({
+        faceShape,
+        summary: `Basierend auf deiner ${faceShape}en Gesichtsform empfehlen wir Styles, die deine Symmetrie betonen und für ein harmonisches Gesamtbild sorgen.`,
+        dos: ['Volumen am Oberkopf', 'Seitenscheitel', 'Lagen-Schnitte'],
+        donts: ['Sehr harter Pony', 'Extrem flaches Volumen', 'Strenge Mittelscheitel']
+      });
+
+      // Also generate the base sketch for the studio if not already done
+      if (!userSketch) {
+        setIsGeneratingSketch(true);
+        try {
+          const sketch = await generateBaseAvatarSketch(base64Data, mimeType);
+          if (sketch) setUserSketch(sketch);
+        } catch (sketchErr) {
+          console.error("Sketch generation failed", sketchErr);
+        } finally {
+          setIsGeneratingSketch(false);
+        }
+      }
+    } catch (err) {
+      console.error("Face analysis failed", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateFashionSketch = async (styleName: string): Promise<string | null> => {
+    if (!image) return null;
+    try {
+      const base64Data = image.split(',')[1];
+      return await generateFashionSketch(base64Data, mimeType, styleName);
+    } catch (err) {
+      console.error("Fashion sketch generation failed", err);
+      return null;
+    }
+  };
+
   const reset = () => {
     setImage(null);
     setResults([]);
@@ -1022,7 +1474,7 @@ export default function App() {
         if (user) {
           try {
             // Compress image for Firestore (1MB limit)
-            const compressedImageUrl = await compressBase64Image(imageUrl.split(',')[1], 'image/jpeg', 800000);
+            const compressedImageUrl = await compressBase64Image(imageUrl, 'image/jpeg', 800000);
             
             const resultRef = doc(db, 'users', user.uid, 'results', newResult.id);
             await setDoc(resultRef, {
@@ -1327,7 +1779,7 @@ export default function App() {
                 <Scissors size={18} className="md:hidden" />
                 <Scissors size={20} className="hidden md:block" />
               </div>
-              <h1 className="text-xl md:text-2xl font-serif font-bold tracking-tight">HairVision</h1>
+              <div className="text-xl md:text-2xl font-serif font-bold tracking-tight">HairVision</div>
             </div>
             
             {/* Mobile Badge */}
@@ -1424,7 +1876,147 @@ export default function App() {
 
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 md:px-8 py-12">
         <AnimatePresence mode="wait">
-          {showGallery ? (
+          {activePoll ? (
+            authInitializing ? (
+              <div className="flex flex-col items-center justify-center py-32 space-y-4">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-12 h-12 border-4 border-[#FF9EBE] border-t-transparent rounded-full"
+                />
+                <p className="text-brand-primary/40 font-bold uppercase tracking-widest text-xs">Umfrage wird geladen...</p>
+              </div>
+            ) : (
+              <motion.div
+                key="poll"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="max-w-4xl mx-auto space-y-12 py-8"
+              >
+              <div className="text-center space-y-6">
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-full text-xs font-bold uppercase tracking-widest">
+                  <Heart size={14} className="fill-[#FF9EBE]" />
+                  Hilf einem Freund!
+                </div>
+                <h1 className="text-3xl md:text-5xl font-serif font-bold italic leading-tight">
+                  Welche Frisur steht <span className="text-[#FF9EBE]">{activePoll.creatorName}</span> am besten? 💇‍♀️
+                </h1>
+                <p className="text-brand-primary/60 max-w-xl mx-auto text-lg leading-relaxed">
+                  {votedId 
+                    ? "Danke für dein Voting! ✨ Deine Meinung hilft sehr bei der Entscheidung." 
+                    : "Wähle deinen Favoriten aus den KI-Vorschlägen unten. Klicke einfach auf das Bild zum Abstimmen!"}
+                </p>
+              </div>
+
+              {activePoll.originalImage && (
+                <div className="flex flex-col items-center gap-4 py-8">
+                  <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white shadow-2xl">
+                    <img src={activePoll.originalImage} alt="Original" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <span className="text-xs font-bold text-brand-primary/40 uppercase tracking-[0.2em]">Ausgangsfoto</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {activePoll.options.map((option: any) => {
+                  const isWinner = votedId === option.resultId;
+                  const isCreator = user && user.uid === activePoll.creatorId;
+                  const showResults = votedId || isCreator;
+                  const totalVotes = activePoll.options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
+                  const percentage = totalVotes > 0 ? Math.round(((option.votes || 0) / totalVotes) * 100) : 0;
+
+                  return (
+                    <motion.div
+                      key={option.resultId}
+                      whileHover={!showResults ? { y: -10 } : {}}
+                      onClick={() => !showResults && handleVote(option.resultId)}
+                      className={`relative group rounded-[2.5rem] overflow-hidden border-2 transition-all duration-500 ${isWinner ? 'border-[#FF9EBE] shadow-2xl scale-105 z-10' : showResults ? 'border-transparent opacity-60' : 'border-black/5 hover:border-[#FF9EBE]/50 cursor-pointer shadow-lg shadow-black/[0.02]'}`}
+                    >
+                      <div className="aspect-[3/4] relative">
+                        <img 
+                          src={option.imageUrl} 
+                          alt={option.name} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer" 
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        
+                        {showResults && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-white/20 backdrop-blur-[2px]">
+                            <div className="text-4xl md:text-5xl font-black text-white drop-shadow-lg mb-2">
+                              {percentage}%
+                            </div>
+                            <div className="text-sm font-bold text-white uppercase tracking-widest drop-shadow-md">
+                              {option.votes || 0} Stimmen
+                            </div>
+                            {isWinner && (
+                              <motion.div 
+                                initial={{ scale: 0 }}
+                                animate={{ scale: 1 }}
+                                className="absolute -top-4 -right-4 w-12 h-12 bg-[#FF9EBE] rounded-full flex items-center justify-center text-white shadow-xl"
+                              >
+                                <Check size={24} />
+                              </motion.div>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="absolute bottom-6 left-6 right-6">
+                           <h3 className="text-xl font-bold text-white">{option.name}</h3>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-24 p-12 bg-[#FF9EBE] rounded-[3rem] text-white text-center space-y-8 relative overflow-hidden shadow-2xl shadow-[#FF9EBE]/30">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 blur-[100px] -mr-32 -mt-32" />
+                <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/20 blur-[100px] -ml-32 -mb-32" />
+                
+                <div className="relative space-y-4">
+                  <h2 className="text-3xl md:text-5xl font-serif font-bold italic text-white leading-tight">Jetzt bist du dran! ✨</h2>
+                  <p className="text-white/80 max-w-xl mx-auto text-lg">
+                    Willst du auch wissen, welche Frisur deine Gesichtsform perfekt betont? Unsere KI analysiert dein Foto in Sekunden.
+                  </p>
+                </div>
+                
+                <div className="relative pt-4">
+                  <button 
+                    onClick={() => {
+                      setActivePoll(null);
+                      setVotedId(null);
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete('poll');
+                      window.history.replaceState({}, '', url.toString());
+                      setImage(null); // Reset home
+                      setResults([]);
+                    }}
+                    className="px-12 py-5 bg-white text-[#FF9EBE] font-black rounded-2xl hover:scale-105 transition-all shadow-xl uppercase tracking-widest text-sm flex items-center justify-center mx-auto gap-3"
+                  >
+                    Kostenlose Analyse starten
+                    <ChevronRight size={18} />
+                  </button>
+                  <p className="mt-6 text-[10px] text-white/60 font-bold uppercase tracking-[0.2em]">100% Kostenlos • DSGVO-konform • Made in Germany</p>
+                </div>
+              </div>
+
+              <div className="flex justify-center pt-8">
+                <button 
+                  onClick={() => {
+                    setActivePoll(null);
+                    setVotedId(null);
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('poll');
+                    window.history.replaceState({}, '', url.toString());
+                  }}
+                  className="text-brand-primary/40 text-xs font-bold uppercase tracking-widest hover:text-[#FF9EBE] transition-colors"
+                >
+                  Zurück zur Startseite
+                </button>
+              </div>
+            </motion.div>
+          )) : showGallery ? (
             <motion.div 
               key="gallery"
               initial={{ opacity: 0, x: 20 }}
@@ -1492,9 +2084,9 @@ export default function App() {
                 className="max-w-2xl mx-auto text-center space-y-8 py-8 md:py-12 px-4"
               >
                 <div className="space-y-4">
-                  <h2 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold leading-tight">
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl font-serif font-bold leading-tight">
                     Finde deinen <span className="italic text-[#FF9EBE]">perfekten</span> Look.
-                  </h2>
+                  </h1>
                   <div className="text-base md:text-lg text-brand-primary/60 max-w-2xl mx-auto leading-relaxed space-y-2">
                     <p>Lade ein Foto hoch und lass unsere KI in Sekunden deine Gesichtsform analysieren. ✨</p>
                     <p>Entdecke 9 maßgeschneiderte Frisuren, die perfekt zu dir passen – inklusive der Top-Trends 2026: <span className="text-brand-primary font-bold">Mixie, Federschnitt und Butterfly Cut</span>. 💇‍♀️</p>
@@ -1675,6 +2267,77 @@ export default function App() {
                     <p className="text-xs text-white/40 font-bold uppercase tracking-widest">Kostenlos & Unverbindlich</p>
                   </div>
                 </div>
+
+                {/* FAQ Section for SEO */}
+                <section className="max-w-4xl mx-auto px-4 py-24 space-y-12">
+                  <div className="text-center space-y-4">
+                    <h2 className="text-3xl md:text-4xl font-serif font-bold italic">Häufig gestellte Fragen (FAQ)</h2>
+                    <p className="text-brand-primary/60">Alles, was du über unsere KI-Frisuren-App wissen musst.</p>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {[
+                      {
+                        q: "Wie funktioniert die KI-Frisuren-Analyse?",
+                        a: "HairVision nutzt modernste künstliche Intelligenz, um dein hochgeladenes Foto in Sekundenschnelle zu analysieren. Wir erkennen deine Gesichtsform und gleichen sie mit Tausenden von Profi-Haarschnitten ab, um dir die besten 9 Varianten vorzuschlagen."
+                      },
+                      {
+                        q: "Sind meine Fotos bei euch sicher?",
+                        a: "Absolut. Deine Privatsphäre hat oberste Priorität. Alle Fotos werden DSGVO-konform verarbeitet und niemals ohne deine Zustimmung gespeichert oder weitergegeben. Wir nutzen verschlüsselte Serverstandorte in Deutschland."
+                      },
+                      {
+                        q: "Kann ich die Frisuren auch in verschiedenen Haarfarben testen?",
+                        a: "Ja! Unsere Premium-Funktionen ermöglichen es dir, jeden Haarschnitt mit über 20 verschiedenen Trend-Haarfarben zu kombinieren – von klassischem Blond bis hin zu modernen Balayage-Tönen."
+                      },
+                      {
+                        q: "Muss ich ein Abo abschließen, um HairVision zu nutzen?",
+                        a: "Nein. Du kannst sofort 3 Frisuren kostenlos testen. Für den vollen Zugriff auf alle 9 Styles und Profi-Anweisungen bieten wir sowohl eine günstige Einmal-Freischaltung als auch flexible Flatrate-Abos an."
+                      },
+                      {
+                        q: "Sind die Frisuren-Vorschläge für Friseure geeignet?",
+                        a: "Ja, genau dafür ist HairVision gedacht! Zu jedem Premium-Look erhältst du detaillierte Anweisungen und Tipps, die du direkt deinem Friseur zeigen kannst, um Missverständnisse zu vermeiden."
+                      }
+                    ].map((faq, i) => (
+                      <div key={i} className="p-6 bg-white rounded-3xl border border-black/5 hover:border-[#FF9EBE]/20 transition-all space-y-2 group">
+                        <h3 className="font-bold text-lg flex items-center gap-3">
+                          <span className="text-[#FF9EBE]">Q:</span>
+                          {faq.q}
+                        </h3>
+                        <p className="text-brand-primary/60 text-sm pl-8 leading-relaxed">
+                          {faq.a}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Schema.org FAQ Question Data */}
+                  <script type="application/ld+json">
+                    {`
+                    {
+                      "@context": "https://schema.org",
+                      "@type": "FAQPage",
+                      "mainEntity": [
+                        {
+                          "@type": "Question",
+                          "name": "Wie funktioniert die KI-Frisuren-Analyse?",
+                          "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "HairVision nutzt modernste künstliche Intelligenz, um dein hochgeladenes Foto in Sekundenschnelle zu analysieren."
+                          }
+                        },
+                        {
+                          "@type": "Question",
+                          "name": "Sind meine Fotos bei euch sicher?",
+                          "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": "Absolut. Deine Privatsphäre hat oberste Priorität. Alle Fotos werden DSGVO-konform verarbeitet."
+                          }
+                        }
+                      ]
+                    }
+                    `}
+                  </script>
+                </section>
               </section>
             </div>
           ) : results.length === 0 ? (
@@ -1765,12 +2428,34 @@ export default function App() {
                     </ul>
                   </div>
                 </div>
-                {isGenerating && (
-                   <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full">
-                    <Loader2 className="animate-spin" size={18} />
-                    <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => r.imageUrl).length}/{isPremium ? 9 : 4})</span>
-                  </div>
-                )}
+                <div className="flex flex-col gap-4">
+                  <button 
+                    onClick={() => handleCreatePoll(results[0])}
+                    disabled={isCreatingPoll || results.filter(r => r.imageUrl).length < 2}
+                    className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2 text-sm uppercase tracking-widest"
+                  >
+                    {isCreatingPoll ? <Loader2 className="animate-spin" size={16} /> : <Users size={16} />}
+                    Freunde entscheiden lassen 🗳️
+                  </button>
+                  {pollShareUrl && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-3 bg-emerald-50 border border-emerald-100 rounded-xl space-y-2"
+                    >
+                      <p className="text-[10px] font-bold text-emerald-800/60 uppercase tracking-widest">Ganz einfach teilen:</p>
+                      <div className="text-[11px] font-mono break-all bg-white p-2 rounded border border-emerald-100 text-emerald-900/60 select-all">
+                        {pollShareUrl}
+                      </div>
+                    </motion.div>
+                  )}
+                  {isGenerating && (
+                    <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full">
+                      <Loader2 className="animate-spin" size={18} />
+                      <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => r.imageUrl).length}/{isPremium ? 9 : 4})</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -2475,6 +3160,45 @@ export default function App() {
                     </div>
                   </section>
 
+                  {/* Viral Loop Section */}
+                  <section className="pt-6 border-t border-black/5 space-y-6">
+                    <div className="flex flex-col items-center gap-4 text-center p-6 bg-emerald-50 rounded-[2.5rem] border border-emerald-100">
+                      <div className="w-12 h-12 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow-lg animate-bounce">
+                        <Users size={24} />
+                      </div>
+                      <div className="space-y-2">
+                        <h4 className="font-bold text-lg text-emerald-950">Lass deine Freunde entscheiden! 🗳️</h4>
+                        <p className="text-sm text-emerald-900/60 max-w-sm mx-auto">
+                          Unsicher? Erstelle eine Umfrage mit all deinen Looks und lass deine Freunde abstimmen, welche Frisur dir am besten steht.
+                        </p>
+                      </div>
+                      <button 
+                        onClick={() => handleCreatePoll(selectedResult!)}
+                        disabled={isCreatingPoll}
+                        className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2"
+                      >
+                        {isCreatingPoll ? <Loader2 className="animate-spin" size={18} /> : <Users size={18} />}
+                        Umfrage starten & Link teilen
+                      </button>
+                      {pollShareUrl && (
+                        <div className="w-full p-3 bg-white border border-emerald-200 rounded-xl text-[10px] break-all font-mono text-emerald-900/40">
+                          {pollShareUrl}
+                        </div>
+                      )}
+
+                      <div className="pt-4 border-t border-emerald-200/50 w-full">
+                        <p className="text-[10px] font-bold text-emerald-900/40 uppercase tracking-widest mb-3">Oder direkt posten:</p>
+                        <button 
+                          onClick={() => handleCreateInstagramStory(selectedResult!)}
+                          className="w-full py-4 bg-white text-emerald-600 border-2 border-emerald-600 rounded-2xl font-bold hover:bg-emerald-50 transition-all flex items-center justify-center gap-2"
+                        >
+                          <Share2 size={18} />
+                          Story-Bild erstellen (Vorher/Nachher) 📸
+                        </button>
+                      </div>
+                    </div>
+                  </section>
+
                   {!user && (
                     <div className="p-8 bg-black text-white rounded-[2rem] space-y-4 text-center">
                       <Bookmark className="mx-auto text-[#FF9EBE]" size={32} />
@@ -2633,6 +3357,7 @@ export default function App() {
                         <input 
                           type={showPassword ? "text" : "password"} 
                           required
+                          minLength={isRegistering ? 6 : undefined}
                           value={loginPassword}
                           onChange={(e) => setLoginPassword(e.target.value)}
                           placeholder="••••••••"
@@ -2721,159 +3446,487 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+              className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
             >
               <button 
                 onClick={() => setShowProfileModal(false)}
-                className="absolute top-6 right-6 p-2 hover:bg-black/5 rounded-full transition-colors z-20 bg-white/80 backdrop-blur-sm"
+                className="absolute top-6 right-6 p-2 hover:bg-black/5 rounded-full transition-colors z-20 bg-white/80 backdrop-blur-sm shadow-sm"
               >
                 <X size={20} />
               </button>
 
-              <div className="overflow-y-auto p-8 sm:p-10 space-y-8">
-                <div className="text-center space-y-4">
-                  <div className="relative w-24 h-24 mx-auto">
+              <div className="flex flex-col md:flex-row h-full overflow-hidden">
+                {/* Sidebar - User Info */}
+                <div className="w-full md:w-80 bg-black/[0.02] border-r border-black/5 p-8 flex flex-col items-center text-center">
+                  <div className="relative w-24 h-24 mb-6">
                     {user.photoURL ? (
-                      <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full rounded-3xl object-cover shadow-lg" />
+                      <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full rounded-[2rem] object-cover shadow-xl border-4 border-white" />
                     ) : (
-                      <div className="w-full h-full rounded-3xl bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center shadow-inner">
+                      <div className="w-full h-full rounded-[2rem] bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center shadow-inner border-4 border-white">
                         <User size={40} />
                       </div>
                     )}
-                    {user.emailVerified && (
-                      <div className="absolute -bottom-2 -right-2 bg-white p-1.5 rounded-xl shadow-md">
-                        <ShieldCheck size={20} className="text-green-500" />
+                    {isPremium && (
+                      <div className="absolute -bottom-2 -right-2 bg-[#FF9EBE] text-white p-2 rounded-xl shadow-lg border-2 border-white">
+                        <Sparkles size={16} />
                       </div>
                     )}
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="text-2xl font-serif font-bold">{user.displayName || 'Nutzer'}</h3>
-                    <p className="text-brand-primary/40 text-sm">{user.email}</p>
-                  </div>
-                </div>
-
-                {/* Subscription Status */}
-                <div className="p-5 bg-black/5 rounded-3xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm font-bold">
-                      <Star size={18} className={isPremium ? "text-[#FF9EBE]" : "text-brand-primary/20"} />
-                      Status
-                    </div>
-                    <span className={`text-xs font-black px-3 py-1 rounded-full ${
-                      isPremium ? 'bg-[#FF9EBE] text-white' : 'bg-black/10 text-brand-primary/40'
-                    }`}>
-                      {isPremium ? (userPlan === 'single' ? 'Premium' : (userPlan === 'monthly' ? 'Pro Monat' : 'Pro Jahr')) : 'Kostenlos'}
-                    </span>
-                  </div>
                   
-                  {isPremium && premiumExpiresAt && (
-                    <div className="flex items-center gap-2 text-[10px] text-brand-primary/60 bg-white/50 p-2 rounded-xl">
-                      <Bell size={12} />
-                      <span>
-                        {(() => {
-                          const expiryDate = premiumExpiresAt.toDate();
-                          const now = new Date();
-                          const diffTime = expiryDate.getTime() - now.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          if (diffDays < 0) return "Abo abgelaufen";
-                          if (diffDays === 0) return "Läuft heute ab";
-                          return `Läuft in ${diffDays} Tagen ab (${expiryDate.toLocaleDateString('de-DE')})`;
-                        })()}
-                      </span>
-                    </div>
-                  )}
+                  <div className="space-y-1 mb-8">
+                    <h3 className="text-xl font-serif font-bold text-brand-primary">{user.displayName || 'Nutzer'}</h3>
+                    <p className="text-brand-primary/40 text-xs font-medium">{user.email}</p>
+                  </div>
 
-                  {!isPremium && (
+                  <div className="w-full space-y-2 mt-auto">
                     <button 
-                      onClick={() => {
-                        setShowProfileModal(false);
-                        setShowPricingModal(true);
-                      }}
-                      className="w-full py-2.5 bg-brand-primary text-white rounded-xl text-xs font-bold hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2"
+                      onClick={() => setProfileTab('gallery')}
+                      className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+                        profileTab === 'gallery' ? 'bg-[#FF9EBE] text-white shadow-lg shadow-[#FF9EBE]/20' : 'text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary'
+                      }`}
                     >
-                      <Sparkles size={14} />
-                      Jetzt upgraden
-                    </button>
-                  )}
-                </div>
-
-                {authMessage && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`p-4 rounded-2xl flex items-start gap-3 text-sm ${
-                      authMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
-                      authMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
-                      'bg-blue-50 text-blue-700 border border-blue-100'
-                    }`}
-                  >
-                    <Bell size={18} className="shrink-0" />
-                    <p>{authMessage.text}</p>
-                  </motion.div>
-                )}
-
-                <div className="space-y-6">
-                  {!user.emailVerified && (
-                    <div className="p-4 bg-[#FF9EBE]/5 border border-[#FF9EBE]/20 rounded-2xl space-y-3">
-                      <div className="flex items-center gap-2 text-[#FF9EBE] text-sm font-bold">
-                        <AlertCircle size={18} />
-                        E-Mail nicht bestätigt
-                      </div>
-                      <p className="text-[#FF9EBE]/80 text-xs leading-relaxed">
-                        Bitte bestätige deine E-Mail-Adresse, um alle Funktionen nutzen zu können.
-                      </p>
-                      <button 
-                        onClick={handleSendVerification}
-                        disabled={authLoading}
-                        className="w-full py-2 bg-[#FF9EBE] text-white rounded-xl text-xs font-bold hover:bg-[#FF9EBE]/90 transition-all disabled:opacity-50"
-                      >
-                        Bestätigungs-E-Mail senden
-                      </button>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleUpdateProfile} className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 ml-1">Anzeigename ändern</label>
-                      <div className="relative">
-                        <Settings className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
-                        <input 
-                          type="text" 
-                          required
-                          value={loginName}
-                          onChange={(e) => setLoginName(e.target.value)}
-                          placeholder={user.displayName || "Dein Name"}
-                          className="w-full pl-12 pr-4 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
-                        />
-                      </div>
-                    </div>
-                    <button 
-                      type="submit"
-                      disabled={authLoading}
-                      className="w-full py-3 bg-brand-primary text-white rounded-xl font-bold hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      {authLoading ? <Loader2 className="animate-spin" size={18} /> : 'Profil aktualisieren'}
-                    </button>
-                  </form>
-
-                  <div className="pt-4 border-t border-black/5 space-y-3">
-                    <button 
-                      onClick={handleLogout}
-                      className="w-full py-3 bg-black/5 text-brand-primary rounded-xl font-bold hover:bg-black/10 transition-all flex items-center justify-center gap-2"
-                    >
-                      <LogOut size={18} />
-                      Abmelden
+                      <LayoutGrid size={18} />
+                      Galerie
                     </button>
                     <button 
-                      onClick={handleDeleteAccount}
-                      disabled={isDeletingAccount}
-                      className="w-full py-3 text-red-500 rounded-xl font-bold hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                      onClick={() => setProfileTab('polls')}
+                      className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+                        profileTab === 'polls' ? 'bg-[#FF9EBE] text-white shadow-lg shadow-[#FF9EBE]/20' : 'text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary'
+                      }`}
                     >
-                      {isDeletingAccount ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                      Konto löschen
+                      <Users size={18} />
+                      Umfragen
+                    </button>
+                    <button 
+                      onClick={() => setProfileTab('results')}
+                      className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+                        profileTab === 'results' ? 'bg-[#FF9EBE] text-white shadow-lg shadow-[#FF9EBE]/20' : 'text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary'
+                      }`}
+                    >
+                      <Settings size={18} />
+                      Account
                     </button>
                   </div>
                 </div>
+
+                {/* Main Content Area */}
+                <div className="flex-1 overflow-y-auto bg-white">
+                  <AnimatePresence mode="wait">
+                    {profileTab === 'gallery' ? (
+                      <motion.div 
+                        key="gallery-tab"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="p-8 lg:p-12 space-y-10"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                          <div className="space-y-1">
+                            <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Styling-Galerie</h2>
+                            <p className="text-brand-primary/40 text-sm">Alle deine gespeicherten Looks an einem Ort.</p>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              if (isPremium) {
+                                setShowProfileModal(false);
+                                setShowStylingStudio(true);
+                              } else {
+                                setShowProfileModal(false);
+                                setShowPricingModal(true);
+                              }
+                            }}
+                            className="px-6 py-3 bg-brand-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 relative group"
+                          >
+                            <Palette size={16} />
+                            Styling Studio
+                            {!isPremium && (
+                              <span className="absolute -top-2 -right-2 bg-[#FF9EBE] text-white text-[8px] px-2 py-0.5 rounded-full shadow-lg border border-white animate-pulse">PRO</span>
+                            )}
+                          </button>
+                        </div>
+
+                        {userHistory.length === 0 ? (
+                          <div className="py-20 flex flex-col items-center justify-center text-center space-y-6 bg-black/[0.02] rounded-[3rem] border-2 border-dashed border-black/5">
+                            <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm">
+                              <Camera className="text-brand-primary/10" size={40} />
+                            </div>
+                            <div className="space-y-4 px-8 max-w-sm">
+                              <h3 className="font-bold text-lg">Keine Looks gespeichert</h3>
+                              <p className="text-brand-primary/40 text-sm leading-relaxed">
+                                {isPremium 
+                                  ? "Starte eine neue Analyse, um deine Galerie zu füllen. Alle Ergebnisse werden hier automatisch gespeichert."
+                                  : "Als Premium-Mitglied kannst du unbegrenzt eigene Frisuren und Haarfarben ausprobieren und alle deine Looks hier automatisch speichern."}
+                              </p>
+                              {isPremium ? (
+                                <button 
+                                  onClick={() => {
+                                    setShowProfileModal(false);
+                                    setShowStylingStudio(true);
+                                  }}
+                                  className="mt-4 w-full py-3 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] shadow-lg shadow-brand-primary/20 transition-all"
+                                >
+                                  Styling Studio öffnen
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => {
+                                    setShowProfileModal(false);
+                                    setShowPricingModal(true);
+                                  }}
+                                  className="mt-4 w-full py-3 bg-[#FF9EBE] text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] shadow-lg shadow-[#FF9EBE]/20 transition-all"
+                                >
+                                  Jetzt Premium freischalten
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
+                            {userHistory.map((item) => (
+                              <motion.div 
+                                key={item.id}
+                                whileHover={{ y: -5 }}
+                                className="group relative aspect-[3/4] rounded-3xl overflow-hidden bg-black/5 shadow-sm border border-black/5"
+                              >
+                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-6 flex flex-col justify-end gap-3">
+                                  <div className="space-y-1">
+                                    <p className="text-white text-xs font-bold tracking-tight">{item.name}</p>
+                                    <p className="text-white/60 text-[10px] font-medium">{item.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button 
+                                      onClick={() => setSelectedResult(item as any)}
+                                      className="py-2 bg-white text-brand-primary text-[10px] font-black rounded-lg hover:bg-[#FF9EBE] hover:text-white transition-all uppercase tracking-widest"
+                                    >
+                                      Ansehen
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setShowProfileModal(false);
+                                        handleCreateInstagramStory(item as any);
+                                      }}
+                                      className="py-2 bg-white/10 backdrop-blur-md text-white text-[10px] font-black rounded-lg hover:bg-[#FF9EBE] transition-all uppercase tracking-widest border border-white/20"
+                                    >
+                                      Story
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setShowProfileModal(false);
+                                        handleCreatePoll(item as any);
+                                      }}
+                                      className="py-2 bg-white/10 backdrop-blur-md text-white text-[10px] font-black rounded-lg hover:bg-emerald-500 transition-all uppercase tracking-widest border border-white/20"
+                                    >
+                                      Poll
+                                    </button>
+                                    <button 
+                                      onClick={async () => {
+                                        if (confirm("Möchtest du diesen Look wirklich löschen?")) {
+                                          try {
+                                            const historyRef = doc(db, 'users', user.uid, 'results', item.id);
+                                            await deleteDoc(historyRef);
+                                          } catch (err) {
+                                            console.error("Delete failed", err);
+                                          }
+                                        }
+                                      }}
+                                      className="py-2 bg-white/10 backdrop-blur-md text-white/60 rounded-lg hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-white/20"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    ) : profileTab === 'polls' ? (
+                      <motion.div 
+                        key="polls-tab"
+                        initial={{ opacity: 0, x: 10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -10 }}
+                        className="p-8 lg:p-12 space-y-10"
+                      >
+                        <div className="space-y-1">
+                          <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Umfragen</h2>
+                          <p className="text-brand-primary/40 text-sm">Teile deine Looks und lass deine Freunde entscheiden.</p>
+                        </div>
+
+                        <div className="space-y-4">
+                          {userPolls.length === 0 ? (
+                            <div className="text-center py-20 bg-black/[0.02] rounded-[3rem] border-2 border-dashed border-black/5 space-y-6">
+                              <div className="w-20 h-20 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-sm">
+                                <Users className="text-brand-primary/10" size={40} />
+                              </div>
+                              <p className="text-sm text-brand-primary/40 font-medium px-8 max-w-sm mx-auto leading-relaxed">Du hast noch keine Umfragen erstellt. Wähle nach deiner nächsten Analyse "Freunde entscheiden lassen".</p>
+                            </div>
+                          ) : (
+                            userPolls.map((poll) => {
+                              const totalVotes = poll.options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
+                              return (
+                                <div key={poll.id} className="p-6 bg-white border border-black/5 rounded-3xl shadow-sm hover:shadow-md transition-all hover:border-[#FF9EBE]/20 group">
+                                  <div className="flex items-center gap-6">
+                                    <div className="w-20 h-20 rounded-2xl overflow-hidden bg-black/5 shrink-0 border-2 border-white shadow-md">
+                                      {poll.originalImage ? (
+                                        <img src={poll.originalImage} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-brand-primary/20"><Camera size={24} /></div>
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-base font-bold truncate">Umfrage vom {poll.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
+                                        <span className="px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase">Aktiv</span>
+                                      </div>
+                                      <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{totalVotes} Stimmen gesammelt</p>
+                                    </div>
+                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button 
+                                        onClick={() => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          window.open(url, '_blank');
+                                        }}
+                                        className="p-3 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-xl hover:bg-[#FF9EBE] hover:text-white transition-all shadow-sm"
+                                        title="Ergebnisse ansehen"
+                                      >
+                                        <Eye size={20} />
+                                      </button>
+                                      <button 
+                                        onClick={async () => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          try {
+                                            await navigator.clipboard.writeText(url);
+                                            setAuthMessage({ type: 'success', text: "Link kopiert!" });
+                                            setTimeout(() => setAuthMessage(null), 3000);
+                                          } catch (err) {
+                                            console.error("Copy failed", err);
+                                          }
+                                        }}
+                                        className="p-3 bg-black/5 text-brand-primary/40 rounded-xl hover:bg-black/10 transition-all shadow-sm"
+                                        title="Link kopieren"
+                                      >
+                                        <Share2 size={20} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <motion.div 
+                        key="results-tab"
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 10 }}
+                        className="p-8 lg:p-12 space-y-10"
+                      >
+                        <div className="space-y-1">
+                          <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Mein Account</h2>
+                          <p className="text-brand-primary/40 text-sm">Verwalte deine Mitgliedschaft und Profileinstellungen.</p>
+                        </div>
+
+                        {/* Premium Status Card */}
+                        <div className={`p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col justify-between min-h-[220px] ${
+                          isPremium ? 'bg-gradient-to-br from-brand-primary to-[#2A2A2A] text-white' : 'bg-gradient-to-br from-[#FF9EBE]/5 to-[#FF9EBE]/20 text-brand-primary'
+                        }`}>
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
+                          
+                          <div className="relative z-10">
+                            <div className="flex items-center justify-between mb-8">
+                               <div className="flex items-center gap-3">
+                                  <div className={`p-2 rounded-xl ${isPremium ? 'bg-[#FF9EBE]' : 'bg-brand-primary'}`}>
+                                    <ShieldCheck size={24} className="text-white" />
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Aktueller Tarif</p>
+                                    <h4 className="text-xl font-bold font-serif">{isPremium ? (userPlan === 'single' ? 'Premium' : 'Pro Mitglied') : 'Kostenloser Account'}</h4>
+                                  </div>
+                               </div>
+                               {isPremium && (
+                                <span className="bg-green-500/20 text-green-400 text-[10px] font-black px-4 py-1.5 rounded-full uppercase border border-green-500/30">
+                                  Aktiv
+                                </span>
+                               )}
+                            </div>
+
+                            {isPremium && premiumExpiresAt ? (
+                              <p className="text-xs font-bold opacity-60 flex items-center gap-2">
+                                <Clock size={14} />
+                                {(() => {
+                                  const expiryDate = premiumExpiresAt.toDate();
+                                  const now = new Date();
+                                  const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                  return `Läuft in ${diffDays} Tagen ab (${expiryDate.toLocaleDateString('de-DE')})`;
+                                })()}
+                              </p>
+                            ) : (
+                              <div className="space-y-4">
+                                <ul className="space-y-2">
+                                  <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Unbegrenzt Frisuren-Analysen</li>
+                                  <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Premium-Styling Studio</li>
+                                  <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Alle Looks in der Galerie speichern</li>
+                                </ul>
+                                <button 
+                                  onClick={() => setShowPricingModal(true)}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20"
+                                >
+                                  Jetzt zum Pro Upgrade
+                                </button>
+                              </div>
+                            )}
+
+                            {isPremium && (
+                              <button 
+                                onClick={() => {
+                                  setShowProfileModal(false);
+                                  setShowStylingStudio(true);
+                                }}
+                                className="w-full mt-6 py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-2"
+                              >
+                                <Palette size={18} />
+                                Zum Styling Studio
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {authMessage && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`p-5 rounded-3xl flex items-start gap-4 text-sm ${
+                              authMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
+                              authMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
+                              'bg-blue-50 text-blue-700 border border-blue-100'
+                            }`}
+                          >
+                            <Bell size={20} className="shrink-0 mt-0.5" />
+                            <p className="font-medium">{authMessage.text}</p>
+                          </motion.div>
+                        )}
+
+                        <div className="space-y-8">
+                          {!user.emailVerified && (
+                             <div className="p-6 bg-[#FF9EBE]/5 border border-[#FF9EBE]/20 rounded-3xl space-y-4">
+                                <div className="flex items-center gap-3 text-[#FF9EBE] font-bold">
+                                  <AlertCircle size={24} />
+                                  E-Mail bestätigen
+                                </div>
+                                <p className="text-brand-primary/60 text-sm leading-relaxed">
+                                  Bestätige deine E-Mail-Adresse, um dein Profil zu sichern und Looks dauerhaft zu speichern.
+                                </p>
+                                <button 
+                                  onClick={handleSendVerification}
+                                  disabled={authLoading}
+                                  className="w-full py-3 bg-[#FF9EBE] text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-[#FF9EBE]/90 transition-all disabled:opacity-50"
+                                >
+                                  Bestätigungs-E-Mail senden
+                                </button>
+                             </div>
+                          )}
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <form onSubmit={handleUpdateProfile} className="space-y-4">
+                              <label className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 ml-1">Profil-Name</label>
+                              <div className="relative">
+                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
+                                <input 
+                                  type="text" 
+                                  required
+                                  value={loginName}
+                                  onChange={(e) => setLoginName(e.target.value)}
+                                  placeholder={user.displayName || "Dein Name"}
+                                  className="w-full pl-12 pr-4 py-4 bg-black/[0.02] border-none rounded-2xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none text-sm font-bold"
+                                />
+                              </div>
+                              <button 
+                                type="submit"
+                                disabled={authLoading}
+                                className="w-full py-4 bg-brand-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all disabled:opacity-50 shadow-md"
+                              >
+                                {authLoading ? <Loader2 className="animate-spin" size={18} /> : 'Speichern'}
+                              </button>
+                            </form>
+
+                            <div className="space-y-4 pt-4 md:pt-0">
+                               <label className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 ml-1 block">Sitzung</label>
+                               <button 
+                                  onClick={handleLogout}
+                                  className="w-full py-4 bg-black/5 text-brand-primary rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black/10 transition-all flex items-center justify-center gap-3"
+                                >
+                                  <LogOut size={18} />
+                                  Abmelden
+                                </button>
+                                <button 
+                                  onClick={handleDeleteAccount}
+                                  disabled={isDeletingAccount}
+                                  className="w-full py-4 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all flex items-center justify-center gap-3"
+                                >
+                                  {isDeletingAccount ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                                  Konto löschen
+                                </button>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Styling Studio Modal */}
+      <AnimatePresence>
+        {showStylingStudio && (
+          <div className="fixed inset-0 z-[110] flex flex-col bg-white">
+            <motion.div 
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="flex-1 flex flex-col"
+            >
+              {/* Header */}
+              <header className="px-8 py-5 border-b border-black/5 flex items-center justify-between bg-white shrink-0">
+                <div className="flex items-center gap-4">
+                   <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-primary/20">
+                      <Palette size={20} />
+                   </div>
+                   <div>
+                      <h1 className="text-xl font-serif font-bold italic text-brand-primary">HairVision Styling Studio</h1>
+                      <div className="flex items-center gap-2">
+                         <span className="w-2 h-2 rounded-full bg-[#FF9EBE] animate-pulse" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Premium Access</span>
+                      </div>
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setShowStylingStudio(false)}
+                  className="w-12 h-12 bg-black/5 rounded-full flex items-center justify-center text-brand-primary/40 hover:bg-black/10 transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </header>
+
+              <div className="flex-1 relative overflow-hidden flex flex-col">
+                <StylingStudio 
+                  image={image}
+                  onTryOn={handleStudioTryOn}
+                  isGenerating={isGenerating}
+                  userHistory={userHistory}
+                  faceAnalysis={faceAnalysis}
+                  onAnalyzeFace={handleAnalyzeFace}
+                  userSketch={userSketch}
+                  isGeneratingSketch={isGeneratingSketch}
+                  onGenerateFashionSketch={handleGenerateFashionSketch}
+                />
               </div>
             </motion.div>
           </div>
@@ -2929,13 +3982,13 @@ export default function App() {
                     
                     <ul className="space-y-3 lg:space-y-4 mb-8">
                       {[
-                        "🎨 Unbegrenzt Frisuren & Farben testen",
-                        "✅ Premium-Bibliothek (12.000+ Styles)",
-                        "Für alle zukünftigen Analysen 🆕",
-                        "Jeden Monat komplett neue Trend-Kollektionen 🆕",
+                        "🎨 Eigene Frisuren & Haarfarben direkt ausprobieren",
+                        "✅ Unbegrenzte KI-Analysen",
+                        " Premium-Styling Studio (100+ Styles)",
+                        "Jeden Monat neue Trend-Kollektionen 🆕",
                         "Dein persönlicher Profi-Friseur-Guide als PDF 📖",
                         "HD-Downloads ohne Wasserzeichen 💎",
-                        "Ein Jahr lang Sicherheit bei jedem Friseurbesuch 🛡️"
+                        "Alle Styles in deiner Galerie speichern 🛡️"
                       ].map((benefit, i) => (
                         <li key={i} className="flex items-start gap-3">
                           <div className="mt-1 w-5 h-5 rounded-full bg-[#FF9EBE]/20 flex items-center justify-center shrink-0">

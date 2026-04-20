@@ -1,56 +1,111 @@
 /**
- * Compresses a base64 image string to be under a certain size in bytes.
+ * Fast resize function that does a single-pass resize and quality reduction.
+ * Much faster than the iterative compressBase64Image.
+ */
+export async function fastResizeImage(fullDataUrl: string, maxDimension: number, quality: number = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxDimension) {
+          height *= maxDimension / width;
+          width = maxDimension;
+        }
+      } else {
+        if (height > maxDimension) {
+          width *= maxDimension / height;
+          height = maxDimension;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error("Image resize failed"));
+    img.src = fullDataUrl;
+  });
+}
+
+/**
+ * Compresses a data URL image to be under a certain size in bytes.
  * This is useful for Firestore document limits (1MB).
  */
-export async function compressBase64Image(base64Data: string, mimeType: string, targetSizeInBytes: number = 800000): Promise<string> {
+export async function compressBase64Image(fullDataUrl: string, mimeType: string, targetSizeInBytes: number = 800000): Promise<string> {
   // If it's already small enough, return it
-  const currentSize = (base64Data.length * 3) / 4;
+  const currentSize = (fullDataUrl.length * 3) / 4;
   if (currentSize <= targetSizeInBytes) {
-    return base64Data;
+    return fullDataUrl;
   }
 
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
+    
     img.onload = () => {
       const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
 
-      // Start with a high quality and reduce if needed
-      let quality = 0.9;
+      // Initial fast resize if image is huge
       let scale = 1.0;
+      if (img.width > 2000 || img.height > 2000) {
+        scale = 0.5;
+      }
 
+      let quality = 0.8;
+      
       const attemptCompression = () => {
-        canvas.width = width * scale;
-        canvas.height = height * scale;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error("Could not get canvas context"));
+        if (scale < 0.1 || quality < 0.1) {
+          resolve(canvas.toDataURL('image/jpeg', 0.1));
           return;
         }
+
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         
-        // Use jpeg for better compression than png
         const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        const compressedData = compressedBase64.split(',')[1];
-        const compressedSize = (compressedData.length * 3) / 4;
+        const estimatedSize = compressedBase64.length * 0.75;
 
-        if (compressedSize <= targetSizeInBytes || (quality <= 0.1 && scale <= 0.1)) {
+        if (estimatedSize <= targetSizeInBytes) {
           resolve(compressedBase64);
         } else {
-          // Reduce quality or scale and try again
-          if (quality > 0.3) {
-            quality -= 0.1;
+          // Adjust parameters more aggressively to reduce iterations
+          if (estimatedSize > targetSizeInBytes * 2) {
+            quality *= 0.7;
+            scale *= 0.8;
           } else {
-            scale -= 0.1;
+            quality -= 0.15;
+            if (quality < 0.3) {
+              scale -= 0.2;
+              quality = 0.5;
+            }
           }
-          attemptCompression();
+          setTimeout(attemptCompression, 0);
         }
       };
 
       attemptCompression();
     };
-    img.onerror = (err) => reject(err);
-    img.src = `data:${mimeType};base64,${base64Data}`;
+    img.onerror = () => reject(new Error("Image compression failed"));
+    img.src = fullDataUrl;
   });
 }

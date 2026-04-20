@@ -16,7 +16,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider
 } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, addDoc, query, orderBy, onSnapshot, Timestamp, serverTimestamp, deleteDoc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, increment, collection, addDoc, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, deleteDoc, getDocFromServer } from 'firebase/firestore';
 
 // Import the Firebase configuration optionally (to not break build if file is missing)
 // @ts-ignore
@@ -130,9 +130,12 @@ export {
   doc, 
   setDoc, 
   getDoc, 
+  updateDoc,
+  increment,
   collection, 
   addDoc, 
   query, 
+  where,
   orderBy, 
   onSnapshot, 
   Timestamp,
