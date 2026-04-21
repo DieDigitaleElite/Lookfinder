@@ -184,7 +184,10 @@ export default function App() {
             setUsageCount(0);
           }
         }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `usage/${usageId}`);
+          const err = handleFirestoreError(error, OperationType.GET, `usage/${usageId}`);
+          if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
+            console.warn("Usage sync failed due to quota limits.");
+          }
         });
       }
     }
@@ -211,7 +214,13 @@ export default function App() {
         if (docSnap.exists()) {
           setActivePoll({ id: docSnap.id, ...docSnap.data() });
         }
-      }, (err) => console.error("Failed to sync poll", err));
+      }, (err) => {
+        console.error("Failed to sync poll", err);
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('Quota') || message.includes('exhausted')) {
+          setError("Die Abstimmung ist momentan nicht erreichbar (Datenbank-Limit).");
+        }
+      });
     }
 
     return () => {
@@ -241,6 +250,11 @@ export default function App() {
           ...docSnap.data()
         }));
         setUserPolls(polls);
+      }, (err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('Quota') || message.includes('exhausted')) {
+          setError("Deine Abstimmungen konnten nicht geladen werden (Limit erreicht).");
+        }
       });
     }
     
@@ -266,6 +280,11 @@ export default function App() {
           ...docSnap.data()
         }));
         setUserHistory(history);
+      }, (err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes('Quota') || message.includes('exhausted')) {
+          setError("Dein Verlauf konnte nicht geladen werden (Limit erreicht).");
+        }
       });
     }
     
@@ -320,21 +339,31 @@ export default function App() {
         createdAt: serverTimestamp()
       };
 
-      const docRef = await addDoc(collection(db, 'polls'), pollData);
-      const url = `${window.location.origin}${window.location.pathname}?poll=${docRef.id}`;
-      setPollShareUrl(url);
-      
-      // Try to copy to clipboard, but don't fail if it doesn't work
       try {
-        await navigator.clipboard.writeText(url);
-        setAuthMessage({ type: 'success', text: "Link kopiert & Umfrage im neuen Fenster geöffnet! 🗳️" });
-      } catch (clipErr) {
-        console.warn("Clipboard copy failed", clipErr);
-        setAuthMessage({ type: 'success', text: "Umfrage bereit! Link wurde erstellt." });
-      }
+        const docRef = await addDoc(collection(db, 'polls'), pollData);
+        const url = `${window.location.origin}${window.location.pathname}?poll=${docRef.id}`;
+        setPollShareUrl(url);
+        
+        // Try to copy to clipboard, but don't fail if it doesn't work
+        try {
+          await navigator.clipboard.writeText(url);
+          setAuthMessage({ type: 'success', text: "Link kopiert & Umfrage im neuen Fenster geöffnet! 🗳️" });
+        } catch (clipErr) {
+          console.warn("Clipboard copy failed", clipErr);
+          setAuthMessage({ type: 'success', text: "Umfrage bereit! Link wurde erstellt." });
+        }
 
-      // Open in new tab
-      window.open(url, '_blank');
+        // Open in new tab
+        window.open(url, '_blank');
+      } catch (dbErr: any) {
+        console.error("Failed to create poll", dbErr);
+        const errInfo = handleFirestoreError(dbErr, OperationType.CREATE, 'polls');
+        if (errInfo?.error.includes('Quota')) {
+          setError("Momentan können keine neuen Umfragen erstellt werden (Limit erreicht).");
+        } else {
+          setError("Umfrage konnte nicht erstellt werden.");
+        }
+      }
 
       // Auto-clear success message
       setTimeout(() => setAuthMessage(null), 5000);
@@ -378,9 +407,12 @@ export default function App() {
 
       // Update local state for immediate feedback
       setActivePoll({ ...activePoll, options: updatedOptions });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to vote", err);
-      handleFirestoreError(err, OperationType.UPDATE, `polls/${activePoll.id}`);
+      const errorInfo = handleFirestoreError(err, OperationType.UPDATE, `polls/${activePoll.id}`);
+      if (errorInfo?.error.includes('Quota') || errorInfo?.error.includes('exhausted')) {
+        setError("Abstimmung momentan nicht möglich (Limit erreicht).");
+      }
     }
   };
 
@@ -523,13 +555,17 @@ export default function App() {
         const userDocRef = doc(db, 'users', currentUser.uid);
         
         // Initial profile sync
-        setDoc(userDocRef, {
-          uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          photoURL: currentUser.photoURL,
-          createdAt: serverTimestamp()
-        }, { merge: true });
+        try {
+          setDoc(userDocRef, {
+            uid: currentUser.uid,
+            email: currentUser.email,
+            displayName: currentUser.displayName,
+            photoURL: currentUser.photoURL,
+            createdAt: serverTimestamp()
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Initial profile sync failed", e);
+        }
 
         const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
@@ -556,7 +592,10 @@ export default function App() {
             setPremiumExpiresAt(data.premiumExpiresAt || null);
           }
         }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
+          const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
+          if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
+            setError("Datenbank-Limit erreicht. Deine gespeicherten Daten sind morgen wieder verfügbar.");
+          }
         });
 
         // Load saved results
@@ -568,7 +607,10 @@ export default function App() {
           const docs = snapshot.docs.map(doc => doc.data() as GeneratedResult);
           setSavedResults(docs);
         }, (error) => {
-          handleFirestoreError(error, OperationType.LIST, `users/${currentUser.uid}/results`);
+          const err = handleFirestoreError(error, OperationType.LIST, `users/${currentUser.uid}/results`);
+          if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
+            setError("Datenbank-Limit erreicht. Deine Ergebnisse werden morgen wieder angezeigt.");
+          }
         });
         
         unsubsRef.current = [unsubscribeUser, unsubscribeResults];
@@ -1057,10 +1099,15 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Save failed", err);
-      if (err.message?.includes('exceeds the maximum allowed size')) {
+      const msg = err.message || String(err);
+      if (msg.includes('Quota') || msg.includes('exhausted')) {
+        if (!silent) setError("Datenbank-Limit erreicht. Speichern momentan nicht möglich.");
+      } else if (msg.includes('exceeds the maximum allowed size')) {
         setFailedSaves(prev => new Set(prev).add(result.id));
+        if (!silent) setError("Bild zu groß zum Speichern.");
+      } else {
+        if (!silent) setError("Speichern fehlgeschlagen.");
       }
-      if (!silent) setError("Speichern fehlgeschlagen.");
     } finally {
       if (!silent) setIsSaving(null);
     }
@@ -1133,7 +1180,10 @@ export default function App() {
         });
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, `usage/${usageId}`);
+      const err = handleFirestoreError(error, OperationType.WRITE, `usage/${usageId}`);
+      if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
+        console.warn("Usage tracking paused due to database quota.");
+      }
     }
   };
 
@@ -1163,6 +1213,10 @@ export default function App() {
       });
     } catch (err) {
       console.warn("Failed to save result to history", err);
+      const errInfo = handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/results`);
+      if (errInfo?.error.includes('Quota') || errInfo?.error.includes('exhausted')) {
+        console.warn("History save paused due to database quota.");
+      }
     }
   };
 
@@ -1426,6 +1480,13 @@ export default function App() {
       console.error("Fashion sketch generation failed", err);
       return null;
     }
+  };
+
+  const handleStylingStudioImageUpload = (base64: string, type: string) => {
+    setResults([]);
+    setError(null);
+    setMimeType(type);
+    setImage(base64);
   };
 
   const reset = () => {
@@ -3926,6 +3987,7 @@ export default function App() {
                   userSketch={userSketch}
                   isGeneratingSketch={isGeneratingSketch}
                   onGenerateFashionSketch={handleGenerateFashionSketch}
+                  onImageUpload={handleStylingStudioImageUpload}
                 />
               </div>
             </motion.div>

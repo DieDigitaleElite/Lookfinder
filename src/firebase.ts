@@ -69,7 +69,7 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo {
   const message = error instanceof Error ? error.message : String(error);
   const code = (error as any)?.code;
 
@@ -92,11 +92,24 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   }
   
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  const isQuotaError = 
+    message.includes('Quota limit exceeded') || 
+    code === 'resource-exhausted' ||
+    message.includes('Quota exceeded');
+
+  if (isQuotaError) {
+    console.warn(`Firestore Quota Exceeded during ${operationType} on ${path}. Gracefully handling.`);
+  } else {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+  }
   
-  // Don't throw if it's a permission error, as these often happen during auth transitions (logout/login)
-  if (message.includes('insufficient permissions') || code === 'permission-denied') {
-    return;
+  // Don't throw for specific errors that we want to handle gracefully or that happen due to environmental limits
+  if (
+    message.includes('insufficient permissions') || 
+    code === 'permission-denied' ||
+    isQuotaError
+  ) {
+    return errInfo;
   }
   
   throw new Error(JSON.stringify(errInfo));
