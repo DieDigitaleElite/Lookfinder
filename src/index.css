@@ -7,6 +7,14 @@
   
   --color-brand-primary: #1a1a1a;
   --color-brand-accent: #FF9EBE; /* Pink accent */
+
+  --animate-shimmer: shimmer 2.5s infinite;
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
 }
 
 @layer base {

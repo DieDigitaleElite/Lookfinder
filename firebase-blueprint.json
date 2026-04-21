@@ -66,6 +66,17 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "creatorId", "options", "createdAt"]
+    },
+    "HairstyleSketch": {
+      "title": "Hairstyle Sketch",
+      "description": "A pre-rendered sketch of a hairstyle for the styling studio.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "data": { "type": "string", "description": "Base64 encoded (compressed) image data" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "data"]
     }
   },
   "firestore": {
@@ -76,6 +87,10 @@
     "/users/{userId}/results/{resultId}": {
       "schema": "HairstyleResult",
       "description": "Collection of saved hairstyle results for a specific user"
+    },
+    "/users/{userId}/sketches/{sketchId}": {
+      "schema": "HairstyleSketch",
+      "description": "Subcollection for storing pre-generated sketches for the styling studio"
     },
     "/polls/{pollId}": {
       "schema": "Poll",

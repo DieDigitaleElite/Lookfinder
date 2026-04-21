@@ -188,35 +188,39 @@ export default function App() {
       setIsGeneratingBackground(true);
       console.log(`Starting background generation for ${stylesToGenerate.length} styles...`);
       
+      let localSketches = { ...hairstyleSketches };
+
       for (const style of stylesToGenerate) {
-        // Skip if already generated (might have updated from another snapshot)
-        if (hairstyleSketches[style.id]) continue;
+        if (localSketches[style.id]) continue;
 
         try {
           const base64Data = image.split(',')[1];
-          const sketch = await generateFashionSketch(base64Data, mimeType, style.name, avatarSketch);
+          const rawSketch = await generateFashionSketch(base64Data, mimeType, style.name, avatarSketch);
           
-          if (sketch) {
-            setHairstyleSketches(prev => {
-              const updated = { ...prev, [style.id]: sketch };
-              // Persist to Firebase if logged in
-              if (auth.currentUser) {
-                const userRef = doc(db, 'users', auth.currentUser.uid);
-                updateDoc(userRef, { hairstyleSketches: updated }).catch(e => console.warn("Failed to save sketch map", e));
-              }
-              return updated;
-            });
+          if (rawSketch) {
+            // Compress sketch before saving to save space and bandwidth
+            const compressed = await fastResizeImage(rawSketch, 512, 0.6);
+            
+            localSketches = { ...localSketches, [style.id]: compressed };
+            setHairstyleSketches(localSketches);
+
+            // Save to Firestore subcollection
+            if (auth.currentUser) {
+              const sketchRef = doc(db, 'users', auth.currentUser.uid, 'sketches', style.id);
+              await setDoc(sketchRef, { 
+                id: style.id, 
+                data: compressed,
+                updatedAt: serverTimestamp() 
+              }).catch(e => console.warn(`Failed to save sketch ${style.id}`, e));
+            }
           }
         } catch (err) {
           console.error(`Background gen failed for ${style.name}`, err);
-          // If it's a rate limit, maybe stop completely for a while
           if (String(err).includes('429')) {
-             console.warn("Rate limit hit in background, cooling down...");
              await new Promise(r => setTimeout(r, 60000));
           }
         }
         
-        // Wait between generations to be polite to the API
         await new Promise(r => setTimeout(r, 1500));
       }
       
@@ -231,22 +235,29 @@ export default function App() {
     if (user && Object.keys(hairstyleSketches).length > 0) {
       const syncSketches = async () => {
         try {
-          const userRef = doc(db, 'users', user.uid);
-          // Only sync if Firestore doesn't have them or they are more complete
-          const userDoc = await getDoc(userRef);
-          if (userDoc.exists()) {
-            const data = userDoc.data();
-            const firestoreSketches = data.hairstyleSketches || {};
-            
-            // Check if local has anything new
-            const hasNew = Object.keys(hairstyleSketches).some(id => !firestoreSketches[id]);
-            if (hasNew) {
-              await updateDoc(userRef, { 
-                hairstyleSketches: { ...firestoreSketches, ...hairstyleSketches } 
-              });
-              console.log("Guest sketches synced to user profile");
+          const sketchesCollectionRef = collection(db, 'users', user.uid, 'sketches');
+          const batchSize = 10;
+          const entries = Object.entries(hairstyleSketches) as [string, string][];
+          
+          for (let i = 0; i < entries.length; i += batchSize) {
+            const chunk = entries.slice(i, i + batchSize);
+            await Promise.all(chunk.map(async ([id, data]) => {
+              const sketchRef = doc(sketchesCollectionRef, id);
+              // Only save if it's not too huge (paranoia check)
+              if (data && typeof data === 'string' && data.length < 500000) {
+                return setDoc(sketchRef, { 
+                  id, 
+                  data, 
+                  updatedAt: serverTimestamp() 
+                }, { merge: true });
+              }
+            }));
+            // Throttling batches to stay within firestore limits
+            if (i + batchSize < entries.length) {
+              await new Promise(r => setTimeout(r, 1000));
             }
           }
+          console.log("Guest sketches synced to subcollection");
         } catch (e) {
           console.warn("Failed to sync guest sketches", e);
         }
@@ -688,13 +699,23 @@ export default function App() {
             setUserPlan(data.plan || null);
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
-            if (data.hairstyleSketches) setHairstyleSketches(data.hairstyleSketches);
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
           if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
             setError("Datenbank-Limit erreicht. Deine gespeicherten Daten sind morgen wieder verfügbar.");
           }
+        });
+
+        // Load hairstyle sketches from subcollection
+        const sketchesRef = collection(db, 'users', currentUser.uid, 'sketches');
+        const unsubscribeSketches = onSnapshot(sketchesRef, (snapshot) => {
+          const sketches: Record<string, string> = {};
+          snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            sketches[data.id] = data.data;
+          });
+          setHairstyleSketches(prev => ({ ...prev, ...sketches }));
         });
 
         // Load saved results
@@ -712,7 +733,7 @@ export default function App() {
           }
         });
         
-        unsubsRef.current = [unsubscribeUser, unsubscribeResults];
+        unsubsRef.current = [unsubscribeUser, unsubscribeResults, unsubscribeSketches];
       } else {
         setSavedResults([]);
       }
@@ -2367,6 +2388,7 @@ export default function App() {
                         isPremium={isPremium}
                         preGeneratedSketches={hairstyleSketches}
                         isGeneratingBackground={isGeneratingBackground}
+                        onCheckout={handleCheckout}
                       />
                     </div>
                   </div>
@@ -4426,6 +4448,7 @@ export default function App() {
                   isPremium={isPremium}
                   preGeneratedSketches={hairstyleSketches}
                   isGeneratingBackground={isGeneratingBackground}
+                  onCheckout={handleCheckout}
                 />
               </div>
             </motion.div>

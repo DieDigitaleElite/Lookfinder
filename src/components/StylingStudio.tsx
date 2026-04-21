@@ -8,7 +8,12 @@ import {
   RotateCcw,
   Loader2,
   X,
-  History
+  History,
+  Zap,
+  ArrowRightLeft,
+  ShieldCheck,
+  Star,
+  Clock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -28,6 +33,7 @@ interface StylingStudioProps {
   isPremium?: boolean;
   preGeneratedSketches?: Record<string, string>;
   isGeneratingBackground?: boolean;
+  onCheckout?: (plan: 'monthly' | 'yearly') => void;
 }
 
 export default function StylingStudio({ 
@@ -38,7 +44,8 @@ export default function StylingStudio({
   avatarSketch,
   isPremium = false,
   preGeneratedSketches = {},
-  isGeneratingBackground = false
+  isGeneratingBackground = false,
+  onCheckout
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
   const [selectedWorld, setSelectedWorld] = useState(COLOR_WORLDS[0].id);
@@ -76,13 +83,21 @@ export default function StylingStudio({
     }
   };
 
-  const handleStartSim = () => {
+  const [isSimulatingPrePaywall, setIsSimulatingPrePaywall] = useState(false);
+
+  const handleStartSim = async () => {
+    if (!image || !selectedStyleId || !selectedColorId) return;
+
     if (!isPremium) {
+      setIsSimulatingPrePaywall(true);
+      // Wait to create anticipation
+      await new Promise(r => setTimeout(r, 1500));
+      setIsSimulatingPrePaywall(false);
       setShowPaywall(true);
       return;
     }
+    
     if (currentStyle && currentColor) {
-      // Defaulting to daylight for simplicity as user requested "simpler"
       onTryOn(currentStyle, currentColor, LIGHTING_SIMULATIONS[0]);
     }
   };
@@ -301,18 +316,18 @@ export default function StylingStudio({
           
           <button
             onClick={handleStartSim}
-            disabled={isGenerating || !image || !selectedStyleId || !selectedColorId}
-            className="w-full md:w-auto px-12 py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-3"
+            disabled={isGenerating || isSimulatingPrePaywall || !image || !selectedStyleId || !selectedColorId}
+            className="w-full md:w-auto px-12 py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/20 hover:scale-[1.02] transition-all disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-3 active:scale-95"
           >
-            {isGenerating ? (
+            {isGenerating || isSimulatingPrePaywall ? (
               <>
                 <Loader2 className="animate-spin" size={18} />
-                <span>Analysiere...</span>
+                <span>{isSimulatingPrePaywall ? 'Analysiere...' : 'Rendere Look...'}</span>
               </>
             ) : (
               <>
                 <Sparkles size={18} />
-                <span>Simulieren</span>
+                <span>Jetzt in Echt sehen</span>
               </>
             )}
           </button>
@@ -328,69 +343,125 @@ export default function StylingStudio({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowPaywall(false)}
-              className="absolute inset-0 bg-brand-primary/60 backdrop-blur-md"
+              className="absolute inset-0 bg-brand-primary/80 backdrop-blur-md"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[3rem] p-8 md:p-12 shadow-2xl space-y-8 overflow-hidden"
+              className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl overflow-hidden"
             >
-              <div className="absolute top-0 right-0 w-40 h-40 bg-[#FF9EBE]/10 rounded-full blur-3xl -mr-20 -mt-20" />
-              
-              <button 
-                onClick={() => setShowPaywall(false)}
-                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/5 flex items-center justify-center hover:bg-black/10 transition-colors"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="text-center space-y-4">
-                <div className="w-20 h-20 bg-[#FF9EBE]/10 rounded-3xl flex items-center justify-center mx-auto text-[#FF9EBE]">
-                  <Palette size={40} />
-                </div>
-                <h3 className="text-3xl font-serif font-bold italic">Upgrade erforderlich</h3>
-                <p className="text-brand-primary/60 text-sm leading-relaxed">
-                  Das Styling Studio mit unbegrenzten HD-Simulationen, allen Farbtönen und Licht-Szenarien ist unseren Premium-Mitgliedern vorbehalten.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                    <Sparkles size={20} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-emerald-900">Unlimitierte Styles</p>
-                    <p className="text-[10px] text-emerald-700">Probiere alle 50+ Frisuren beliebig oft aus.</p>
-                  </div>
-                </div>
-                
-                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-[#FF9EBE] text-white flex items-center justify-center shrink-0">
-                    <History size={20} />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-blue-900">HD-Qualität</p>
-                    <p className="text-[10px] text-blue-700">Erhalte fotorealistische Ergebnisse in Profi-Auflösung.</p>
-                  </div>
+              {/* Teaser Background / Header */}
+              <div className="bg-brand-primary p-8 md:p-12 text-center relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF9EBE]/20 blur-[100px] -mr-32 -mt-32" />
+                <div className="relative z-10 space-y-4">
+                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 rounded-full backdrop-blur-md border border-white/10">
+                      <Zap size={14} className="text-[#FF9EBE]" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Mapping abgeschlossen</span>
+                   </div>
+                   <h3 className="text-3xl md:text-4xl font-serif font-bold italic text-white leading-tight">
+                     Dein neuer Look ist <br />
+                     <span className="text-[#FF9EBE]">fast fertig geladen.</span>
+                   </h3>
+                   <p className="text-white/60 text-sm max-w-md mx-auto">
+                     Die KI hat dein Gesicht analysiert und ist bereit, den <span className="text-white font-bold">{currentStyle?.name}</span> in fotorealistischer Studio-Qualität für dich zu rendern.
+                   </p>
                 </div>
               </div>
 
-              <div className="pt-4 space-y-4">
+              <div className="p-8 md:p-10 space-y-8">
+                {/* Visual Difference */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="aspect-video rounded-2xl bg-black/5 flex items-center justify-center overflow-hidden border border-black/5 opacity-50 relative">
+                       <img src={avatarSketch || ""} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                       <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/20 rounded-md text-[8px] font-bold text-white uppercase tracking-widest">Skizze</div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="aspect-video rounded-2xl bg-[#FF9EBE]/10 flex items-center justify-center overflow-hidden border border-[#FF9EBE]/20 relative">
+                       <div className="absolute inset-0 bg-[url('https://picsum.photos/seed/hair/800/600')] bg-cover opacity-20 blur-md grayscale" />
+                       <div className="relative flex flex-col items-center gap-1">
+                          <Sparkles size={20} className="text-[#FF9EBE]" />
+                          <span className="text-[8px] font-black uppercase tracking-widest text-[#FF9EBE]">HD Studio Quali</span>
+                       </div>
+                       <div className="absolute top-2 left-2 px-2 py-0.5 bg-[#FF9EBE] rounded-md text-[8px] font-bold text-white uppercase tracking-widest">Premium</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Plans Selection */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Yearly Plan - The Winner */}
+                  <button 
+                    onClick={() => onCheckout?.('yearly')}
+                    className="relative p-6 rounded-3xl border-2 border-[#FF9EBE] bg-[#FF9EBE]/5 text-left group hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(255,158,190,0.1)] hover:shadow-[0_0_30px_rgba(255,158,190,0.2)]"
+                  >
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-brand-primary text-[#FF9EBE] rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg animate-pulse">
+                      BESTSELLER – 66% SPAREN
+                    </div>
+                    <div className="space-y-1">
+                       <p className="text-sm font-black uppercase text-brand-primary">Jahres-Pass</p>
+                       <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black">3,33€</span>
+                          <span className="text-[10px] font-medium opacity-40">/ Monat</span>
+                       </div>
+                       <p className="text-[9px] opacity-40 italic">Inkl. 12 Monate vollem Zugriff</p>
+                    </div>
+                  </button>
+
+                  {/* Monthly Plan */}
+                  <button 
+                    onClick={() => onCheckout?.('monthly')}
+                    className="p-6 rounded-3xl border-2 border-black/5 bg-white text-left group hover:border-[#FF9EBE]/40 hover:scale-[1.02] transition-all shadow-sm"
+                  >
+                    <div className="space-y-1">
+                       <p className="text-sm font-black uppercase text-brand-primary opacity-40">Monats-Pass</p>
+                       <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-black">9,99€</span>
+                          <span className="text-[10px] font-medium opacity-40">/ Monat</span>
+                       </div>
+                       <p className="text-[9px] opacity-40 italic">Sofort kündbar</p>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="space-y-4 pt-2">
+                   <button 
+                    onClick={() => onCheckout?.('yearly')}
+                    className="w-full py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/40 flex items-center justify-center gap-3 hover:scale-[1.01] transition-transform relative overflow-hidden group"
+                   >
+                     <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                     <span>Meinen Look jetzt freischalten</span>
+                     <ArrowRightLeft size={18} />
+                   </button>
+                   
+                   <p className="text-[10px] text-center text-brand-primary/40 font-bold">
+                      Bereits über 5.000+ Looks heute erstellt. ★★★★★
+                   </p>
+                   
+                   <div className="flex items-center justify-center gap-6 opacity-30">
+                      <div className="flex items-center gap-1">
+                         <ShieldCheck size={12} />
+                         <span className="text-[8px] font-bold uppercase">Sicher & SSL</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                         <Star size={12} />
+                         <span className="text-[8px] font-bold uppercase">Unlimitiert</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                         <Clock size={12} />
+                         <span className="text-[8px] font-bold uppercase">Sofort-Ergebnis</span>
+                      </div>
+                   </div>
+                </div>
+
                 <button 
-                  onClick={() => {
-                    setShowPaywall(false);
-                    // Emit custom event that App.tsx will listen to
-                    window.dispatchEvent(new CustomEvent('show-pricing-modal'));
-                  }}
-                  className="w-full py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-brand-primary/20 hover:scale-[1.02] transition-transform"
+                  onClick={() => setShowPaywall(false)}
+                  className="w-full text-[10px] font-black uppercase tracking-widest text-brand-primary/20 hover:text-brand-primary/40 transition-colors"
                 >
-                  Premium Mitglied werden
+                  Vielleicht später – Zurück zur Skizze
                 </button>
-                <p className="text-[10px] text-center text-brand-primary/30 font-bold uppercase tracking-widest">
-                  Jederzeit kündbar • Ab 9,99€ / Monat
-                </p>
               </div>
             </motion.div>
           </div>

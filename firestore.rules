@@ -75,6 +75,16 @@ service cloud.firestore {
              data.createdAt is timestamp;
     }
 
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSketch(data) {
+      return data.keys().hasAll(['id', 'data']) &&
+             isValidId(data.id) &&
+             data.data is string && data.data.size() < 1000000;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -85,6 +95,12 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
                     request.resource.data.uid == resource.data.uid;
+    }
+
+    // Hairstyle Sketches
+    match /users/{userId}/sketches/{sketchId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isValidSketch(request.resource.data);
     }
 
     // Saved Results
