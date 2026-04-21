@@ -103,6 +103,10 @@ export default function App() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
+  const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
+  const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
+  const backgroundGenQueueRef = useRef<boolean>(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState(900); // 15 minutes countdown
   const [selectedLibraryStyle, setSelectedLibraryStyle] = useState<typeof HAIRSTYLE_LIBRARY[0] | null>(null);
@@ -135,8 +139,12 @@ export default function App() {
       ReactGA.initialize(gaId);
       ReactGA.send("pageview");
     }
+
+    const handleShowPricing = () => setShowPricingModal(true);
+    window.addEventListener('show-pricing-modal', handleShowPricing);
+    return () => window.removeEventListener('show-pricing-modal', handleShowPricing);
   }, []);
-  
+
   // Firebase State
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [savedResults, setSavedResults] = useState<GeneratedResult[]>([]);
@@ -168,6 +176,84 @@ export default function App() {
   const [userHistory, setUserHistory] = useState<any[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls'>('overview');
   const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
+
+  // Background sketch generation for all library styles
+  useEffect(() => {
+    if (!avatarSketch || !image || isGeneratingBackground) return;
+    
+    const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
+    if (stylesToGenerate.length === 0) return;
+
+    const processQueue = async () => {
+      setIsGeneratingBackground(true);
+      console.log(`Starting background generation for ${stylesToGenerate.length} styles...`);
+      
+      for (const style of stylesToGenerate) {
+        // Skip if already generated (might have updated from another snapshot)
+        if (hairstyleSketches[style.id]) continue;
+
+        try {
+          const base64Data = image.split(',')[1];
+          const sketch = await generateFashionSketch(base64Data, mimeType, style.name, avatarSketch);
+          
+          if (sketch) {
+            setHairstyleSketches(prev => {
+              const updated = { ...prev, [style.id]: sketch };
+              // Persist to Firebase if logged in
+              if (auth.currentUser) {
+                const userRef = doc(db, 'users', auth.currentUser.uid);
+                updateDoc(userRef, { hairstyleSketches: updated }).catch(e => console.warn("Failed to save sketch map", e));
+              }
+              return updated;
+            });
+          }
+        } catch (err) {
+          console.error(`Background gen failed for ${style.name}`, err);
+          // If it's a rate limit, maybe stop completely for a while
+          if (String(err).includes('429')) {
+             console.warn("Rate limit hit in background, cooling down...");
+             await new Promise(r => setTimeout(r, 60000));
+          }
+        }
+        
+        // Wait between generations to be polite to the API
+        await new Promise(r => setTimeout(r, 1500));
+      }
+      
+      setIsGeneratingBackground(false);
+    };
+
+    processQueue();
+  }, [avatarSketch, image, !!user]); // Trigger on avatarSketch or login/logout (to handle persistence)
+
+  // Sync existing guest sketches to newly logged in user
+  useEffect(() => {
+    if (user && Object.keys(hairstyleSketches).length > 0) {
+      const syncSketches = async () => {
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          // Only sync if Firestore doesn't have them or they are more complete
+          const userDoc = await getDoc(userRef);
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            const firestoreSketches = data.hairstyleSketches || {};
+            
+            // Check if local has anything new
+            const hasNew = Object.keys(hairstyleSketches).some(id => !firestoreSketches[id]);
+            if (hasNew) {
+              await updateDoc(userRef, { 
+                hairstyleSketches: { ...firestoreSketches, ...hairstyleSketches } 
+              });
+              console.log("Guest sketches synced to user profile");
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to sync guest sketches", e);
+        }
+      };
+      syncSketches();
+    }
+  }, [user]);
 
   // Manage body overflow for full-screen modals
   useEffect(() => {
@@ -601,6 +687,8 @@ export default function App() {
             setIsPremium(premiumActive);
             setUserPlan(data.plan || null);
             setPremiumExpiresAt(data.premiumExpiresAt || null);
+            if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
+            if (data.hairstyleSketches) setHairstyleSketches(data.hairstyleSketches);
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -875,6 +963,16 @@ export default function App() {
       handleCheckout(planToResume);
     }
   }, [user, pendingCheckoutPlan]);
+
+  // Redirect to Studio after registration if image exists
+  useEffect(() => {
+    if (user && image && dashboardTab !== 'studio') {
+      setDashboardTab('studio');
+      // Briefly show success message
+      setAuthMessage({ type: 'success', text: "Willkommen! Du bist jetzt im Studio. Probiere alle Looks aus! ✨" });
+      setTimeout(() => setAuthMessage(null), 5000);
+    }
+  }, [user, image]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -1307,8 +1405,24 @@ export default function App() {
       setResults(suggestions.map(s => ({ ...s, imageUrl: "" })));
 
       // Generate images sequentially to avoid rate limits and improve stability
-      const maxToGenerate = isPremium ? suggestions.length : 4;
+      const maxToGenerate = isPremium ? suggestions.length : 3;
       
+      // Generate the "drawn miniature" head (Hingucker) as soon as possible
+      generateBaseAvatarSketch(base64Data, mimeType).then(async (sketch) => {
+        if (sketch) {
+          setAvatarSketch(sketch);
+          // If user is logged in, save it to their profile for persistence
+          if (auth.currentUser) {
+            try {
+              const userRef = doc(db, 'users', auth.currentUser.uid);
+              await updateDoc(userRef, { avatarSketch: sketch });
+            } catch (err) {
+              console.warn("Failed to save sketch to profile", err);
+            }
+          }
+        }
+      }).catch(err => console.error("Avatar calculation failed", err));
+
       for (let i = 0; i < maxToGenerate; i++) {
         const suggestion = suggestions[i];
         console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
@@ -1488,18 +1602,37 @@ export default function App() {
     if (!image) return null;
     try {
       const base64Data = image.split(',')[1];
-      return await generateFashionSketch(base64Data, mimeType, styleName);
+      return await generateFashionSketch(base64Data, mimeType, styleName, avatarSketch);
     } catch (err) {
       console.error("Fashion sketch generation failed", err);
       return null;
     }
   };
 
-  const handleStylingStudioImageUpload = (base64: string, type: string) => {
+  const handleStylingStudioImageUpload = async (base64: string, type: string) => {
     setResults([]);
     setError(null);
     setMimeType(type);
     setImage(base64);
+    setAvatarSketch(null); // Clear previous sketch
+
+    try {
+      const base64Data = base64.split(',')[1];
+      const sketch = await generateBaseAvatarSketch(base64Data, type);
+      if (sketch) {
+        setAvatarSketch(sketch);
+        if (auth.currentUser) {
+          try {
+            const userRef = doc(db, 'users', auth.currentUser.uid);
+            await updateDoc(userRef, { avatarSketch: sketch });
+          } catch (e) {
+            console.warn("Failed to persist sketch on studio upload", e);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Studio image upload sketch gen failed", err);
+    }
   };
 
   const reset = () => {
@@ -1509,6 +1642,7 @@ export default function App() {
     setSelectedResult(null);
     setError(null);
     setGenerationProgress(0);
+    setAvatarSketch(null);
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
   };
@@ -2121,6 +2255,7 @@ export default function App() {
                 setActiveTab={setDashboardTab}
                 onLogout={handleLogout}
                 onProfileClick={() => setShowProfileModal(true)}
+                avatarSketch={avatarSketch}
               >
                 {dashboardTab === 'overview' && (
                   <div className="space-y-8">
@@ -2227,8 +2362,11 @@ export default function App() {
                         image={image}
                         onTryOn={handleStudioTryOn}
                         isGenerating={isGenerating}
-                        userHistory={userHistory}
                         onImageUpload={handleStylingStudioImageUpload}
+                        avatarSketch={avatarSketch}
+                        isPremium={isPremium}
+                        preGeneratedSketches={hairstyleSketches}
+                        isGeneratingBackground={isGeneratingBackground}
                       />
                     </div>
                   </div>
@@ -2782,6 +2920,39 @@ export default function App() {
                   
                   return (
                     <React.Fragment key={result.id}>
+                      {/* Miniatur Studio Preview (Hingucker) as 4th card for free users */}
+                      {index === 3 && !isPremium && avatarSketch && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          onClick={() => setDashboardTab('studio')}
+                          className="group relative bg-white p-6 rounded-[2.5rem] border-2 border-[#FF9EBE] shadow-xl hover:shadow-2xl transition-all cursor-pointer flex flex-col items-center justify-between overflow-hidden"
+                        >
+                          <div className="absolute top-0 right-0 p-3 bg-[#FF9EBE] text-white text-[8px] font-black uppercase tracking-widest rounded-bl-2xl">
+                             NEU: Studio
+                          </div>
+                          
+                          <div className="text-center space-y-2 mb-6">
+                             <h4 className="font-serif font-black italic text-[#FF9EBE]">Dein Styling Studio</h4>
+                             <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Alle Looks an dir testen</p>
+                          </div>
+
+                          <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group-hover:scale-105 transition-transform duration-500">
+                             <img src={avatarSketch} className="w-full h-full object-cover grayscale opacity-60" referrerPolicy="no-referrer" />
+                             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+                                <Palette size={48} className="text-brand-primary/20 mb-4" />
+                                <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Studio betreten</button>
+                             </div>
+                          </div>
+
+                          <div className="mt-6 text-center">
+                             <p className="text-[11px] font-bold text-brand-primary/60 italic leading-tight">
+                               "Wir haben deinen Kopf bereits gezeichnet – starte jetzt deine eigene Simulation!"
+                             </p>
+                          </div>
+                        </motion.div>
+                      )}
+
                       {index === 4 && !isPremium && (
                         <motion.div 
                           initial={{ opacity: 0, scale: 0.95 }}
@@ -4250,13 +4421,11 @@ export default function App() {
                   image={image}
                   onTryOn={handleStudioTryOn}
                   isGenerating={isGenerating}
-                  userHistory={userHistory}
-                  faceAnalysis={faceAnalysis}
-                  onAnalyzeFace={handleAnalyzeFace}
-                  userSketch={userSketch}
-                  isGeneratingSketch={isGeneratingSketch}
-                  onGenerateFashionSketch={handleGenerateFashionSketch}
                   onImageUpload={handleStylingStudioImageUpload}
+                  avatarSketch={avatarSketch}
+                  isPremium={isPremium}
+                  preGeneratedSketches={hairstyleSketches}
+                  isGeneratingBackground={isGeneratingBackground}
                 />
               </div>
             </motion.div>

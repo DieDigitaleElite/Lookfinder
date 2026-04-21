@@ -52,27 +52,27 @@ export const COLOR_WORLDS = [
 
 export const HAIR_COLORS = [
   // Blond
-  { id: 'col-1', name: 'Platinblond', hex: '#E5E4E2', world: 'blond', description: 'Sehr kühles, fast weißes Blond.' },
-  { id: 'col-2', name: 'Honigblond', hex: '#D4AF37', world: 'blond', description: 'Warmes, goldenes Blond mit Glanz.' },
-  { id: 'col-6', name: 'Aschblond', hex: '#B2BEB5', world: 'blond', description: 'Kühles Blond ohne Gelbstich.' },
-  { id: 'col-7', name: 'Butterblond', hex: '#FDF5E6', world: 'blond', description: 'Cremiges, weiches Blond.' },
+  { id: 'col-1', name: 'Platinblond', hex: '#F0EAD6', world: 'blond', description: 'Extrem helles, fast weißes Blond mit kühlem Unterton.' },
+  { id: 'col-2', name: 'Honigblond', hex: '#D4AF37', world: 'blond', description: 'Warmes, goldenes Blond mit viel Leuchtkraft.' },
+  { id: 'col-6', name: 'Aschblond', hex: '#D1C7B7', world: 'blond', description: 'Ein kühler, neutraler Beigeton ohne Gelbstich.' },
+  { id: 'col-7', name: 'Butterblond', hex: '#FAF3E0', world: 'blond', description: 'Warmer, cremiger Blondton, der sehr natürlich wirkt.' },
 
   // Braun
-  { id: 'col-4', name: 'Schokobraun', hex: '#3D2B1F', world: 'braun', description: 'Sattes, dunkles Braun.' },
-  { id: 'col-8', name: 'Kastanienbraun', hex: '#8B4513', world: 'braun', description: 'Warmes Braun mit rötlichen Reflexen.' },
-  { id: 'col-3', name: 'Kupferrot', hex: '#B87333', world: 'braun', description: 'Vibrantes, warmes Kupferbraun.' },
-  { id: 'col-11', name: 'Karamell', hex: '#AF6E4D', world: 'braun', description: 'Helles, schmeichelhaftes Braun.' },
+  { id: 'col-4', name: 'Schokobraun', hex: '#3B2F2A', world: 'braun', description: 'Ein tiefes, sattes Braun mit kühler Note.' },
+  { id: 'col-8', name: 'Kastanienbraun', hex: '#633A2E', world: 'braun', description: 'Dunkles Braun mit lebendig warmen Reflexen.' },
+  { id: 'col-3', name: 'Kupferrot', hex: '#8B4513', world: 'braun', description: 'Ein natürliches, warmes Braun mit rötlichem Schimmer.' },
+  { id: 'col-11', name: 'Karamell', hex: '#9F7336', world: 'braun', description: 'Hellerer Braunton mit goldenem Glanz.' },
 
   // Fantasy
-  { id: 'col-9', name: 'Pastellrosa', hex: '#FFD1DC', world: 'fantasy', description: 'Zartes, romantisches Rosa.' },
-  { id: 'col-12', name: 'Lavendel', hex: '#E6E6FA', world: 'fantasy', description: 'Kühles, modernes Lila.' },
-  { id: 'col-13', name: 'Midnight Blue', hex: '#191970', world: 'fantasy', description: 'Tiefes, geheimnisvolles Blau.' },
-  { id: 'col-14', name: 'Peach Fuzz', hex: '#FFBE98', world: 'fantasy', description: 'Warmer, trendiger Pfirsichton.' },
+  { id: 'col-9', name: 'Pastellrosa', hex: '#FFD1DC', world: 'fantasy', description: 'Zartes, romantisches Rosa für verspielte Akzente.' },
+  { id: 'col-12', name: 'Lavendel', hex: '#E6E6FA', world: 'fantasy', description: 'Kühles, modernes Lila mit rauchigem Finish.' },
+  { id: 'col-13', name: 'Midnight Blue', hex: '#191970', world: 'fantasy', description: 'Tiefes, geheimnisvolles Blau für Mutige.' },
+  { id: 'col-14', name: 'Peach Fuzz', hex: '#FFBE98', world: 'fantasy', description: 'Warmes, trendiges Pfirsichrosa.' },
 
   // Dark/Classic
-  { id: 'col-5', name: 'Tiefschwarz', hex: '#000000', world: 'dark', description: 'Intensives, glänzendes Schwarz.' },
-  { id: 'col-10', name: 'Silber', hex: '#C0C0C0', world: 'dark', description: 'Edles Grau/Silber.' },
-  { id: 'col-15', name: 'Blauschwarz', hex: '#000033', world: 'dark', description: 'Schwarz mit kühlem Schimmer.' },
+  { id: 'col-5', name: 'Tiefschwarz', hex: '#1A1A1B', world: 'dark', description: 'Intensives, beinahe schwarzes Ebenholz.' },
+  { id: 'col-10', name: 'Silber', hex: '#C0C0C0', world: 'dark', description: 'Klares, glänzendes Platin-Grau.' },
+  { id: 'col-15', name: 'Blauschwarz', hex: '#121223', world: 'dark', description: 'Tiefstes Schwarz mit einem Hauch von Mitternachtsblau.' },
 ];
 
 export const LIGHTING_SIMULATIONS = [

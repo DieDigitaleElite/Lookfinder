@@ -145,14 +145,14 @@ export const generateBaseAvatarSketch = async (
   mimeType: string
 ): Promise<string | null> => {
   const model = "gemini-2.5-flash-image";
-  const prompt = `Create a minimalist charcoal fashion sketch of the face in this image.
+  const prompt = `Create a high-end, minimalist charcoal fashion sketch of ONLY the person's face and head. 
   
-  SPECIFIC REQUIREMENTS:
-  - Focus on facial features and silhouette.
-  - Render the person with VERY short or pulled back hair (like a bald cap or simple outline) to act as a base for hairstyle testing.
-  - Artistic, clean ink lines on a white/creamy paper background.
-  - Elegant, chic, high-fashion vibe.
-  - No background elements.`;
+  CRITICAL REQUIREMENTS:
+  - CLOSE-UP PORTRAIT: Focus strictly on the face and head silhouette. No shoulders or body.
+  - HAIRLESS/BALD BASE: Render the person with a clean bald head or very tight pulled back hair. This is a base for overlays.
+  - STYLE: Elegant, professional ink lines on a clean white background. 
+  - IDENTITY: Maintain the exact facial features and proportions to ensure recognition.
+  - NO BACKGROUND: Plain white background only.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
@@ -177,27 +177,32 @@ export const generateFashionSketch = async (
   originalBase64: string, 
   mimeType: string, 
   styleName: string,
-  gender: string = 'female'
+  baseSketch?: string | null
 ): Promise<string | null> => {
   const model = "gemini-2.5-flash-image";
-  const prompt = `Create a high-end fashion illustration sketch of the person in the image with a ${styleName} hairstyle.
+  const prompt = `Create a high-end, realistic fashion illustration of the person's head and neck with a ${styleName} hairstyle.
   
   STYLE REQUIREMENTS:
-  - Minimalist charcoal and ink sketch style on creamy paper texture.
-  - Elegant, artistic lines (like a 60s fashion plate or modern boutique illustration).
-  - Use subtle watercolor accents for the ${styleName} hair.
-  - Maintain the person's basic facial proportions and identity, but in an artistic drawn form.
-  - Focus on the silhouette and the chic vibe of the ${styleName}.
-  - High contrast, clean background.`;
+  - PORTRAIT HEADSHOT: Focus strictly on the head and neck. Do NOT show the full body or torso.
+  - HIGH FIDELITY: Use professional fashion illustration techniques (pencil, charcoal, subtle watercolor).
+  - ACCURACY: The person's facial features must look exactly like the original photo.
+  - CONSISTENCY: If a base sketch is provided, use it as a reference for the artistic style, perspective, and facial proportions. 
+  - HAIRSTYLE: The ${styleName} must look natural, textured, and elegant.
+  - BACKGROUND: Clean, empty white background.`;
+
+  const parts: any[] = [{ inlineData: { data: originalBase64, mimeType } }];
+  
+  if (baseSketch) {
+    const sketchMimeType = baseSketch.split(';')[0].split(':')[1];
+    const sketchData = baseSketch.split(',')[1];
+    parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
+  }
+
+  parts.push({ text: prompt });
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
-    contents: {
-      parts: [
-        { inlineData: { data: originalBase64, mimeType } },
-        { text: prompt }
-      ]
-    }
+    contents: { parts }
   }));
 
   for (const part of response.candidates?.[0]?.content?.parts || []) {
@@ -216,12 +221,17 @@ export const generateHairstyleImage = async (
   description: string
 ): Promise<string | null> => {
   const model = "gemini-2.5-flash-image";
-  const prompt = `Apply the following hairstyle to the person in the image: ${styleName}. ${description}. 
+  const prompt = `Render a photograph of the person in the image with the following hairstyle and professional salon coloring: ${styleName}. ${description}. 
   
-  CRITICAL: 
-  1. Keep the person's face EXACTLY as it is. Do not change any facial features.
-  2. ONLY modify the hair.
-  3. The identity must be perfectly preserved.`;
+  COLORING & TEXTURE REQUIREMENTS:
+  - Use high-fidelity photorealistic textures for the hair.
+  - The color must be natural and sophisticated, with realistic highlights, lowlights, and dimension as seen in high-end salon work.
+  - Ensure the color precisely matches the requested shade provided in the description.
+  
+  CRITICAL IDENTITY PRESERVATION:
+  1. Keep the person's face EXACTLY as it is. Do not alter facial features, skin tone, or underlying bone structure.
+  2. ONLY modify the hair area.
+  3. The identity and lighting of the original photo must be perfectly preserved.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,

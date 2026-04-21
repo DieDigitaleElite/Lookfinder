@@ -21,6 +21,7 @@ interface UserDashboardProps {
   children: React.ReactNode;
   onLogout: () => void;
   onProfileClick: () => void;
+  avatarSketch?: string | null;
 }
 
 export default function UserDashboard({ 
@@ -29,7 +30,8 @@ export default function UserDashboard({
   setActiveTab, 
   children, 
   onLogout,
-  onProfileClick
+  onProfileClick,
+  avatarSketch
 }: UserDashboardProps) {
   const navItems = [
     { id: 'overview', name: 'Übersicht', icon: LayoutDashboard },
@@ -98,14 +100,21 @@ export default function UserDashboard({
         {/* Quick Stats / Info Widget */}
         <div className="hidden lg:block p-6 bg-[#FF9EBE] rounded-[2rem] text-white space-y-4 relative overflow-hidden shadow-xl shadow-[#FF9EBE]/20">
            <div className="absolute top-0 right-0 w-24 h-24 bg-white/20 rounded-full blur-2xl -mr-12 -mt-12" />
-           <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Dein Status</p>
+           {avatarSketch ? (
+             <div className="relative w-full aspect-square rounded-2xl overflow-hidden border border-white/20 bg-white/10 mb-2">
+                <img src={avatarSketch} className="w-full h-full object-cover mix-blend-overlay opacity-80" referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#FF9EBE] via-transparent to-transparent" />
+             </div>
+           ) : (
+             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Dein Status</p>
+           )}
            <h4 className="text-xl font-serif font-black italic">HairVision Pro</h4>
            <p className="text-xs opacity-80 leading-relaxed font-medium">Unbegrenzte Analysen & High-Res Downloads freigeschaltet.</p>
            <button 
              onClick={() => setActiveTab('studio')}
              className="w-full py-3 bg-white text-[#FF9EBE] rounded-xl text-xs font-black uppercase tracking-widest shadow-lg"
            >
-             Neuen Look wagen
+             Look simulieren
            </button>
         </div>
       </aside>
