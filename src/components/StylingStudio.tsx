@@ -81,10 +81,9 @@ export default function StylingStudio({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-white relative overflow-hidden font-sans text-brand-primary">
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden scroll-smooth pb-32">
-        <div className="max-w-4xl mx-auto px-6 py-8 md:py-12 space-y-16">
+    <div className="h-full w-full bg-white overflow-y-auto overflow-x-hidden scroll-smooth font-sans text-brand-primary flex flex-col relative custom-scrollbar overscroll-contain">
+      <div className="flex-1 min-h-0">
+        <div className="max-w-4xl mx-auto px-6 py-8 md:py-12 space-y-16 pb-32">
           
           {/* Header */}
           <header className="space-y-4">
@@ -234,7 +233,7 @@ export default function StylingStudio({
       </div>
 
       {/* Action Footer */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-white/80 backdrop-blur-xl border-t border-black/5 z-50">
+      <div className="sticky bottom-0 left-0 right-0 p-6 bg-white/90 backdrop-blur-xl border-t border-black/5 z-50">
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-6">
           <div className="hidden md:flex flex-1 gap-8">
              <div className="space-y-1">

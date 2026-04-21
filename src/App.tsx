@@ -167,6 +167,15 @@ export default function App() {
   const [userHistory, setUserHistory] = useState<any[]>([]);
   const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
 
+  // Manage body overflow for full-screen modals
+  useEffect(() => {
+    if (showStylingStudio || showGallery || showProfileModal || showDeleteConfirm || showPricingModal || showUpsellModal || activeLegalModal || needsApiKey) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+  }, [showStylingStudio, showGallery, showProfileModal, showDeleteConfirm, showPricingModal, showUpsellModal, activeLegalModal, needsApiKey]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -3976,7 +3985,7 @@ export default function App() {
                 </button>
               </header>
 
-              <div className="flex-1 relative overflow-hidden flex flex-col">
+              <div className="flex-1 relative flex flex-col min-h-0">
                 <StylingStudio 
                   image={image}
                   onTryOn={handleStudioTryOn}
