@@ -12,6 +12,7 @@ import { HAIRSTYLE_LIBRARY, HAIR_COLORS } from './constants';
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
 import { CookieBanner } from './components/CookieBanner';
 import StylingStudio from './components/StylingStudio';
+import UserDashboard from './components/UserDashboard';
 
 declare global {
   interface Window {
@@ -165,6 +166,7 @@ export default function App() {
   const [pollShareUrl, setPollShareUrl] = useState<string | null>(null);
   const [userPolls, setUserPolls] = useState<any[]>([]);
   const [userHistory, setUserHistory] = useState<any[]>([]);
+  const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls'>('overview');
   const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
 
   // Manage body overflow for full-screen modals
@@ -1010,6 +1012,8 @@ export default function App() {
     try {
       await signOut(auth);
       setShowGallery(false);
+      setDashboardTab('overview');
+      reset();
     } catch (err) {
       console.error("Logout failed", err);
     }
@@ -1843,7 +1847,18 @@ export default function App() {
       {/* Header */}
       <header className="py-6 px-4 md:px-8 border-b border-black/5 bg-white/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="flex flex-col items-start gap-1">
+          <button 
+            onClick={() => {
+              reset();
+              setShowGallery(false);
+              setDashboardTab('overview');
+              setShowStylingStudio(false);
+              setActivePoll(null);
+              setVotedId(null);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex flex-col items-start gap-1 hover:opacity-80 transition-opacity text-left"
+          >
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 md:w-10 md:h-10 bg-brand-primary rounded-full flex items-center justify-center text-[#FF9EBE]">
                 <Scissors size={18} className="md:hidden" />
@@ -1864,7 +1879,7 @@ export default function App() {
                 ❤️
               </span>
             </div>
-          </div>
+          </button>
           
           <div className="flex items-center gap-3 md:gap-4">
             {image && (
@@ -1899,8 +1914,11 @@ export default function App() {
             {user ? (
               <div className="flex items-center gap-4">
                 <button 
-                  onClick={() => setShowGallery(!showGallery)}
-                  className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full transition-all ${showGallery ? 'bg-brand-primary text-white' : 'hover:bg-black/5'}`}
+                  onClick={() => {
+                    setDashboardTab('gallery');
+                    setShowGallery(false); // Legacy sync
+                  }}
+                  className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-full transition-all ${dashboardTab === 'gallery' ? 'bg-brand-primary text-white' : 'hover:bg-black/5'}`}
                 >
                   <History size={16} />
                   <span className="hidden sm:inline">Meine Looks</span>
@@ -1908,8 +1926,11 @@ export default function App() {
                 <div className="h-8 w-px bg-black/10 hidden sm:block" />
                 <button 
                   onClick={() => {
-                    setLoginName(user.displayName || '');
-                    setShowProfileModal(true);
+                    if (dashboardTab === 'overview') {
+                       setShowProfileModal(true);
+                    } else {
+                       setDashboardTab('overview');
+                    }
                   }}
                   className="flex items-center gap-3 p-1 pr-3 hover:bg-black/5 rounded-full transition-all group"
                 >
@@ -2086,7 +2107,233 @@ export default function App() {
                 </button>
               </div>
             </motion.div>
-          )) : showGallery ? (
+          )) : user ? (
+            <motion.div
+              key="dashboard"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="w-full"
+            >
+              <UserDashboard
+                user={user}
+                activeTab={dashboardTab}
+                setActiveTab={setDashboardTab}
+                onLogout={handleLogout}
+                onProfileClick={() => setShowProfileModal(true)}
+              >
+                {dashboardTab === 'overview' && (
+                  <div className="space-y-8">
+                    <div className="space-y-2">
+                      <h2 className="text-3xl font-serif font-bold">Hallo, {user?.displayName?.split(' ')[0] || 'Schönheit'}! ✨</h2>
+                      <p className="text-brand-primary/60">Willkommen in deinem persönlichen HairVision Bereich.</p>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {/* Quick Actions */}
+                      <button 
+                        onClick={() => setDashboardTab('studio')}
+                        className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-xl shadow-black/[0.02] text-left space-y-4 hover:border-[#FF9EBE]/50 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-[#FF9EBE]/10 flex items-center justify-center text-[#FF9EBE] group-hover:scale-110 transition-transform">
+                          <Palette size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg text-brand-primary">Styling Studio</h4>
+                          <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Experimentiere mit Schnitten & Farben in HD.</p>
+                        </div>
+                      </button>
+
+                      <button 
+                        onClick={() => setDashboardTab('gallery')}
+                        className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-xl shadow-black/[0.02] text-left space-y-4 hover:border-[#FF9EBE]/50 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-[#FF9EBE]/10 flex items-center justify-center text-[#FF9EBE] group-hover:scale-110 transition-transform">
+                          <History size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg text-brand-primary">Meine Looks</h4>
+                          <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Betrachte deine gespeicherten Ergebnisse.</p>
+                        </div>
+                      </button>
+
+                      <button 
+                        onClick={() => setDashboardTab('polls')}
+                        className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-xl shadow-black/[0.02] text-left space-y-4 hover:border-[#FF9EBE]/50 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-[#FF9EBE]/10 flex items-center justify-center text-[#FF9EBE] group-hover:scale-110 transition-transform">
+                          <Users size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg text-brand-primary">Umfragen</h4>
+                          <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Teile deine Looks und lass Freunde abstimmen.</p>
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Promo Section */}
+                    <div className="bg-brand-primary rounded-[3rem] p-12 text-center space-y-6 text-white relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF9EBE]/20 blur-[100px] -mr-32 -mt-32" />
+                      <TrendingUp className="mx-auto text-[#FF9EBE]" size={40} />
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-serif font-bold text-white">Dein nächster Style wartet</h3>
+                        <p className="text-white/60 max-w-sm mx-auto text-sm">Unsere KI erkennt jetzt auch die aktuelle Haar-Struktur. Lade ein neues Foto im Studio hoch!</p>
+                      </div>
+                      <button 
+                        onClick={() => setDashboardTab('studio')}
+                        className="px-10 py-3 bg-[#FF9EBE] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-transform"
+                      >
+                        Studio öffnen
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {dashboardTab === 'studio' && (
+                  <div className="space-y-12 pb-24">
+                    {customResults.length > 0 && (
+                      <div className="space-y-8">
+                        <div className="flex items-center justify-between">
+                           <div>
+                              <h3 className="text-2xl font-serif font-bold italic text-brand-primary">Deine Studio Ergebnisse</h3>
+                              <p className="text-brand-primary/40 text-xs">Klicke auf ein Bild, um Details und Friseur-Tipps zu sehen.</p>
+                           </div>
+                           <button onClick={() => setCustomResults([])} className="text-[10px] font-black text-brand-primary/20 uppercase tracking-[0.2em] hover:text-red-500 transition-colors">Ergebnisse leeren</button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                           {customResults.map((res) => (
+                             <motion.div 
+                                key={res.id} 
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                onClick={() => setSelectedResult(res)} 
+                                className="group cursor-pointer bg-white p-3 rounded-[2rem] border border-black/5 shadow-sm"
+                             >
+                                <div className="aspect-[3/4] rounded-[1.4rem] overflow-hidden shadow-md bg-black/5">
+                                   <img src={res.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                                </div>
+                                <div className="p-3">
+                                   <h4 className="font-black italic text-brand-primary truncate">{res.name}</h4>
+                                </div>
+                             </motion.div>
+                           ))}
+                        </div>
+                        <div className="h-px bg-black/5" />
+                        <h3 className="text-xl font-black uppercase tracking-widest text-brand-primary/40">Weitere Simulation</h3>
+                      </div>
+                    )}
+                    <div className="bg-white rounded-[3rem] overflow-hidden border border-black/5 shadow-inner">
+                      <StylingStudio 
+                        image={image}
+                        onTryOn={handleStudioTryOn}
+                        isGenerating={isGenerating}
+                        userHistory={userHistory}
+                        onImageUpload={handleStylingStudioImageUpload}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {dashboardTab === 'gallery' && (
+                  <div className="space-y-12">
+                      <div className="space-y-2 text-center lg:text-left">
+                        <h2 className="text-4xl font-serif font-bold italic">Gespeicherte Looks</h2>
+                        <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
+                      </div>
+                      {savedResults.length === 0 ? (
+                        <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
+                          <Bookmark className="mx-auto text-brand-primary/20" size={48} />
+                          <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
+                          <button onClick={() => setDashboardTab('studio')} className="text-[#FF9EBE] font-black uppercase tracking-widest text-xs pt-4">Jetzt den ersten Look erstellen</button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {savedResults.map((result, index) => (
+                            <motion.div
+                              key={result.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              onClick={() => setSelectedResult(result)}
+                              className="group space-y-4 cursor-pointer bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-black/5 transition-all shadow-sm hover:shadow-xl"
+                            >
+                              <div className="aspect-[3/4] rounded-[1.8rem] overflow-hidden shadow-lg relative bg-black/5">
+                                <img 
+                                  src={result.imageUrl} 
+                                  alt={result.name} 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                  <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
+                                  <span className="text-sm font-bold">{result.rating}/10</span>
+                                </div>
+                              </div>
+                              <div className="px-4 pb-2">
+                                <h3 className="text-xl font-black italic tracking-tight truncate text-brand-primary">{result.name}</h3>
+                                <p className="text-[10px] text-brand-primary/40 font-black uppercase tracking-widest">
+                                  {result.id.includes('-') && !isNaN(parseInt(result.id.split('-')[1])) 
+                                    ? new Date(parseInt(result.id.split('-')[1])).toLocaleDateString() 
+                                    : new Date().toLocaleDateString()}
+                                </p>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                  </div>
+                )}
+
+                {dashboardTab === 'polls' && (
+                  <div className="space-y-12">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="space-y-2 text-center md:text-left">
+                          <h2 className="text-4xl font-serif font-bold italic">Deine Umfragen</h2>
+                          <p className="text-brand-primary/60">Frag deine Freunde nach ihrer Meinung zu deinen Looks.</p>
+                        </div>
+                        <button 
+                          onClick={() => setDashboardTab('studio')}
+                          className="px-8 py-3 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-brand-primary/20"
+                        >
+                          Neue Umfrage erstellen
+                        </button>
+                    </div>
+                    
+                    {userPolls.length === 0 ? (
+                      <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
+                          <Users className="mx-auto text-brand-primary/20" size={48} />
+                          <p className="text-lg text-brand-primary/40 italic">Du hast noch keine Umfragen erstellt.</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {userPolls.map(poll => (
+                            <div key={poll.id} className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-sm space-y-6 group hover:shadow-xl transition-all">
+                              <div className="flex justify-between items-start">
+                                  <h4 className="font-bold text-xl text-brand-primary">Umfrage vom {poll.createdAt?.seconds ? new Date(poll.createdAt.seconds * 1000).toLocaleDateString() : 'heute'}</h4>
+                                  <div className="px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">Aktiv</div>
+                              </div>
+                              <p className="text-sm text-brand-primary/60 leading-relaxed">{poll.options?.length || 0} verschiedene Styles wurden zum Vergleich geteilt.</p>
+                              <div className="flex gap-3 pt-2">
+                                  <button className="flex-1 py-4 bg-black/5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black/10 transition-colors">Details ansehen</button>
+                                  <button 
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(`${window.location.origin}/?poll=${poll.id}`);
+                                      alert("Link kopiert!");
+                                    }}
+                                    className="flex-1 py-4 bg-[#FF9EBE] text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-[#FF9EBE]/20"
+                                  >
+                                    Link kopieren
+                                  </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </UserDashboard>
+            </motion.div>
+          ) : showGallery ? (
             <motion.div 
               key="gallery"
               initial={{ opacity: 0, x: 20 }}
@@ -3953,9 +4200,22 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Styling Studio Modal */}
+      {/* Styling Studio Toggle Button - Only show when NOT logged in or already in studio */}
+      {!user && !image && !activePoll && (
+        <motion.button
+          initial={{ y: 100 }}
+          animate={{ y: 0 }}
+          onClick={() => setShowStylingStudio(true)}
+          className="fixed bottom-8 right-8 z-[100] px-8 py-4 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/30 flex items-center gap-3 hover:scale-105 active:scale-95 transition-all"
+        >
+          <Palette size={20} />
+          <span>Styling Studio</span>
+        </motion.button>
+      )}
+
+      {/* Legacy Styling Studio Modal - Keep only for non-logged-in users if requested */}
       <AnimatePresence>
-        {showStylingStudio && (
+        {!user && showStylingStudio && (
           <div className="fixed inset-0 z-[110] flex flex-col bg-white">
             <motion.div 
               initial={{ opacity: 0, y: 50 }}
