@@ -13,6 +13,8 @@ import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufC
 import { CookieBanner } from './components/CookieBanner';
 import StylingStudio from './components/StylingStudio';
 import UserDashboard from './components/UserDashboard';
+import AdminDashboard from './components/AdminDashboard';
+import PollCreator from './components/PollCreator';
 
 declare global {
   interface Window {
@@ -103,6 +105,7 @@ export default function App() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
@@ -174,6 +177,8 @@ export default function App() {
   const [pollShareUrl, setPollShareUrl] = useState<string | null>(null);
   const [userPolls, setUserPolls] = useState<any[]>([]);
   const [userHistory, setUserHistory] = useState<any[]>([]);
+  const [showPollCreator, setShowPollCreator] = useState(false);
+  const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls'>('overview');
   const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
 
@@ -442,6 +447,7 @@ export default function App() {
       const pollData = {
         creatorId: user.uid,
         creatorName: user.displayName || 'Dein Freund',
+        question: "Welcher dieser Styles steht mir am besten? 🤔",
         originalImage: pollImage,
         options: compressedOptions,
         createdAt: serverTimestamp()
@@ -485,6 +491,56 @@ export default function App() {
       setError("Umfrage konnte nicht erstellt werden. Bitte versuche es erneut.");
     } finally {
       setIsCreatingPoll(false);
+    }
+  };
+
+  const handleCreateAdvancedPoll = async (selectedItems: any[], pollQuestion: string) => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setIsCreatingPoll(true);
+    try {
+      const compressedOptions = await Promise.all(
+        selectedItems.map(async (r) => {
+          let compressedUrl = r.imageUrl;
+          if (r.imageUrl && r.imageUrl.startsWith('data:')) {
+            try {
+              compressedUrl = await fastResizeImage(r.imageUrl, 800, 0.6);
+            } catch (err) {
+              console.warn(`Could not compress option image for ${r.id}`, err);
+            }
+          }
+          return {
+            resultId: r.id,
+            name: r.name,
+            imageUrl: compressedUrl,
+            votes: 0
+          };
+        })
+      );
+
+      const pollData = {
+        creatorId: user.uid,
+        creatorName: user.displayName || 'Dein Freund',
+        question: pollQuestion,
+        originalImage: image ? await fastResizeImage(image, 800, 0.6) : null,
+        options: compressedOptions,
+        createdAt: serverTimestamp()
+      };
+
+      const docRef = await addDoc(collection(db, 'polls'), pollData);
+      const url = `${window.location.origin}${window.location.pathname}?poll=${docRef.id}`;
+      window.open(url, '_blank');
+      setAuthMessage({ type: 'success', text: "Umfrage erfolgreich erstellt!" });
+      setShowPollCreator(false);
+    } catch (err) {
+      console.error("Poll creation failed", err);
+      setError("Fehler beim Erstellen der Umfrage.");
+    } finally {
+      setIsCreatingPoll(false);
+      setTimeout(() => setAuthMessage(null), 5000);
     }
   };
 
@@ -2155,7 +2211,7 @@ export default function App() {
                   Hilf einem Freund!
                 </div>
                 <h1 className="text-3xl md:text-5xl font-serif font-bold italic leading-tight">
-                  Welche Frisur steht <span className="text-[#FF9EBE]">{activePoll.creatorName}</span> am besten? 💇‍♀️
+                  {activePoll.question || `Welche Frisur steht ${activePoll.creatorName} am besten? 💇‍♀️`}
                 </h1>
                 <p className="text-brand-primary/60 max-w-xl mx-auto text-lg leading-relaxed">
                   {votedId 
@@ -2462,7 +2518,7 @@ export default function App() {
                           <p className="text-brand-primary/60">Frag deine Freunde nach ihrer Meinung zu deinen Looks.</p>
                         </div>
                         <button 
-                          onClick={() => setDashboardTab('studio')}
+                          onClick={() => setShowPollCreator(true)}
                           className="px-8 py-3 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-brand-primary/20"
                         >
                           Neue Umfrage erstellen
@@ -2470,33 +2526,101 @@ export default function App() {
                     </div>
                     
                     {userPolls.length === 0 ? (
-                      <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
+                      <div className="py-24 text-center space-y-4 bg-black/[0.02] rounded-[3rem] border-2 border-dashed border-black/5">
                           <Users className="mx-auto text-brand-primary/20" size={48} />
-                          <p className="text-lg text-brand-primary/40 italic">Du hast noch keine Umfragen erstellt.</p>
+                          <p className="text-sm text-brand-primary/40 font-medium italic">Du hast noch keine Umfragen erstellt.</p>
+                          <button 
+                            onClick={() => setShowPollCreator(true)}
+                            className="mt-4 px-8 py-3 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest shadow-lg shadow-brand-primary/20 hover:scale-[1.02] transition-all"
+                          >
+                            Erste Umfrage erstellen
+                          </button>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {userPolls.map(poll => (
-                            <div key={poll.id} className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-sm space-y-6 group hover:shadow-xl transition-all">
-                              <div className="flex justify-between items-start">
-                                  <h4 className="font-bold text-xl text-brand-primary">Umfrage vom {poll.createdAt?.seconds ? new Date(poll.createdAt.seconds * 1000).toLocaleDateString() : 'heute'}</h4>
-                                  <div className="px-4 py-1.5 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest">Aktiv</div>
-                              </div>
-                              <p className="text-sm text-brand-primary/60 leading-relaxed">{poll.options?.length || 0} verschiedene Styles wurden zum Vergleich geteilt.</p>
-                              <div className="flex gap-3 pt-2">
-                                  <button className="flex-1 py-4 bg-black/5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black/10 transition-colors">Details ansehen</button>
-                                  <button 
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(`${window.location.origin}/?poll=${poll.id}`);
-                                      alert("Link kopiert!");
-                                    }}
-                                    className="flex-1 py-4 bg-[#FF9EBE] text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-[#FF9EBE]/20"
-                                  >
-                                    Link kopieren
-                                  </button>
-                              </div>
-                            </div>
-                          ))}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {userPolls.map(poll => {
+                             const totalVotes = poll.options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
+                             const winner = poll.options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, poll.options[0]);
+                             return (
+                               <div key={poll.id} className="p-8 bg-white rounded-[3rem] border border-black/5 shadow-sm space-y-6 group hover:shadow-xl transition-all hover:border-[#FF9EBE]/20 relative overflow-hidden">
+                                 <div className="absolute top-0 right-0 p-8">
+                                    <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[8px] font-black uppercase tracking-widest border border-emerald-100">Aktiv</div>
+                                 </div>
+                                 
+                                 <div className="flex gap-6">
+                                    <div className="relative w-24 h-32 rounded-2xl overflow-hidden bg-black/5 shrink-0 shadow-lg ring-4 ring-white">
+                                       <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                       <div className="absolute top-2 left-2 bg-[#FF9EBE] text-white text-[8px] px-1.5 py-0.5 rounded-md font-black">WINNER</div>
+                                    </div>
+                                    <div className="flex-1 space-y-4">
+                                       <div className="space-y-1">
+                                          <p className="text-xs font-black text-brand-primary/20 uppercase tracking-widest">
+                                             {poll.createdAt?.toDate().toLocaleDateString('de-DE')}
+                                          </p>
+                                          <h4 className="font-bold text-xl text-brand-primary leading-tight">{poll.question || "Welcher Style steht mir am besten?"}</h4>
+                                       </div>
+                                       
+                                       <div className="flex items-center gap-4">
+                                          <div className="flex -space-x-2">
+                                             {poll.options.map((opt: any, i: number) => (
+                                               <div key={i} className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white shadow-sm">
+                                                  <img src={opt.imageUrl} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                                               </div>
+                                             ))}
+                                          </div>
+                                          <span className="text-[10px] font-black text-[#FF9EBE] uppercase tracking-[0.2em] bg-[#FF9EBE]/5 px-3 py-1 rounded-full">{totalVotes} Stimmen</span>
+                                       </div>
+                                    </div>
+                                 </div>
+
+                                 <div className="grid grid-cols-4 gap-2 pt-2">
+                                     <button 
+                                       onClick={() => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          window.open(url, '_blank');
+                                       }}
+                                       className="flex-1 py-3 bg-black/5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center gap-2"
+                                     >
+                                        <Eye size={14} />
+                                        Vorschau
+                                     </button>
+                                     <button 
+                                       onClick={() => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine HairVision Umfrage an: ${url}`;
+                                          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                       }}
+                                       className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                                     >
+                                        <MessageSquare size={14} />
+                                        WhatsApp
+                                     </button>
+                                     <button 
+                                       onClick={async () => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          await navigator.clipboard.writeText(url);
+                                          setAuthMessage({ type: 'success', text: "Link kopiert!" });
+                                          setTimeout(() => setAuthMessage(null), 3000);
+                                       }}
+                                       className="flex-1 py-3 bg-[#FF9EBE]/5 text-[#FF9EBE] rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#FF9EBE] hover:text-white transition-all flex items-center justify-center gap-2"
+                                     >
+                                        <Share2 size={14} />
+                                        Kopieren
+                                     </button>
+                                     <button 
+                                       onClick={async () => {
+                                          if (confirm("Umfrage löschen?")) {
+                                            await deleteDoc(doc(db, 'polls', poll.id));
+                                          }
+                                       }}
+                                       className="w-full h-full flex items-center justify-center text-red-500/20 hover:text-red-500 hover:bg-red-50 transition-all rounded-xl"
+                                     >
+                                        <Trash2 size={16} />
+                                     </button>
+                                 </div>
+                               </div>
+                             );
+                          })}
                       </div>
                     )}
                   </div>
@@ -3545,6 +3669,20 @@ export default function App() {
       {/* Cookie Banner */}
       <CookieBanner />
 
+      {/* Admin Dashboard */}
+      <AnimatePresence>
+        {showAdminDashboard && (
+          <motion.div
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            className="fixed inset-0 z-[300]"
+          >
+            <AdminDashboard onClose={() => setShowAdminDashboard(false)} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Detail Modal */}
       <AnimatePresence>
         {selectedResult && (
@@ -4045,24 +4183,33 @@ export default function App() {
                             <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Styling-Galerie</h2>
                             <p className="text-brand-primary/40 text-sm">Alle deine gespeicherten Looks an einem Ort.</p>
                           </div>
-                          <button 
-                            onClick={() => {
-                              if (isPremium) {
-                                setShowProfileModal(false);
-                                setShowStylingStudio(true);
-                              } else {
-                                setShowProfileModal(false);
-                                setShowPricingModal(true);
-                              }
-                            }}
-                            className="px-6 py-3 bg-brand-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 relative group"
-                          >
-                            <Palette size={16} />
-                            Styling Studio
-                            {!isPremium && (
-                              <span className="absolute -top-2 -right-2 bg-[#FF9EBE] text-white text-[8px] px-2 py-0.5 rounded-full shadow-lg border border-white animate-pulse">PRO</span>
-                            )}
-                          </button>
+                          <div className="flex flex-wrap gap-4">
+                            <button 
+                              onClick={() => setShowPollCreator(true)}
+                              className="px-6 py-3 bg-white border-2 border-[#FF9EBE] text-[#FF9EBE] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#FF9EBE] hover:text-white transition-all flex items-center justify-center gap-2"
+                            >
+                              <Users size={16} />
+                              Umfrage erstellen
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (isPremium) {
+                                  setShowProfileModal(false);
+                                  setShowStylingStudio(true);
+                                } else {
+                                  setShowProfileModal(false);
+                                  setShowPricingModal(true);
+                                }
+                              }}
+                              className="px-6 py-3 bg-brand-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 relative group"
+                            >
+                              <Palette size={16} />
+                              Styling Studio
+                              {!isPremium && (
+                                <span className="absolute -top-2 -right-2 bg-[#FF9EBE] text-white text-[8px] px-2 py-0.5 rounded-full shadow-lg border border-white animate-pulse">PRO</span>
+                              )}
+                            </button>
+                          </div>
                         </div>
 
                         {userHistory.length === 0 ? (
@@ -4132,8 +4279,8 @@ export default function App() {
                                     </button>
                                     <button 
                                       onClick={() => {
-                                        setShowProfileModal(false);
-                                        handleCreatePoll(item as any);
+                                        setPollInitialSelectedIds([item.id]);
+                                        setShowPollCreator(true);
                                       }}
                                       className="py-2 bg-white/10 backdrop-blur-md text-white text-[10px] font-black rounded-lg hover:bg-emerald-500 transition-all uppercase tracking-widest border border-white/20"
                                     >
@@ -4169,9 +4316,18 @@ export default function App() {
                         exit={{ opacity: 0, x: -10 }}
                         className="p-8 lg:p-12 space-y-10"
                       >
-                        <div className="space-y-1">
-                          <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Umfragen</h2>
-                          <p className="text-brand-primary/40 text-sm">Teile deine Looks und lass deine Freunde entscheiden.</p>
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                          <div className="space-y-1">
+                            <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Umfragen</h2>
+                            <p className="text-brand-primary/40 text-sm">Teile deine Looks und lass deine Freunde entscheiden.</p>
+                          </div>
+                          <button 
+                            onClick={() => setShowPollCreator(true)}
+                            className="px-6 py-3 bg-[#FF9EBE] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#FF9EBE]/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group"
+                          >
+                            <Plus size={16} />
+                            Neue Umfrage erstellen
+                          </button>
                         </div>
 
                         <div className="space-y-4">
@@ -4180,38 +4336,64 @@ export default function App() {
                               <div className="w-20 h-20 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-sm">
                                 <Users className="text-brand-primary/10" size={40} />
                               </div>
-                              <p className="text-sm text-brand-primary/40 font-medium px-8 max-w-sm mx-auto leading-relaxed">Du hast noch keine Umfragen erstellt. Wähle nach deiner nächsten Analyse "Freunde entscheiden lassen".</p>
+                              <p className="text-sm text-brand-primary/40 font-medium px-8 max-w-sm mx-auto leading-relaxed">Du hast noch keine Umfragen erstellt. Wähle deine besten Looks aus der Galerie und frag deine Freunde!</p>
+                              <button 
+                                onClick={() => setShowPollCreator(true)}
+                                className="mt-4 px-8 py-3 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] shadow-lg shadow-brand-primary/20 transition-all"
+                              >
+                                Erste Umfrage erstellen
+                              </button>
                             </div>
                           ) : (
                             userPolls.map((poll) => {
                               const totalVotes = poll.options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
+                              const winner = poll.options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, poll.options[0]);
                               return (
                                 <div key={poll.id} className="p-6 bg-white border border-black/5 rounded-3xl shadow-sm hover:shadow-md transition-all hover:border-[#FF9EBE]/20 group">
                                   <div className="flex items-center gap-6">
-                                    <div className="w-20 h-20 rounded-2xl overflow-hidden bg-black/5 shrink-0 border-2 border-white shadow-md">
-                                      {poll.originalImage ? (
-                                        <img src={poll.originalImage} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center text-brand-primary/20"><Camera size={24} /></div>
-                                      )}
+                                    <div className="relative w-20 h-24 rounded-2xl overflow-hidden bg-black/5 shrink-0 border-2 border-white shadow-md">
+                                      <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      <div className="absolute top-1 left-1 bg-[#FF9EBE] text-white text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight shadow-sm">Favorit</div>
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-base font-bold truncate">Umfrage vom {poll.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
-                                        <span className="px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase">Aktiv</span>
+                                        <p className="text-base font-bold truncate leading-tight">{poll.question || "Style Umfrage"}</p>
+                                        <span className="shrink-0 px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase tracking-tighter">Aktiv</span>
                                       </div>
-                                      <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{totalVotes} Stimmen gesammelt</p>
+                                      <div className="flex items-center gap-3">
+                                         <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{totalVotes} Stimmen</p>
+                                         <span className="w-1 h-1 bg-black/10 rounded-full" />
+                                         <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{poll.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
+                                      </div>
+                                      <div className="mt-3 flex -space-x-2">
+                                         {poll.options.map((opt: any, i: number) => (
+                                           <div key={i} className="w-6 h-6 rounded-full border-2 border-white overflow-hidden bg-black/5">
+                                              <img src={opt.imageUrl} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                                           </div>
+                                         ))}
+                                      </div>
                                     </div>
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-2 px-2">
                                       <button 
                                         onClick={() => {
                                           const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
                                           window.open(url, '_blank');
                                         }}
-                                        className="p-3 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-xl hover:bg-[#FF9EBE] hover:text-white transition-all shadow-sm"
-                                        title="Ergebnisse ansehen"
+                                        className="w-12 h-12 flex items-center justify-center bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl hover:bg-[#FF9EBE] hover:text-white transition-all shadow-sm"
+                                        title="Vorschau & Ergebnisse"
                                       >
                                         <Eye size={20} />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine HairVision Umfrage an: ${url}`;
+                                          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                                        }}
+                                        className="w-12 h-12 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                        title="Per WhatsApp teilen"
+                                      >
+                                        <MessageSquare size={20} />
                                       </button>
                                       <button 
                                         onClick={async () => {
@@ -4224,10 +4406,21 @@ export default function App() {
                                             console.error("Copy failed", err);
                                           }
                                         }}
-                                        className="p-3 bg-black/5 text-brand-primary/40 rounded-xl hover:bg-black/10 transition-all shadow-sm"
-                                        title="Link kopieren"
+                                        className="w-12 h-12 flex items-center justify-center bg-black/5 text-brand-primary/40 rounded-2xl hover:bg-black/10 transition-all shadow-sm"
+                                        title="Teilen"
                                       >
                                         <Share2 size={20} />
+                                      </button>
+                                      <button 
+                                        onClick={async () => {
+                                          if (confirm("Umfrage wirklich löschen?")) {
+                                            await deleteDoc(doc(db, 'polls', poll.id));
+                                          }
+                                        }}
+                                        className="w-12 h-12 flex items-center justify-center text-red-500/20 hover:text-red-500 hover:bg-red-50 transition-all rounded-2xl"
+                                        title="Löschen"
+                                      >
+                                        <Trash2 size={20} />
                                       </button>
                                     </div>
                                   </div>
@@ -4311,6 +4504,21 @@ export default function App() {
                                 <Palette size={18} />
                                 Zum Styling Studio
                               </button>
+                            )}
+
+                            {user?.email === 'google@diedigitaleelite.de' && (
+                              <div className="pt-8 mt-8 border-t border-black/10">
+                                <button 
+                                  onClick={() => {
+                                    setShowProfileModal(false);
+                                    setShowAdminDashboard(true);
+                                  }}
+                                  className="w-full py-4 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-3 shadow-lg"
+                                >
+                                  <ShieldCheck size={18} />
+                                  Admin Dashboard öffnen
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -4798,6 +5006,19 @@ export default function App() {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {showPollCreator && (
+          <PollCreator 
+            userHistory={userHistory}
+            onClose={() => {
+              setShowPollCreator(false);
+              setPollInitialSelectedIds([]);
+            }}
+            onCreatePoll={handleCreateAdvancedPoll}
+            isCreating={isCreatingPoll}
+            initialSelectedIds={pollInitialSelectedIds}
+          />
         )}
       </AnimatePresence>
 

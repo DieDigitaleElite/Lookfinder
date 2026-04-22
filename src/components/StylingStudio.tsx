@@ -83,6 +83,13 @@ export default function StylingStudio({
     }
   };
 
+  const activeSketch = useMemo(() => {
+    if (selectedStyleId && preGeneratedSketches?.[selectedStyleId]) {
+      return preGeneratedSketches[selectedStyleId];
+    }
+    return avatarSketch;
+  }, [selectedStyleId, preGeneratedSketches, avatarSketch]);
+
   const [isSimulatingPrePaywall, setIsSimulatingPrePaywall] = useState(false);
 
   const handleStartSim = async () => {
@@ -111,7 +118,7 @@ export default function StylingStudio({
           <header className="space-y-4">
             <h2 className="text-3xl md:text-5xl font-serif font-black italic">Styling Studio</h2>
             <p className="text-brand-primary/40 text-sm md:text-base max-w-xl">
-              Wähle dein Foto, deinen Schnitt und deine Farbe. Wir berechnen dein neues Ich in HD-Qualität.
+              Wähle dein Foto, deinen Schnitt und deine Farbe. Wir erschaffen dein neues Ich in atemberaubender HD-Qualität.
             </p>
           </header>
 
@@ -374,11 +381,11 @@ export default function StylingStudio({
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">Mapping abgeschlossen</span>
                    </div>
                    <h3 className="text-3xl md:text-4xl font-serif font-bold italic text-white leading-tight">
-                     Dein neuer Look ist <br />
-                     <span className="text-[#FF9EBE]">fast fertig geladen.</span>
+                     Dein neues Ich ist nur noch <br />
+                     <span className="text-[#FF9EBE]">einen Moment entfernt.</span>
                    </h3>
-                   <p className="text-white/60 text-sm max-w-md mx-auto">
-                     Die KI hat dein Gesicht analysiert und ist bereit, den <span className="text-white font-bold">{currentStyle?.name}</span> in fotorealistischer Studio-Qualität für dich zu rendern.
+                   <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+                     Die KI hat deine Züge perfekt erfasst. Wir sind bereit, deine Vision vom <span className="text-white font-bold">{currentStyle?.name}</span> in atemberaubender Studio-Qualität zum Leben zu erwecken.
                    </p>
                 </div>
               </div>
@@ -388,7 +395,7 @@ export default function StylingStudio({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="aspect-video rounded-2xl bg-black/5 flex items-center justify-center overflow-hidden border border-black/5 opacity-50 relative">
-                       <img src={avatarSketch || ""} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                       <img src={activeSketch || ""} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/20 rounded-md text-[8px] font-bold text-white uppercase tracking-widest">Skizze</div>
                     </div>
                   </div>
@@ -446,7 +453,7 @@ export default function StylingStudio({
                     className="w-full py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/40 flex items-center justify-center gap-3 hover:scale-[1.01] transition-transform relative overflow-hidden group"
                    >
                      <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
-                     <span>Meinen Look jetzt freischalten</span>
+                     <span>Meinen neuen Look jetzt erleben</span>
                      <ArrowRightLeft size={18} />
                    </button>
                    
