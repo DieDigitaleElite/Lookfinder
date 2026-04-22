@@ -64,7 +64,7 @@ export default function StylingStudio({
   [selectedStyleId]);
 
   const filteredColors = useMemo(() => 
-    HAIR_COLORS.filter(c => c.world === selectedWorld),
+    HAIR_COLORS.filter(c => (c.world === selectedWorld || c.world === 'all') && c.id !== 'col-original'),
   [selectedWorld]);
 
   const currentColor = useMemo(() => 
@@ -247,9 +247,23 @@ export default function StylingStudio({
 
           {/* STEP 3: COLOR */}
           <section className="space-y-8">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black">3</div>
-              <h3 className="text-lg font-black uppercase tracking-widest">Die Nuance</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black">3</div>
+                <h3 className="text-lg font-black uppercase tracking-widest">Die Nuance</h3>
+              </div>
+              
+              <button
+                onClick={() => setSelectedColorId(selectedColorId === 'col-original' ? null : 'col-original')}
+                className={`px-6 py-3 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-3 active:scale-95 ${
+                  selectedColorId === 'col-original' 
+                    ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 text-brand-primary shadow-lg shadow-[#FF9EBE]/10' 
+                    : 'border-black/5 bg-white text-brand-primary/40 hover:border-black/10'
+                }`}
+              >
+                <RotateCcw size={14} className={selectedColorId === 'col-original' ? 'text-[#FF9EBE]' : ''} />
+                <span>Ursprüngliche Farbe beibehalten</span>
+              </button>
             </div>
 
             {/* Color Worlds */}
@@ -322,7 +336,7 @@ export default function StylingStudio({
             {isGenerating || isSimulatingPrePaywall ? (
               <>
                 <Loader2 className="animate-spin" size={18} />
-                <span>{isSimulatingPrePaywall ? 'Analysiere...' : 'Rendere Look...'}</span>
+                <span>{isSimulatingPrePaywall ? 'Dein Gesicht wird analysiert...' : 'Dein neuer Look wird zum Leben erweckt... ✨'}</span>
               </>
             ) : (
               <>
@@ -337,19 +351,19 @@ export default function StylingStudio({
       {/* Conversion Trigger Paywall */}
       <AnimatePresence>
         {showPaywall && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[200] overflow-y-auto flex items-start justify-center p-4 py-8 md:py-12 bg-black/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowPaywall(false)}
-              className="absolute inset-0 bg-brand-primary/80 backdrop-blur-md"
+              className="fixed inset-0 cursor-default"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-xl bg-white rounded-[3rem] shadow-2xl overflow-hidden"
+              className="relative w-full max-w-xl bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden my-auto"
             >
               {/* Teaser Background / Header */}
               <div className="bg-brand-primary p-8 md:p-12 text-center relative overflow-hidden">

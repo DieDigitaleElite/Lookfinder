@@ -108,7 +108,9 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   7. Die erkannte Gesichtsform (z.B. "oval", "rund", "eckig", "herzförmig").
 
   Antworte ausschließlich in deutscher Sprache.
-  Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
+  Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.
+  
+  WICHTIG: Erkläre in 'suitabilityReason' ganz genau, warum dieser Style zur erkannten Gesichtsform passt (z.B. 'Dieses Volumen an den Seiten gleicht dein eher schmales Gesicht perfekt aus').`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
@@ -137,6 +139,36 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   } catch (e) {
     console.error("Failed to parse suggestions", e);
     return [];
+  }
+};
+
+export const getAIPoweredStylingReason = async (
+  faceShape: string,
+  styleName: string,
+  colorName: string,
+  styleDescription: string
+): Promise<string> => {
+  try {
+    const model = "gemini-3-flash-preview";
+    const prompt = `Du bist ein professioneller Star-Friseur. Erkläre kurz und emotional (max. 2 Sätze), warum die Frisur "${styleName}" in der Farbe "${colorName}" perfekt zu einer ${faceShape}en Gesichtsform passt. 
+    
+    Kontext zum Style: ${styleDescription}
+    
+    Die Antwort muss auf Deutsch sein und den User begeistern. Erwähne spezifische Merkmale wie 'Wangenknochen betonen', 'Gesicht optisch strecken' oder 'weiche Konturen schaffen'.`;
+
+    const response = await withRetry(() => getAI().models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0.7,
+        maxOutputTokens: 150,
+      }
+    }));
+
+    return response.text || `Dieser Look schmeichelt deiner ${faceShape}en Gesichtsform und betont deine Züge auf elegante Weise.`;
+  } catch (err) {
+    console.error("Failed to get AI styling reason", err);
+    return `Dieser Look ist eine exzellente Wahl für deine ${faceShape}e Gesichtsform und unterstreicht deine natürliche Ausstrahlung.`;
   }
 };
 

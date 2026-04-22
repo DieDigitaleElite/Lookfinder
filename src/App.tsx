@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion } from './services/geminiService';
+import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingReason } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
 import { HAIRSTYLE_LIBRARY, HAIR_COLORS } from './constants';
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
@@ -1549,18 +1549,28 @@ export default function App() {
     setError(null);
     try {
       const base64Data = image.split(',')[1];
+      const isOriginalColor = color.id === 'col-original';
+      const colorText = isOriginalColor ? 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)' : `Farbe: ${color.name}`;
       const lightingPrompt = lighting.prompt || '';
-      const customPrompt = `${style.name}, ${style.description}. Farbe: ${color.name}. Lighting: ${lightingPrompt}. Make it look realistic, high quality, consistent with the person's face.`;
+      const customPrompt = `${style.name}, ${style.description}. ${colorText}. Lighting: ${lightingPrompt}. Make it look realistic, high quality, consistent with the person's face.`;
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
+        // Generate a more emotional and face-shape specific reason using AI
+        const dynamicReason = await getAIPoweredStylingReason(
+          faceAnalysis?.faceShape || 'oval',
+          style.name,
+          color.name,
+          style.description
+        );
+
         const result: GeneratedResult = {
           id: `studio-${Date.now()}`,
           name: style.name,
           description: style.description,
           imageUrl,
           rating: 9.8,
-          suitabilityReason: `Perfekte Abstimmung auf Basis von ${lighting.name} und der Farbwahl ${color.name}.`,
+          suitabilityReason: dynamicReason,
           barberInstructions: `Schnitt: ${style.name}. Nuance: ${color.name}. ${style.description}`,
           faceShape: faceAnalysis?.faceShape || 'unbekannt',
           recommendedProducts: [
@@ -1569,8 +1579,8 @@ export default function App() {
           ]
         };
         
-        // Auto-save for premium
-        if (isPremium && user) {
+        // Auto-save for logged-in users
+        if (user) {
           saveResultToHistory(result);
         }
         
@@ -3538,19 +3548,19 @@ export default function App() {
       {/* Detail Modal */}
       <AnimatePresence>
         {selectedResult && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8">
+          <div className="fixed inset-0 z-[100] overflow-y-auto flex items-start justify-center p-4 md:p-12 bg-black/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedResult(null)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+              className="fixed inset-0 cursor-default"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-5xl bg-white rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[90vh]"
+              className="relative w-full max-w-5xl bg-white rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto"
             >
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
                 <img 
@@ -4459,19 +4469,19 @@ export default function App() {
       {/* Pricing Modal */}
       <AnimatePresence>
         {showPricingModal && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] overflow-y-auto flex items-start justify-center p-4 py-8 bg-black/60 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowPricingModal(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="fixed inset-0 cursor-default"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-4xl bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col my-auto"
             >
               <button 
                 onClick={() => setShowPricingModal(false)}
@@ -4728,18 +4738,19 @@ export default function App() {
 
         {/* Post-Purchase Upsell Modal */}
         {showUpsellModal && (
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[110] overflow-y-auto flex items-start justify-center p-4 bg-black/80 backdrop-blur-md">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              onClick={() => setShowUpsellModal(false)}
+              className="fixed inset-0 cursor-default"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[3rem] shadow-2xl overflow-hidden p-8 sm:p-12 text-center space-y-8"
+              className="relative w-full max-w-lg bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden p-8 sm:p-12 text-center space-y-8 my-auto"
             >
               <button 
                 onClick={() => setShowUpsellModal(false)}

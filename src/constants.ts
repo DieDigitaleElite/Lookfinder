@@ -51,6 +51,9 @@ export const COLOR_WORLDS = [
 ];
 
 export const HAIR_COLORS = [
+  // Original / Natural
+  { id: 'col-original', name: 'Ursprüngliche Haarfarbe beibehalten', hex: 'transparent', world: 'all', description: 'Deine natürliche Haarfarbe beibehalten.' },
+
   // Blond
   { id: 'col-1', name: 'Platinblond', hex: '#F0EAD6', world: 'blond', description: 'Extrem helles, fast weißes Blond mit kühlem Unterton.' },
   { id: 'col-2', name: 'Honigblond', hex: '#D4AF37', world: 'blond', description: 'Warmes, goldenes Blond mit viel Leuchtkraft.' },

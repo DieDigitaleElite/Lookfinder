@@ -14,19 +14,19 @@ export const LegalModal: React.FC<LegalModalProps> = ({ isOpen, onClose, title, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 md:p-8">
+    <div className="fixed inset-0 z-[200] overflow-y-auto flex items-start justify-center p-4 md:p-12 bg-black/60 backdrop-blur-sm">
       <motion.div 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="fixed inset-0 cursor-default"
       />
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-4xl bg-white rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-4xl bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col my-auto"
       >
         <div className="p-6 border-b border-black/5 flex items-center justify-between bg-brand-primary text-white">
           <div className="flex items-center gap-3">
