@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award } from 'lucide-react';
+import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingReason } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
@@ -176,7 +176,6 @@ export default function App() {
   const [isCreatingPoll, setIsCreatingPoll] = useState(false);
   const [pollShareUrl, setPollShareUrl] = useState<string | null>(null);
   const [userPolls, setUserPolls] = useState<any[]>([]);
-  const [userHistory, setUserHistory] = useState<any[]>([]);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls'>('overview');
@@ -345,67 +344,6 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [activePoll]);
 
-  // Fetch user polls when profile modal is open
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    
-    if (showProfileModal && user) {
-      const pollsRef = collection(db, 'polls');
-      const q = query(
-        pollsRef, 
-        where('creatorId', '==', user.uid),
-        orderBy('createdAt', 'desc')
-      );
-      
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const polls = snapshot.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }));
-        setUserPolls(polls);
-      }, (err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        if (message.includes('Quota') || message.includes('exhausted')) {
-          setError("Deine Abstimmungen konnten nicht geladen werden (Limit erreicht).");
-        }
-      });
-    }
-    
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [showProfileModal, user]);
-
-  // Fetch user history results for gallery
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    
-    if (showProfileModal && user) {
-      const historyRef = collection(db, 'users', user.uid, 'results');
-      const q = query(
-        historyRef, 
-        orderBy('createdAt', 'desc')
-      );
-      
-      unsubscribe = onSnapshot(q, (snapshot) => {
-        const history = snapshot.docs.map(docSnap => ({
-          id: docSnap.id,
-          ...docSnap.data()
-        }));
-        setUserHistory(history);
-      }, (err) => {
-        const message = err instanceof Error ? err.message : String(err);
-        if (message.includes('Quota') || message.includes('exhausted')) {
-          setError("Dein Verlauf konnte nicht geladen werden (Limit erreicht).");
-        }
-      });
-    }
-    
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [showProfileModal, user]);
-
   const handleCreatePoll = async (result: GeneratedResult) => {
     if (!user) {
       setShowLoginModal(true);
@@ -532,9 +470,9 @@ export default function App() {
 
       const docRef = await addDoc(collection(db, 'polls'), pollData);
       const url = `${window.location.origin}${window.location.pathname}?poll=${docRef.id}`;
-      window.open(url, '_blank');
+      // window.open(url, '_blank'); // We now show it in the success modal
       setAuthMessage({ type: 'success', text: "Umfrage erfolgreich erstellt!" });
-      setShowPollCreator(false);
+      return url;
     } catch (err) {
       console.error("Poll creation failed", err);
       setError("Fehler beim Erstellen der Umfrage.");
@@ -774,14 +712,36 @@ export default function App() {
           setHairstyleSketches(prev => ({ ...prev, ...sketches }));
         });
 
+        // Load user polls
+        const pollsQ = query(
+          collection(db, 'polls'), 
+          where('creatorId', '==', currentUser.uid),
+          orderBy('createdAt', 'desc')
+        );
+        const unsubscribePolls = onSnapshot(pollsQ, (snapshot) => {
+          const polls = snapshot.docs.map(docSnap => ({
+            id: docSnap.id,
+            ...docSnap.data()
+          }));
+          setUserPolls(polls);
+        }, (err) => {
+          const errorInfo = handleFirestoreError(err, OperationType.LIST, 'polls');
+          if (errorInfo?.error.includes('Quota') || errorInfo?.error.includes('exhausted')) {
+            setError("Deine Abstimmungen konnten nicht geladen werden (Limit erreicht).");
+          }
+        });
+
         // Load saved results
         const q = query(
           collection(db, 'users', currentUser.uid, 'results'),
           orderBy('createdAt', 'desc')
         );
         const unsubscribeResults = onSnapshot(q, (snapshot) => {
-          const docs = snapshot.docs.map(doc => doc.data() as GeneratedResult);
-          setSavedResults(docs);
+          const docs = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...(doc.data() as GeneratedResult)
+          }));
+          setSavedResults(docs as GeneratedResult[]);
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.LIST, `users/${currentUser.uid}/results`);
           if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
@@ -789,9 +749,10 @@ export default function App() {
           }
         });
         
-        unsubsRef.current = [unsubscribeUser, unsubscribeResults, unsubscribeSketches];
+        unsubsRef.current = [unsubscribeUser, unsubscribeResults, unsubscribeSketches, unsubscribePolls];
       } else {
         setSavedResults([]);
+        setUserPolls([]);
       }
     });
 
@@ -2536,11 +2497,14 @@ export default function App() {
                             Erste Umfrage erstellen
                           </button>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          {userPolls.map(poll => {
-                             const totalVotes = poll.options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
-                             const winner = poll.options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, poll.options[0]);
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {userPolls.map(poll => {
+                             const options = poll.options || [];
+                             const totalVotes = options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
+                             const winner = options.length > 0 
+                               ? options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, options[0])
+                               : null;
                              return (
                                <div key={poll.id} className="p-8 bg-white rounded-[3rem] border border-black/5 shadow-sm space-y-6 group hover:shadow-xl transition-all hover:border-[#FF9EBE]/20 relative overflow-hidden">
                                  <div className="absolute top-0 right-0 p-8">
@@ -2549,7 +2513,13 @@ export default function App() {
                                  
                                  <div className="flex gap-6">
                                     <div className="relative w-24 h-32 rounded-2xl overflow-hidden bg-black/5 shrink-0 shadow-lg ring-4 ring-white">
-                                       <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                       {winner?.imageUrl ? (
+                                         <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                       ) : (
+                                         <div className="w-full h-full bg-black/5 flex items-center justify-center">
+                                           <Users size={24} className="text-brand-primary/20" />
+                                         </div>
+                                       )}
                                        <div className="absolute top-2 left-2 bg-[#FF9EBE] text-white text-[8px] px-1.5 py-0.5 rounded-md font-black">WINNER</div>
                                     </div>
                                     <div className="flex-1 space-y-4">
@@ -2573,7 +2543,7 @@ export default function App() {
                                     </div>
                                  </div>
 
-                                 <div className="grid grid-cols-4 gap-2 pt-2">
+                                 <div className="grid grid-cols-5 gap-2 pt-2">
                                      <button 
                                        onClick={() => {
                                           const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
@@ -2581,8 +2551,8 @@ export default function App() {
                                        }}
                                        className="flex-1 py-3 bg-black/5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center gap-2"
                                      >
-                                        <Eye size={14} />
-                                        Vorschau
+                                        <ExternalLink size={14} />
+                                        Ansehen
                                      </button>
                                      <button 
                                        onClick={() => {
@@ -2596,6 +2566,21 @@ export default function App() {
                                         WhatsApp
                                      </button>
                                      <button 
+                                       onClick={() => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          navigator.clipboard.writeText(url);
+                                          setAuthMessage({ type: 'success', text: "Link kopiert! Öffne Instagram... 📸" });
+                                          setTimeout(() => {
+                                            setAuthMessage(null);
+                                            window.open('https://www.instagram.com/', '_blank');
+                                          }, 2000);
+                                       }}
+                                       className="flex-1 py-3 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-[1.02] transition-all flex items-center justify-center gap-2"
+                                     >
+                                        <Instagram size={14} />
+                                        Instagram
+                                     </button>
+                                     <button 
                                        onClick={async () => {
                                           const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
                                           await navigator.clipboard.writeText(url);
@@ -2605,7 +2590,7 @@ export default function App() {
                                        className="flex-1 py-3 bg-[#FF9EBE]/5 text-[#FF9EBE] rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#FF9EBE] hover:text-white transition-all flex items-center justify-center gap-2"
                                      >
                                         <Share2 size={14} />
-                                        Kopieren
+                                        Link
                                      </button>
                                      <button 
                                        onClick={async () => {
@@ -3831,7 +3816,13 @@ export default function App() {
                         </p>
                       </div>
                       <button 
-                        onClick={() => handleCreatePoll(selectedResult!)}
+                        onClick={() => {
+                          if (selectedResult) {
+                            setPollInitialSelectedIds([selectedResult.id]);
+                            setShowPollCreator(true);
+                            setSelectedResult(null);
+                          }
+                        }}
                         disabled={isCreatingPoll}
                         className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2"
                       >
@@ -4212,7 +4203,7 @@ export default function App() {
                           </div>
                         </div>
 
-                        {userHistory.length === 0 ? (
+                        {savedResults.length === 0 ? (
                           <div className="py-20 flex flex-col items-center justify-center text-center space-y-6 bg-black/[0.02] rounded-[3rem] border-2 border-dashed border-black/5">
                             <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm">
                               <Camera className="text-brand-primary/10" size={40} />
@@ -4249,7 +4240,7 @@ export default function App() {
                           </div>
                         ) : (
                           <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                            {userHistory.map((item) => (
+                            {savedResults.map((item) => (
                               <motion.div 
                                 key={item.id}
                                 whileHover={{ y: -5 }}
@@ -4346,13 +4337,22 @@ export default function App() {
                             </div>
                           ) : (
                             userPolls.map((poll) => {
-                              const totalVotes = poll.options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
-                              const winner = poll.options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, poll.options[0]);
+                              const options = poll.options || [];
+                              const totalVotes = options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
+                              const winner = options.length > 0 
+                                ? options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, options[0])
+                                : null;
                               return (
                                 <div key={poll.id} className="p-6 bg-white border border-black/5 rounded-3xl shadow-sm hover:shadow-md transition-all hover:border-[#FF9EBE]/20 group">
                                   <div className="flex items-center gap-6">
                                     <div className="relative w-20 h-24 rounded-2xl overflow-hidden bg-black/5 shrink-0 border-2 border-white shadow-md">
-                                      <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      {winner?.imageUrl ? (
+                                        <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      ) : (
+                                        <div className="w-full h-full bg-black/5 flex items-center justify-center">
+                                          <Users size={16} className="text-brand-primary/20" />
+                                        </div>
+                                      )}
                                       <div className="absolute top-1 left-1 bg-[#FF9EBE] text-white text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight shadow-sm">Favorit</div>
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -4366,9 +4366,9 @@ export default function App() {
                                          <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{poll.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
                                       </div>
                                       <div className="mt-3 flex -space-x-2">
-                                         {poll.options.map((opt: any, i: number) => (
+                                         {(poll.options || []).map((opt: any, i: number) => (
                                            <div key={i} className="w-6 h-6 rounded-full border-2 border-white overflow-hidden bg-black/5">
-                                              <img src={opt.imageUrl} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                                              {opt?.imageUrl && <img src={opt.imageUrl} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />}
                                            </div>
                                          ))}
                                       </div>
@@ -4379,10 +4379,10 @@ export default function App() {
                                           const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
                                           window.open(url, '_blank');
                                         }}
-                                        className="w-12 h-12 flex items-center justify-center bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl hover:bg-[#FF9EBE] hover:text-white transition-all shadow-sm"
-                                        title="Vorschau & Ergebnisse"
+                                        className="w-12 h-12 flex items-center justify-center bg-black/5 text-brand-primary rounded-2xl hover:bg-brand-primary hover:text-white transition-all shadow-sm"
+                                        title="Umfrage öffnen"
                                       >
-                                        <Eye size={20} />
+                                        <ExternalLink size={20} />
                                       </button>
                                       <button 
                                         onClick={() => {
@@ -4394,6 +4394,21 @@ export default function App() {
                                         title="Per WhatsApp teilen"
                                       >
                                         <MessageSquare size={20} />
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
+                                          navigator.clipboard.writeText(url);
+                                          setAuthMessage({ type: 'success', text: "Link kopiert! Öffne Instagram... 📸" });
+                                          setTimeout(() => {
+                                            setAuthMessage(null);
+                                            window.open('https://www.instagram.com/', '_blank');
+                                          }, 2000);
+                                        }}
+                                        className="w-12 h-12 flex items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white rounded-2xl hover:scale-105 transition-all shadow-sm"
+                                        title="Instagram Story"
+                                      >
+                                        <Instagram size={20} />
                                       </button>
                                       <button 
                                         onClick={async () => {
@@ -5010,7 +5025,7 @@ export default function App() {
 
         {showPollCreator && (
           <PollCreator 
-            userHistory={userHistory}
+            userHistory={savedResults}
             onClose={() => {
               setShowPollCreator(false);
               setPollInitialSelectedIds([]);
@@ -5023,9 +5038,9 @@ export default function App() {
       </AnimatePresence>
 
       {/* Global Notifications */}
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[110] w-full max-w-sm px-4 pointer-events-none">
+      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[500] w-full max-w-sm px-4 pointer-events-none">
         <AnimatePresence>
-          {authMessage && !showLoginModal && !showProfileModal && (
+          {authMessage && (
             <motion.div 
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}

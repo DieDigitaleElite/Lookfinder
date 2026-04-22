@@ -9,14 +9,16 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  Scissors
+  Scissors,
+  ExternalLink,
+  Instagram
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PollCreatorProps {
   userHistory: any[];
   onClose: () => void;
-  onCreatePoll: (selectedItems: any[], question: string) => Promise<void>;
+  onCreatePoll: (selectedItems: any[], question: string) => Promise<string | void>;
   isCreating: boolean;
   initialSelectedIds?: string[];
 }
@@ -24,7 +26,8 @@ interface PollCreatorProps {
 export default function PollCreator({ userHistory, onClose, onCreatePoll, isCreating, initialSelectedIds = [] }: PollCreatorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
   const [question, setQuestion] = useState('Welcher dieser Styles steht mir am besten? 🤔');
-  const [step, setStep] = useState<'select' | 'confirm'>('select');
+  const [step, setStep] = useState<'select' | 'confirm' | 'success'>('select');
+  const [createdPollUrl, setCreatedPollUrl] = useState<string>('');
 
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => 
@@ -38,9 +41,119 @@ export default function PollCreator({ userHistory, onClose, onCreatePoll, isCrea
 
   const handleCreate = async () => {
     if (selectedItems.length < 2) return;
-    await onCreatePoll(selectedItems, question);
+    const url = await onCreatePoll(selectedItems, question);
+    if (url) {
+      setCreatedPollUrl(url);
+      setStep('success');
+    }
   };
 
+  const handleWhatsAppShare = () => {
+    const text = `Hey! Hilf mir mal kurz bei der Entscheidung für eine neue Frisur: ${createdPollUrl}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(createdPollUrl);
+    setAuthMessage({ type: 'success', text: "Link kopiert! ✅" });
+    setTimeout(() => setAuthMessage(null), 3000);
+  };
+
+  const handleInstagramShare = () => {
+    // There is no direct API for sharing a URL to Instagram via web browser.
+    // Standard practice is to copy link and open Instagram.
+    navigator.clipboard.writeText(createdPollUrl);
+    setAuthMessage({ type: 'success', text: "Link kopiert! Öffne Instagram... 📸" });
+    setTimeout(() => {
+      setAuthMessage(null);
+      window.open('https://www.instagram.com/', '_blank');
+    }, 2000);
+  };
+
+  const handleOpenPoll = () => {
+    window.open(createdPollUrl, '_blank');
+  };
+
+  // Helper inside component since we don't have navigate
+  const [authMessage, setAuthMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  if (step === 'success') {
+    return (
+      <div className="fixed inset-0 z-[400] bg-brand-primary/95 backdrop-blur-xl overflow-y-auto p-4 flex flex-col items-center">
+        <AnimatePresence>
+          {authMessage && (
+            <motion.div 
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="fixed top-8 z-[500] px-6 py-3 bg-emerald-500 text-white rounded-full font-bold shadow-xl"
+            >
+              {authMessage.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="min-h-full flex items-center justify-center w-full py-12">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-[3rem] w-full max-w-lg p-10 text-center space-y-8 relative overflow-hidden shadow-2xl"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[50px] -mr-16 -mt-16" />
+            
+            <div className="space-y-4">
+              <div className="w-20 h-20 bg-emerald-500 text-white rounded-full flex items-center justify-center mx-auto shadow-xl">
+                 <Check size={40} strokeWidth={3} />
+              </div>
+              <h2 className="text-3xl font-serif font-black italic text-brand-primary">Perfekt! ✨</h2>
+              <p className="text-brand-primary/60">Deine Umfrage ist live. Jetzt müssen nur noch deine Freunde abstimmen.</p>
+            </div>
+
+            <div className="space-y-3 pt-4">
+               <button 
+                 onClick={handleWhatsAppShare}
+                 className="w-full py-5 bg-[#25D366] text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg"
+               >
+                 <MessageSquare size={20} />
+                 Per WhatsApp teilen
+               </button>
+
+               <button 
+                 onClick={handleInstagramShare}
+                 className="w-full py-5 bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg"
+               >
+                 <Instagram size={20} />
+                 Instagram Story
+               </button>
+               
+               <button 
+                 onClick={handleCopyLink}
+                 className="w-full py-5 bg-brand-primary text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:scale-[1.02] transition-all shadow-lg"
+               >
+                 <Send size={20} />
+                 Link kopieren
+               </button>
+
+               <button 
+                 onClick={handleOpenPoll}
+                 className="w-full py-5 bg-black/[0.05] text-brand-primary rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-black/10 transition-all"
+               >
+                 <ExternalLink size={20} />
+                 Umfrage ansehen
+               </button>
+            </div>
+
+            <button 
+              onClick={onClose}
+              className="text-brand-primary/40 text-xs font-black uppercase tracking-widest hover:text-brand-primary transition-colors pt-4 block mx-auto"
+            >
+              Zurück zur Galerie
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="fixed inset-0 z-[300] bg-white flex flex-col font-sans text-brand-primary">
       {/* Header */}
@@ -104,7 +217,13 @@ export default function PollCreator({ userHistory, onClose, onCreatePoll, isCrea
                             isSelected ? 'border-[#FF9EBE] shadow-2xl scale-[1.02]' : 'border-transparent opacity-60 grayscale hover:grayscale-0 hover:opacity-100'
                           }`}
                         >
-                          <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="w-full h-full bg-black/5 flex items-center justify-center">
+                               <ImageIcon size={24} className="text-brand-primary/10" />
+                            </div>
+                          )}
                           <div className={`absolute inset-0 transition-opacity p-4 flex flex-col justify-end ${isSelected ? 'bg-black/20' : 'bg-transparent'}`}>
                              <div className="space-y-1 text-left">
                                 <p className="text-white text-[10px] font-bold uppercase tracking-widest truncate">{item.name}</p>
@@ -174,8 +293,14 @@ export default function PollCreator({ userHistory, onClose, onCreatePoll, isCrea
                     <h3 className="text-xs font-black uppercase tracking-widest text-center opacity-40">Vorschau deiner Auswahl</h3>
                     <div className="flex flex-wrap justify-center gap-6">
                        {selectedItems.map((item, i) => (
-                         <div key={item.id} className="relative w-32 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border-2 border-white ring-1 ring-black/5">
-                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <div key={item.id} className="relative w-32 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border-2 border-white ring-1 ring-black/5">
+                             {item.imageUrl ? (
+                               <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                             ) : (
+                               <div className="w-full h-full bg-black/5 flex items-center justify-center">
+                                 <ImageIcon size={16} className="text-brand-primary/10" />
+                               </div>
+                             )}
                             <div className="absolute top-2 right-2 w-5 h-5 bg-black rounded-full text-white text-[10px] flex items-center justify-center font-black">
                                {String.fromCharCode(65 + i)}
                             </div>
