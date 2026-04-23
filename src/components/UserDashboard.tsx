@@ -108,10 +108,10 @@ export default function UserDashboard({
            ) : (
              <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Dein Status</p>
            )}
-           <h4 className="text-xl font-sans font-extrabold flex items-baseline tracking-tight">
+           <h4 className="text-xl font-serif font-black flex items-baseline gap-0.5">
              <span>Frisuren</span>
-             <span className="font-sans font-light text-white/60 ml-0.5">.ai</span>
-             <span className="ml-2 px-2 py-0.5 bg-white/10 rounded text-[9px] uppercase tracking-[0.2em] font-sans font-black border border-white/5 shadow-sm">Pro</span>
+             <span className="font-sans font-extralight italic text-white/70">.ai</span>
+             <span className="ml-2 px-2 py-0.5 bg-white/20 rounded text-[9px] uppercase tracking-widest font-sans not-italic border border-white/10 shadow-sm transition-colors group-hover:bg-[#FF9EBE] group-hover:text-white">Pro</span>
            </h4>
            <p className="text-xs opacity-80 leading-relaxed font-medium">Unbegrenzte Analysen & High-Res Downloads freigeschaltet.</p>
            <button 

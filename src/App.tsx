@@ -2050,33 +2050,45 @@ export default function App() {
             className="flex flex-col items-start gap-1 group text-left"
           >
             <div className="flex items-center gap-3">
-              {/* Minimalist Icon Mark */}
-              <div className="w-10 h-10 md:w-11 md:h-11 bg-brand-primary rounded-2xl flex items-center justify-center text-white transition-all duration-300 group-hover:bg-[#FF9EBE] group-hover:rounded-xl active:scale-95 shadow-sm">
-                <Scissors size={20} strokeWidth={2.5} className="transition-colors duration-300" />
+              {/* Animated Icon Mark */}
+              <div className="relative">
+                <div className="absolute -inset-1.5 bg-gradient-to-tr from-[#FF9EBE]/40 to-[#FF9EBE]/0 rounded-[14px] blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="relative w-10 h-10 md:w-11 md:h-11 bg-brand-primary rounded-[14px] flex items-center justify-center text-white shadow-xl overflow-hidden border border-white/5 transition-transform duration-300 active:scale-95">
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+                  <Scissors size={18} className="relative z-10 text-[#FF9EBE] transition-transform duration-500 group-hover:rotate-[20deg]" />
+                  <Sparkles size={8} className="absolute top-1.5 right-1.5 z-10 text-[#FF9EBE]/60 animate-pulse" />
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#FF9EBE]/10 blur-sm rounded-full"></div>
+                </div>
               </div>
               
-              {/* Modern Sans Typography */}
-              <div className="flex flex-col">
-                <div className="flex items-baseline">
-                  <span className="text-xl md:text-2xl font-sans font-bold tracking-[-0.03em] text-brand-primary">
+              {/* Typography Branding */}
+              <div className="flex flex-col -gap-1">
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-xl md:text-2xl font-serif font-black tracking-tight text-brand-primary leading-tight transition-colors group-hover:text-black">
                     Frisuren
                   </span>
-                  <span className="text-xl md:text-2xl font-sans font-light tracking-tight text-[#FF9EBE] ml-0.5">
+                  <span className="text-xl md:text-2xl font-sans font-extralight text-[#FF9EBE] italic leading-tight ml-0.5">
                     .ai
                   </span>
                 </div>
-                <span className="text-[9px] font-medium tracking-[0.15em] text-brand-primary/30 uppercase -mt-0.5 group-hover:text-[#FF9EBE]/50 transition-colors">
-                  Styling Studio
-                </span>
+                <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-60 transition-opacity duration-300">
+                  <div className="h-px w-3 bg-brand-primary"></div>
+                  <span className="text-[8px] md:text-[9px] font-black tracking-[0.3em] text-brand-primary uppercase">
+                    AI Styling Studio
+                  </span>
+                </div>
               </div>
             </div>
             
-            {/* Cleaner Mobile Badge */}
-            <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/5 rounded-md mt-1 border border-brand-primary/5">
-              <span className="text-[7px] font-bold text-brand-primary/40 uppercase tracking-[0.1em] flex items-center gap-1">
-                Echtzeit Analyse
-                <div className="w-1 h-1 rounded-full bg-[#FF9EBE] animate-pulse"></div>
-                DE
+            {/* Mobile Badge - Refined */}
+            <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/5 rounded-full border border-brand-primary/5 mt-1">
+              <span className="text-[7px] font-black text-brand-primary/40 uppercase tracking-[0.15em] flex items-center gap-1">
+                MADE IN GERMANY
+                <div className="flex flex-col w-2.5 h-1.5 overflow-hidden rounded-[0.5px] shadow-sm shrink-0 opacity-60">
+                  <div className="h-1/3 bg-black"></div>
+                  <div className="h-1/3 bg-[#FF0000]"></div>
+                  <div className="h-1/3 bg-[#FFCC00]"></div>
+                </div>
               </span>
             </div>
           </button>
@@ -3629,15 +3641,15 @@ export default function App() {
       <footer className="py-12 px-4 md:px-8 bg-white border-t border-black/5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity duration-300">
-            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white shadow-sm">
-              <Scissors size={18} />
+            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-[#FF9EBE] shadow-lg">
+              <Scissors size={20} />
             </div>
-            <div className="flex flex-col text-left">
-              <div className="flex items-baseline">
-                <span className="text-lg font-sans font-bold tracking-tight text-brand-primary">Frisuren</span>
-                <span className="text-lg font-sans font-light text-[#FF9EBE]">.ai</span>
+            <div className="flex flex-col -gap-1 text-left">
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-lg font-serif font-bold tracking-tight text-brand-primary">Frisuren</span>
+                <span className="text-lg font-sans font-light text-[#FF9EBE] italic">.ai</span>
               </div>
-              <span className="text-[7px] font-medium tracking-[0.2em] text-brand-primary/40 uppercase -mt-0.5">AI Styling Studio</span>
+              <span className="text-[7px] font-black tracking-[0.2em] text-brand-primary uppercase -mt-0.5">AI Styling Studio</span>
             </div>
           </div>
           
@@ -4701,7 +4713,7 @@ export default function App() {
                       <Palette size={20} />
                    </div>
                    <div>
-                      <h1 className="text-xl font-sans font-extrabold text-brand-primary flex items-baseline">Frisuren<span className="font-sans font-light text-[#FF9EBE] ml-0.5">.ai</span><span className="ml-2 text-[10px] font-sans font-black uppercase tracking-[0.2em] text-brand-primary/20">Styling Studio</span></h1>
+                      <h1 className="text-xl font-serif font-black text-brand-primary flex items-baseline gap-0.5">Frisuren<span className="font-sans font-extralight italic text-[#FF9EBE]">.ai</span><span className="ml-2 font-serif font-bold italic opacity-30">Styling Studio</span></h1>
                       <div className="flex items-center gap-2">
                          <span className="w-2 h-2 rounded-full bg-[#FF9EBE] animate-pulse" />
                          <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Premium Access</span>
@@ -4766,10 +4778,10 @@ export default function App() {
                       <div className="w-10 h-10 bg-[#FF9EBE] rounded-xl flex items-center justify-center">
                         <Sparkles size={24} className="text-white" />
                       </div>
-                      <div className="flex items-baseline">
-                        <span className="text-2xl font-sans font-extrabold text-white">Frisuren</span>
-                        <span className="text-2xl font-sans font-light text-[#FF9EBE] ml-0.5">.ai</span>
-                        <span className="ml-2 text-[10px] font-sans font-black uppercase tracking-[0.2em] px-2 py-0.5 bg-white/10 rounded text-white/40 border border-white/5">Premium</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-2xl font-serif font-black text-white">Frisuren</span>
+                        <span className="text-2xl font-sans font-extralight italic text-[#FF9EBE]">.ai</span>
+                        <span className="ml-2 text-2xl font-serif font-bold italic text-white/40">Premium</span>
                       </div>
                     </div>
                     
