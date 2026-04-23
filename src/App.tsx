@@ -4683,68 +4683,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Styling Studio Toggle Button - Only show when NOT logged in or already in studio */}
-      {!user && !image && !activePoll && (
-        <motion.button
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          onClick={() => setShowStylingStudio(true)}
-          className="fixed bottom-8 right-8 z-[100] px-8 py-4 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/30 flex items-center gap-3 hover:scale-105 active:scale-95 transition-all"
-        >
-          <Palette size={20} />
-          <span>Styling Studio</span>
-        </motion.button>
-      )}
-
-      {/* Legacy Styling Studio Modal - Keep only for non-logged-in users if requested */}
-      <AnimatePresence>
-        {!user && showStylingStudio && (
-          <div className="fixed inset-0 z-[110] flex flex-col bg-white">
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
-              className="flex-1 flex flex-col"
-            >
-              {/* Header */}
-              <header className="px-8 py-5 border-b border-black/5 flex items-center justify-between bg-white shrink-0">
-                <div className="flex items-center gap-4">
-                   <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-primary/20">
-                      <Palette size={20} />
-                   </div>
-                   <div>
-                      <h1 className="text-xl font-serif font-black text-brand-primary flex items-baseline gap-0.5">Frisuren<span className="font-sans font-extralight italic text-[#FF9EBE]">.ai</span><span className="ml-2 font-serif font-bold italic opacity-30">Styling Studio</span></h1>
-                      <div className="flex items-center gap-2">
-                         <span className="w-2 h-2 rounded-full bg-[#FF9EBE] animate-pulse" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Premium Access</span>
-                      </div>
-                   </div>
-                </div>
-                <button 
-                  onClick={() => setShowStylingStudio(false)}
-                  className="w-12 h-12 bg-black/5 rounded-full flex items-center justify-center text-brand-primary/40 hover:bg-black/10 transition-all"
-                >
-                  <X size={24} />
-                </button>
-              </header>
-
-              <div className="flex-1 relative flex flex-col min-h-0">
-                <StylingStudio 
-                  image={image}
-                  onTryOn={handleStudioTryOn}
-                  isGenerating={isGenerating}
-                  onImageUpload={handleStylingStudioImageUpload}
-                  avatarSketch={avatarSketch}
-                  isPremium={isPremium}
-                  preGeneratedSketches={hairstyleSketches}
-                  isGeneratingBackground={isGeneratingBackground}
-                  onCheckout={handleCheckout}
-                />
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* Pricing Modal */}
       <AnimatePresence>
