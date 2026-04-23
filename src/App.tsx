@@ -3125,12 +3125,16 @@ export default function App() {
                           </div>
                           
                           <div className="text-center space-y-2 mb-6">
-                             <h4 className="font-serif font-black italic text-[#FF9EBE]">Dein Styling Studio</h4>
+                             <h4 className="font-serif font-black italic text-[#FF9EBE]">Dein persönliches Styling Studio</h4>
                              <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Alle Looks an dir testen</p>
                           </div>
 
                           <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group-hover:scale-105 transition-transform duration-500">
-                             <img src={avatarSketch} className="w-full h-full object-cover grayscale opacity-60" referrerPolicy="no-referrer" />
+                             <img 
+                               src={results[0]?.imageUrl || avatarSketch} 
+                               className="w-full h-full object-cover grayscale opacity-40 blur-[1px]" 
+                               referrerPolicy="no-referrer" 
+                             />
                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                                 <Palette size={48} className="text-brand-primary/20 mb-4" />
                                 <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Studio betreten</button>
@@ -3139,7 +3143,7 @@ export default function App() {
 
                           <div className="mt-6 text-center">
                              <p className="text-[11px] font-bold text-brand-primary/60 italic leading-tight">
-                               "Wir haben deinen Kopf bereits gezeichnet – starte jetzt deine eigene Simulation!"
+                               "Unsere KI hat deine Gesichtsform analysiert und in deinem persönlichen Styling Studio findest du alle perfekt zu dir passenden Frisuren! ✨"
                              </p>
                           </div>
                         </motion.div>
