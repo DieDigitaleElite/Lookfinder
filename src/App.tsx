@@ -184,9 +184,13 @@ export default function App() {
 
   // Background sketch generation for all library styles
   useEffect(() => {
-    // Only generate background sketches when NOT doing main generation and ONLY when user might actually see them
+    // Only generate background sketches when NOT doing main generation 
+    // We allow ONE sketch to be generated even outside studio view for the preview card
+    const hasAtLeastOneSketch = Object.keys(hairstyleSketches).length > 0;
     const isInStudioView = showStylingStudio || (dashboardTab === 'studio' && user);
-    if (!avatarSketch || !image || isGeneratingBackground || isGenerating || !isInStudioView) return;
+    
+    if (!avatarSketch || !image || isGeneratingBackground || isGenerating) return;
+    if (!isInStudioView && hasAtLeastOneSketch) return;
     
     const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
     if (stylesToGenerate.length === 0) return;
@@ -3142,9 +3146,12 @@ export default function App() {
                           </div>
 
                           <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group-hover:scale-105 transition-transform duration-500">
-                             <img 
+                             <motion.img 
+                               key={Object.keys(hairstyleSketches)[0] || 'bald'}
+                               initial={{ opacity: 0 }}
+                               animate={{ opacity: 0.6 }}
                                src={Object.values(hairstyleSketches)[0] || avatarSketch} 
-                               className="w-full h-full object-cover grayscale opacity-60" 
+                               className="w-full h-full object-cover grayscale" 
                                referrerPolicy="no-referrer" 
                              />
                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
