@@ -3131,8 +3131,8 @@ export default function App() {
 
                           <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group-hover:scale-105 transition-transform duration-500">
                              <img 
-                               src={results[0]?.imageUrl || avatarSketch} 
-                               className="w-full h-full object-cover grayscale opacity-40 blur-[1px]" 
+                               src={Object.values(hairstyleSketches)[0] || avatarSketch} 
+                               className="w-full h-full object-cover grayscale opacity-60" 
                                referrerPolicy="no-referrer" 
                              />
                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
