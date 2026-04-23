@@ -52,7 +52,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         price_data: {
           currency: "eur",
           product_data: {
-            name: "HairVision Monatsabo",
+            name: "Frisuren.ai Monatsabo",
             description: "Flexibel jederzeit kündbar - Alle Styles & Trends",
           },
           unit_amount: 699,
@@ -66,7 +66,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         price_data: {
           currency: "eur",
           product_data: {
-            name: "HairVision Pro Upgrade (Unlimited)",
+            name: "Frisuren.ai Pro Upgrade (Unlimited)",
             description: "Upgrade auf Monatsabo - Alle Styles & Trends unbegrenzt",
           },
           unit_amount: 400,
@@ -80,7 +80,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         price_data: {
           currency: "eur",
           product_data: {
-            name: "HairVision Styling-Flatrate Jahresabo",
+            name: "Frisuren.ai Styling-Flatrate Jahresabo",
             description: "Unbegrenzt testen + monatlich neue Trends + Profi-Guide",
           },
           unit_amount: 3999,
@@ -94,7 +94,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         price_data: {
           currency: "eur",
           product_data: {
-            name: "HairVision Single Unlock",
+            name: "Frisuren.ai Single Unlock",
             description: "Schalte alle 9 Frisuren für diese Analyse frei",
           },
           unit_amount: 199,

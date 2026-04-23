@@ -49,7 +49,7 @@ export const ImpressumContent = () => (
   <div className="space-y-6">
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">Angaben gemäß § 5 TMG</h3>
-      <p>HairVision AI Solutions<br />Frankfurter Ring 193A<br />80807 München</p>
+      <p>Frisuren.ai AI Solutions<br />Frankfurter Ring 193A<br />80807 München</p>
     </section>
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">Inhaber:</h3>
@@ -57,7 +57,7 @@ export const ImpressumContent = () => (
     </section>
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">Kontakt</h3>
-      <p>Telefon: 089/12134053<br />E-Mail: team@hairvision-ai.de</p>
+      <p>Telefon: 089/12134053<br />E-Mail: team@frisuren.ai</p>
     </section>
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">Umsatzsteuer-ID</h3>
@@ -86,7 +86,7 @@ export const DatenschutzContent = () => (
         Frankfurter Ring 193A<br />
         80807 München<br />
         Deutschland<br />
-        E-Mail: team@hairvision-ai.de
+        E-Mail: team@frisuren.ai
       </p>
     </section>
     <section>
@@ -190,12 +190,12 @@ export const AGBContent = () => (
 
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">1. Geltungsbereich</h3>
-      <p>Die folgenden Allgemeinen Geschäftsbedingungen (AGB) regeln die Nutzung der HairVision-Website und der HairVision-App sowie den Erwerb von kostenpflichtigen Funktionen, Einmalfreischaltungen und Abonnements.</p>
+      <p>Die folgenden Allgemeinen Geschäftsbedingungen (AGB) regeln die Nutzung der Frisuren.ai-Website und der Frisuren.ai-App sowie den Erwerb von kostenpflichtigen Funktionen, Einmalfreischaltungen und Abonnements.</p>
     </section>
 
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">2. Vertragsgegenstand</h3>
-      <p>HairVision bietet eine digitale Anwendung zur Analyse von Gesichtsformen und zur Erstellung personalisierter Frisurenvorschläge auf Basis hochgeladener Fotos.</p>
+      <p>Frisuren.ai bietet eine digitale Anwendung zur Analyse von Gesichtsformen und zur Erstellung personalisierter Frisurenvorschläge auf Basis hochgeladener Fotos.</p>
       <p className="mt-2">Die angebotenen Ergebnisse dienen der Orientierung und Inspiration. Es wird keine Garantie übernommen, dass eine Frisur im realen Leben exakt dem digitalen Ergebnis entspricht.</p>
     </section>
 
@@ -255,7 +255,7 @@ export const AGBContent = () => (
 Orry Kress
 Frankfurter Ring 193A
 80807 München
-E-Mail: team@hairvision-ai.de
+E-Mail: team@frisuren.ai
 
 Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über den Kauf der folgenden digitalen Inhalte:
 
@@ -275,7 +275,7 @@ Unterschrift des Verbrauchers (nur bei Mitteilung auf Papier)`}
 
     <section>
       <h3 className="text-lg font-bold text-brand-primary mb-2">8. Nutzungsrechte</h3>
-      <p>Die über HairVision erzeugten Inhalte dürfen ausschließlich privat genutzt werden, sofern nichts anderes vereinbart wurde.</p>
+      <p>Die über Frisuren.ai erzeugten Inhalte dürfen ausschließlich privat genutzt werden, sofern nichts anderes vereinbart wurde.</p>
       <p className="mt-2">Eine Weitergabe, der Weiterverkauf oder die kommerzielle Nutzung der Ergebnisse ist nur mit ausdrücklicher Zustimmung gestattet.</p>
     </section>
 
@@ -305,7 +305,7 @@ Unterschrift des Verbrauchers (nur bei Mitteilung auf Papier)`}
 export const WiderrufContent = () => (
   <div className="space-y-6">
     <section>
-      <h3 className="text-lg font-bold text-brand-primary mb-2">Widerrufsbelehrung für HairVision</h3>
+      <h3 className="text-lg font-bold text-brand-primary mb-2">Widerrufsbelehrung für Frisuren.ai</h3>
       
       <div className="space-y-6">
         <div>
@@ -339,7 +339,7 @@ export const WiderrufContent = () => (
 Orry Kress
 Frankfurter Ring 193A
 80807 München
-E-Mail: team@hairvision-ai.de
+E-Mail: team@frisuren.ai
 
 Hiermit widerrufe ich den von mir abgeschlossenen Vertrag über den Kauf der folgenden digitalen Inhalte:
 
@@ -367,7 +367,7 @@ export const AboutContent: React.FC<{ onCtaClick?: () => void }> = ({ onCtaClick
         Wir machen Frisuren-Testen einfacher, realistischer und sicherer.
       </h3>
       <p className="text-base md:text-lg text-brand-primary/70 max-w-3xl mx-auto">
-        HairVision ist eine <span className="font-bold text-brand-primary">KI-Frisuren-App aus München</span>, mit der du <span className="font-bold text-brand-primary">virtuell Frisuren testen</span> und verschiedene Looks in wenigen Sekunden ausprobieren kannst. Unser Ziel ist es, dir vor dem Friseurbesuch mehr Sicherheit zu geben und dir zu zeigen, welche <span className="font-bold text-brand-primary">Frisur und Haarfarbe</span> wirklich zu dir passen.
+        Frisuren.ai ist eine <span className="font-bold text-brand-primary">KI-Frisuren-App aus München</span>, mit der du <span className="font-bold text-brand-primary">virtuell Frisuren testen</span> und verschiedene Looks in wenigen Sekunden ausprobieren kannst. Unser Ziel ist es, dir vor dem Friseurbesuch mehr Sicherheit zu geben und dir zu zeigen, welche <span className="font-bold text-brand-primary">Frisur und Haarfarbe</span> wirklich zu dir passen.
       </p>
     </section>
 
@@ -375,13 +375,13 @@ export const AboutContent: React.FC<{ onCtaClick?: () => void }> = ({ onCtaClick
     <section className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
       <div className="space-y-4">
         <h4 className="text-xl font-serif font-bold text-brand-primary">Unsere Geschichte</h4>
-        <p>Hallo, ich bin Orry Kress, Gründer von HairVision.</p>
+        <p>Hallo, ich bin Orry Kress, Gründer von Frisuren.ai.</p>
         <p>
-          Die Idee zu HairVision entstand aus einer ganz einfachen Frage: „Steht mir diese Frisur wirklich?“
+          Die Idee zu Frisuren.ai entstand aus einer ganz einfachen Frage: „Steht mir diese Frisur wirklich?“
           Wie viele andere stand ich selbst schon oft vor dem Spiegel oder nach einem Friseurbesuch da und hatte das Gefühl, dass das Ergebnis nicht ganz zu mir passt.
         </p>
         <p>
-          Genau hier setzt HairVision an. Gemeinsam mit einem kleinen Team aus KI-Entwicklern, Designern und Beauty-Experten haben wir eine App entwickelt, mit der du deine <span className="font-bold text-brand-primary">Gesichtsform analysieren</span> und passende Frisuren virtuell testen kannst. Was in München als persönliche Lösung begann, ist heute eine App für alle, die sich vor dem nächsten Haarschnitt besser orientieren möchten.
+          Genau hier setzt Frisuren.ai an. Gemeinsam mit einem kleinen Team aus KI-Entwicklern, Designern und Beauty-Experten haben wir eine App entwickelt, mit der du deine <span className="font-bold text-brand-primary">Gesichtsform analysieren</span> und passende Frisuren virtuell testen kannst. Was in München als persönliche Lösung begann, ist heute eine App für alle, die sich vor dem nächsten Haarschnitt besser orientieren möchten.
         </p>
       </div>
       <div className="bg-brand-accent/5 p-8 rounded-[2rem] border border-brand-accent/10 flex flex-col items-center justify-center text-center space-y-4">
@@ -398,7 +398,7 @@ export const AboutContent: React.FC<{ onCtaClick?: () => void }> = ({ onCtaClick
         <div className="flex-1 space-y-4">
           <h4 className="text-xl font-serif font-bold text-brand-accent">Made in Germany</h4>
           <p className="text-white/80">
-            HairVision ist ein Münchner Startup und wird in Deutschland entwickelt. 
+            Frisuren.ai ist ein Münchner Startup und wird in Deutschland entwickelt. 
             Für uns bedeutet das nicht nur ein klares Qualitätsversprechen, sondern auch Verantwortung: 
             präzise Ergebnisse, verständliches Design und ein konsequenter Fokus auf Datenschutz.
           </p>
@@ -438,13 +438,13 @@ export const AboutContent: React.FC<{ onCtaClick?: () => void }> = ({ onCtaClick
       <div className="space-y-4">
         <h4 className="text-xl font-serif font-bold text-brand-primary">Unser Team</h4>
         <p className="text-sm leading-relaxed">
-          Wir sind ein kleines Team aus München, das sich auf KI, Design und digitale Produkte spezialisiert hat. Unterstützt werden wir von Friseuren und Stylisten, die uns mit echtem Praxiswissen helfen, HairVision immer weiter zu verbessern. So verbinden wir Technologie mit dem Blick für das, was im Alltag wirklich funktioniert.
+          Wir sind ein kleines Team aus München, das sich auf KI, Design und digitale Produkte spezialisiert hat. Unterstützt werden wir von Friseuren und Stylisten, die uns mit echtem Praxiswissen helfen, Frisuren.ai immer weiter zu verbessern. So verbinden wir Technologie mit dem Blick für das, was im Alltag wirklich funktioniert.
         </p>
       </div>
       <div className="space-y-4">
         <h4 className="text-xl font-serif font-bold text-brand-primary">Unsere Vision</h4>
         <p className="text-sm leading-relaxed">
-          Wir wollen, dass niemand mehr unsicher aus dem Friseursalon geht. HairVision soll der erste Schritt zu einem besseren Look sein: unkompliziert, schnell und realistisch. In Zukunft möchten wir Menschen nicht nur dabei helfen, <span className="font-bold">Frisuren online zu testen</span>, sondern auch Haarfarben, Outfits und weitere Stilfragen einfacher zu entscheiden.
+          Wir wollen, dass niemand mehr unsicher aus dem Friseursalon geht. Frisuren.ai soll der erste Schritt zu einem besseren Look sein: unkompliziert, schnell und realistisch. In Zukunft möchten wir Menschen nicht nur dabei helfen, <span className="font-bold">Frisuren online zu testen</span>, sondern auch Haarfarben, Outfits und weitere Stilfragen einfacher zu entscheiden.
         </p>
       </div>
     </section>

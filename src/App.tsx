@@ -60,12 +60,12 @@ import {
 } from './firebase';
 
 export default function App() {
-  const [image, setImage] = useState<string | null>(() => localStorage.getItem('hairvision_pending_image'));
-  const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('hairvision_pending_mime_type') || '');
+  const [image, setImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_image'));
+  const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('frisurenai_pending_mime_type') || '');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedResult[]>(() => {
-    const saved = localStorage.getItem('hairvision_pending_results');
+    const saved = localStorage.getItem('frisurenai_pending_results');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -76,7 +76,7 @@ export default function App() {
     return [];
   });
   const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(() => {
-    const saved = localStorage.getItem('hairvision_pending_selected_result');
+    const saved = localStorage.getItem('frisurenai_pending_selected_result');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -91,13 +91,13 @@ export default function App() {
   const [isPremium, setIsPremium] = useState(() => {
     // Initialize from localStorage if payment success is pending
     const params = new URLSearchParams(window.location.search);
-    return params.get('payment') === 'success' || localStorage.getItem('hairvision_pending_plan') !== null;
+    return params.get('payment') === 'success' || localStorage.getItem('frisurenai_pending_plan') !== null;
   });
   const [userPlan, setUserPlan] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     const urlPlan = params.get('plan');
     if (urlPlan) return urlPlan === 'upsell' ? 'monthly' : urlPlan;
-    return localStorage.getItem('hairvision_pending_plan');
+    return localStorage.getItem('frisurenai_pending_plan');
   });
   const isPro = isPremium && (userPlan === 'monthly' || userPlan === 'yearly');
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
@@ -116,7 +116,7 @@ export default function App() {
   const [selectedColor, setSelectedColor] = useState<typeof HAIR_COLORS[0] | null>(null);
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
   const [customResults, setCustomResults] = useState<GeneratedResult[]>(() => {
-    const saved = localStorage.getItem('hairvision_pending_custom_results');
+    const saved = localStorage.getItem('frisurenai_pending_custom_results');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -172,6 +172,7 @@ export default function App() {
   const [clientIp, setClientIp] = useState<string | null>(null);
 
   const [activePoll, setActivePoll] = useState<any>(null);
+  const [isPollSyncing, setIsPollSyncing] = useState(() => new URLSearchParams(window.location.search).has('poll'));
   const [votedId, setVotedId] = useState<string | null>(null);
   const [isCreatingPoll, setIsCreatingPoll] = useState(false);
   const [pollShareUrl, setPollShareUrl] = useState<string | null>(null);
@@ -316,23 +317,26 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
 
     if (pollId) {
-      setAuthInitializing(true); // Ensure we wait for auth to check if user is creator
       // Check local storage for previous vote on this poll
-      const savedVote = localStorage.getItem(`hairvision_vote_${pollId}`);
+      const savedVote = localStorage.getItem(`frisurenai_vote_${pollId}`);
       if (savedVote) setVotedId(savedVote);
 
       const pollDocRef = doc(db, 'polls', pollId);
       unsubscribe = onSnapshot(pollDocRef, (docSnap) => {
+        setIsPollSyncing(false);
         if (docSnap.exists()) {
           setActivePoll({ id: docSnap.id, ...docSnap.data() });
         }
       }, (err) => {
+        setIsPollSyncing(false);
         console.error("Failed to sync poll", err);
         const message = err instanceof Error ? err.message : String(err);
         if (message.includes('Quota') || message.includes('exhausted')) {
           setError("Die Abstimmung ist momentan nicht erreichbar (Datenbank-Limit).");
         }
       });
+    } else {
+      setIsPollSyncing(false);
     }
 
     return () => {
@@ -499,7 +503,7 @@ export default function App() {
       });
 
       setVotedId(resultId);
-      localStorage.setItem(`hairvision_vote_${activePoll.id}`, resultId);
+      localStorage.setItem(`frisurenai_vote_${activePoll.id}`, resultId);
       confetti({
         particleCount: 150,
         spread: 70,
@@ -608,16 +612,16 @@ export default function App() {
       ctx.font = 'bold 60px serif';
       ctx.shadowColor = 'rgba(0,0,0,0.3)';
       ctx.shadowBlur = 10;
-      ctx.fillText('HairVision KI', width / 2, height - 160);
+      ctx.fillText('Frisuren.ai KI', width / 2, height - 160);
       
       ctx.shadowBlur = 0;
       ctx.font = 'normal 32px sans-serif';
       ctx.fillStyle = '#FFFFFF';
-      ctx.fillText('Entdecke deinen neuen Look auf hairvision.de', width / 2, height - 90);
+      ctx.fillText('Entdecke deinen neuen Look auf frisuren.ai', width / 2, height - 90);
 
       // Download
       const link = document.createElement('a');
-      link.download = `HairVision_Story_${result.name}.png`;
+      link.download = `Frisurenai_Story_${result.name}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (err) {
@@ -759,19 +763,19 @@ export default function App() {
     // Check for payment success in URL or pending restoration
     const params = new URLSearchParams(window.location.search);
     const isPaymentSuccess = params.get('payment') === 'success';
-    const hasPendingData = localStorage.getItem('hairvision_pending_results') !== null;
+    const hasPendingData = localStorage.getItem('frisurenai_pending_results') !== null;
 
     if (isPaymentSuccess || hasPendingData) {
-      const plan = params.get('plan') || localStorage.getItem('hairvision_pending_plan') || 'single';
-      const uid = params.get('uid') || localStorage.getItem('hairvision_pending_uid');
+      const plan = params.get('plan') || localStorage.getItem('frisurenai_pending_plan') || 'single';
+      const uid = params.get('uid') || localStorage.getItem('frisurenai_pending_uid');
       
       if (isPaymentSuccess) {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid);
         isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid });
         // Save plan/uid to localStorage in case of reloads during login
-        localStorage.setItem('hairvision_pending_plan', plan);
-        if (uid) localStorage.setItem('hairvision_pending_uid', uid);
+        localStorage.setItem('frisurenai_pending_plan', plan);
+        if (uid) localStorage.setItem('frisurenai_pending_uid', uid);
       } else if (hasPendingData && !pendingPayment) {
         // Restore pending payment state from localStorage if URL params are gone
         console.log("Restoring pending payment state from localStorage. Plan:", plan, "UID:", uid);
@@ -785,7 +789,7 @@ export default function App() {
       if (isPaymentSuccess) {
         let message = "Zahlung erfolgreich! Dein Premium-Zugang ist jetzt aktiv.";
         if (plan === 'single') message = "Erfolg! Deine 6 zusätzlichen Styles wurden freigeschaltet.";
-        if (plan === 'monthly' || plan === 'yearly') message = "Willkommen bei HairVision Pro! Du hast jetzt unbegrenzten Zugriff.";
+        if (plan === 'monthly' || plan === 'yearly') message = "Willkommen bei Frisuren.ai Pro! Du hast jetzt unbegrenzten Zugriff.";
         
         setAuthMessage({ type: 'success', text: message });
         
@@ -890,13 +894,13 @@ export default function App() {
   useEffect(() => {
     if (user && results.length > 0 && results.every(r => r.imageUrl && isResultSaved(r.id))) {
       console.log("All results saved to Firestore. Clearing localStorage backup.");
-      localStorage.removeItem('hairvision_pending_results');
-      localStorage.removeItem('hairvision_pending_selected_result');
-      localStorage.removeItem('hairvision_pending_custom_results');
-      localStorage.removeItem('hairvision_pending_image');
-      localStorage.removeItem('hairvision_pending_mime_type');
-      localStorage.removeItem('hairvision_pending_plan');
-      localStorage.removeItem('hairvision_pending_uid');
+      localStorage.removeItem('frisurenai_pending_results');
+      localStorage.removeItem('frisurenai_pending_selected_result');
+      localStorage.removeItem('frisurenai_pending_custom_results');
+      localStorage.removeItem('frisurenai_pending_image');
+      localStorage.removeItem('frisurenai_pending_mime_type');
+      localStorage.removeItem('frisurenai_pending_plan');
+      localStorage.removeItem('frisurenai_pending_uid');
     }
   }, [user, results, savedResults]);
 
@@ -1411,12 +1415,12 @@ export default function App() {
     setError(null);
     
     // Clear any previous pending data when starting a new analysis
-    localStorage.removeItem('hairvision_pending_results');
-    localStorage.removeItem('hairvision_pending_selected_result');
-    localStorage.removeItem('hairvision_pending_custom_results');
-    localStorage.removeItem('hairvision_pending_image');
-    localStorage.removeItem('hairvision_pending_plan');
-    localStorage.removeItem('hairvision_pending_uid');
+    localStorage.removeItem('frisurenai_pending_results');
+    localStorage.removeItem('frisurenai_pending_selected_result');
+    localStorage.removeItem('frisurenai_pending_custom_results');
+    localStorage.removeItem('frisurenai_pending_image');
+    localStorage.removeItem('frisurenai_pending_plan');
+    localStorage.removeItem('frisurenai_pending_uid');
     
     try {
       const base64Data = image.split(',')[1];
@@ -1881,18 +1885,18 @@ export default function App() {
         try {
           if (results && results.length > 0) {
             console.log("Saving results to localStorage for post-payment restoration");
-            localStorage.setItem('hairvision_pending_results', JSON.stringify(results));
+            localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
             if (selectedResult) {
-              localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
+              localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
             }
             if (customResults && customResults.length > 0) {
-              localStorage.setItem('hairvision_pending_custom_results', JSON.stringify(customResults));
+              localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
             }
             if (image) {
-              localStorage.setItem('hairvision_pending_image', image);
+              localStorage.setItem('frisurenai_pending_image', image);
             }
             if (mimeType) {
-              localStorage.setItem('hairvision_pending_mime_type', mimeType);
+              localStorage.setItem('frisurenai_pending_mime_type', mimeType);
             }
           }
         } catch (storageError) {
@@ -1900,7 +1904,7 @@ export default function App() {
           // Try to save at least the selected result if possible
           try {
             if (selectedResult) {
-              localStorage.setItem('hairvision_pending_selected_result', JSON.stringify(selectedResult));
+              localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
             }
           } catch (e) {
             console.warn("Even selected result was too large for localStorage.");
@@ -1946,7 +1950,7 @@ export default function App() {
     doc.setFont("playfair", "bold");
     doc.setFontSize(24);
     doc.setTextColor(26, 26, 26);
-    doc.text("HairVision - Profi Guide", margin, y);
+    doc.text("Frisuren.ai - Profi Guide", margin, y);
     y += 15;
 
     doc.setFont("helvetica", "normal");
@@ -2007,7 +2011,7 @@ export default function App() {
     // Footer
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
-    doc.text("Generiert von HairVision AI - Dein persönlicher KI-Frisurenberater", margin, 285);
+    doc.text("Generiert von Frisuren.ai AI - Dein persönlicher KI-Frisurenberater", margin, 285);
 
     doc.save(`${result.name.toLowerCase().replace(/\s+/g, '-')}-guide.pdf`);
   };
@@ -2037,28 +2041,54 @@ export default function App() {
               setShowStylingStudio(false);
               setActivePoll(null);
               setVotedId(null);
+              setIsPollSyncing(false);
+              const url = new URL(window.location.href);
+              url.searchParams.delete('poll');
+              window.history.replaceState({}, '', url.toString());
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
-            className="flex flex-col items-start gap-1 hover:opacity-80 transition-opacity text-left"
+            className="flex flex-col items-start gap-1 group text-left"
           >
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 md:w-10 md:h-10 bg-brand-primary rounded-full flex items-center justify-center text-[#FF9EBE]">
-                <Scissors size={18} className="md:hidden" />
-                <Scissors size={20} className="hidden md:block" />
+            <div className="flex items-center gap-3">
+              {/* Animated Icon Mark */}
+              <div className="relative">
+                <div className="absolute -inset-1.5 bg-gradient-to-tr from-[#FF9EBE]/40 to-[#FF9EBE]/0 rounded-[14px] blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className="relative w-10 h-10 md:w-11 md:h-11 bg-brand-primary rounded-[14px] flex items-center justify-center text-white shadow-xl overflow-hidden border border-white/5 transition-transform duration-300 active:scale-95">
+                  <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
+                  <Scissors size={18} className="relative z-10 text-[#FF9EBE] transition-transform duration-500 group-hover:rotate-[20deg]" />
+                  <Sparkles size={8} className="absolute top-1.5 right-1.5 z-10 text-[#FF9EBE]/60 animate-pulse" />
+                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-[#FF9EBE]/10 blur-sm rounded-full"></div>
+                </div>
               </div>
-              <div className="text-xl md:text-2xl font-serif font-bold tracking-tight">HairVision</div>
+              
+              {/* Typography Branding */}
+              <div className="flex flex-col -gap-1">
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-xl md:text-2xl font-serif font-black tracking-tight text-brand-primary leading-tight transition-colors group-hover:text-black">
+                    Frisuren
+                  </span>
+                  <span className="text-xl md:text-2xl font-sans font-extralight text-[#FF9EBE] italic leading-tight ml-0.5">
+                    .ai
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-60 transition-opacity duration-300">
+                  <div className="h-px w-3 bg-brand-primary"></div>
+                  <span className="text-[8px] md:text-[9px] font-black tracking-[0.3em] text-brand-primary uppercase">
+                    AI Styling Studio
+                  </span>
+                </div>
+              </div>
             </div>
             
-            {/* Mobile Badge */}
-            <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-[#FF9EBE]/5 rounded-full border border-[#FF9EBE]/10">
-              <span className="text-[8px] font-bold text-brand-primary/60 uppercase tracking-widest flex items-center gap-1">
-                Entwickelt in DE
-                <div className="flex flex-col w-3 h-2 overflow-hidden rounded-[0.5px] shadow-sm shrink-0">
+            {/* Mobile Badge - Refined */}
+            <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/5 rounded-full border border-brand-primary/5 mt-1">
+              <span className="text-[7px] font-black text-brand-primary/40 uppercase tracking-[0.15em] flex items-center gap-1">
+                MADE IN GERMANY
+                <div className="flex flex-col w-2.5 h-1.5 overflow-hidden rounded-[0.5px] shadow-sm shrink-0 opacity-60">
                   <div className="h-1/3 bg-black"></div>
                   <div className="h-1/3 bg-[#FF0000]"></div>
                   <div className="h-1/3 bg-[#FFCC00]"></div>
                 </div>
-                ❤️
               </span>
             </div>
           </button>
@@ -2149,8 +2179,8 @@ export default function App() {
 
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 md:px-8 py-12">
         <AnimatePresence mode="wait">
-          {activePoll ? (
-            authInitializing ? (
+          {activePoll || isPollSyncing ? (
+            isPollSyncing ? (
               <div className="flex flex-col items-center justify-center py-32 space-y-4">
                 <motion.div
                   animate={{ rotate: 360 }}
@@ -2159,7 +2189,7 @@ export default function App() {
                 />
                 <p className="text-brand-primary/40 font-bold uppercase tracking-widest text-xs">Umfrage wird geladen...</p>
               </div>
-            ) : (
+            ) : activePoll ? (
               <motion.div
                 key="poll"
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -2259,6 +2289,7 @@ export default function App() {
                     onClick={() => {
                       setActivePoll(null);
                       setVotedId(null);
+                      setIsPollSyncing(false);
                       const url = new URL(window.location.href);
                       url.searchParams.delete('poll');
                       window.history.replaceState({}, '', url.toString());
@@ -2279,6 +2310,7 @@ export default function App() {
                   onClick={() => {
                     setActivePoll(null);
                     setVotedId(null);
+                    setIsPollSyncing(false);
                     const url = new URL(window.location.href);
                     url.searchParams.delete('poll');
                     window.history.replaceState({}, '', url.toString());
@@ -2289,6 +2321,25 @@ export default function App() {
                 </button>
               </div>
             </motion.div>
+          ) : (
+             <div className="max-w-xl mx-auto text-center py-20 space-y-6">
+                <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto">
+                   <AlertCircle size={40} />
+                </div>
+                <h2 className="text-2xl font-serif font-bold text-brand-primary">Umfrage nicht gefunden</h2>
+                <p className="text-brand-primary/60">Dieser Link scheint ungültig zu sein oder die Umfrage wurde gelöscht.</p>
+                <button 
+                  onClick={() => {
+                     setIsPollSyncing(false);
+                     const url = new URL(window.location.href);
+                     url.searchParams.delete('poll');
+                     window.history.replaceState({}, '', url.toString());
+                  }}
+                  className="px-8 py-3 bg-brand-primary text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg"
+                >
+                   Zur Startseite
+                </button>
+             </div>
           )) : user ? (
             <motion.div
               key="dashboard"
@@ -2309,7 +2360,7 @@ export default function App() {
                   <div className="space-y-8">
                     <div className="space-y-2">
                       <h2 className="text-3xl font-serif font-bold">Hallo, {user?.displayName?.split(' ')[0] || 'Schönheit'}! ✨</h2>
-                      <p className="text-brand-primary/60">Willkommen in deinem persönlichen HairVision Bereich.</p>
+                      <p className="text-brand-primary/60">Willkommen in deinem persönlichen Frisuren.ai Bereich.</p>
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -2557,7 +2608,7 @@ export default function App() {
                                      <button 
                                        onClick={() => {
                                           const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
-                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine HairVision Umfrage an: ${url}`;
+                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine Frisuren.ai Umfrage an: ${url}`;
                                           window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                                        }}
                                        className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center gap-2"
@@ -2749,10 +2800,10 @@ export default function App() {
                 </div>
               </motion.div>
 
-              {/* Section 1: Warum unsere User Hairvision lieben */}
+              {/* Section 1: Warum unsere User Frisuren.ai lieben */}
               <section className="max-w-6xl mx-auto px-4 py-12">
                 <div className="text-center space-y-4 mb-20">
-                  <h2 className="text-4xl md:text-5xl font-serif font-bold">Warum unsere User Hairvision lieben</h2>
+                  <h2 className="text-4xl md:text-5xl font-serif font-bold">Warum unsere User Frisuren.ai lieben</h2>
                   <p className="text-brand-primary/60 text-lg">Entwickelt in Deutschland • DSGVO-konform • 100% Sicher</p>
                 </div>
 
@@ -2804,7 +2855,7 @@ export default function App() {
                 </div>
               </section>
 
-              {/* Section 3: Für wen ist HairVision? */}
+              {/* Section 3: Für wen ist Frisuren.ai? */}
               <section className="max-w-6xl mx-auto px-4">
                 <div className="grid md:grid-cols-3 gap-12">
                   <div className="space-y-6 text-center md:text-left">
@@ -2875,7 +2926,7 @@ export default function App() {
                     {[
                       {
                         q: "Wie funktioniert die KI-Frisuren-Analyse?",
-                        a: "HairVision nutzt modernste künstliche Intelligenz, um dein hochgeladenes Foto in Sekundenschnelle zu analysieren. Wir erkennen deine Gesichtsform und gleichen sie mit Tausenden von Profi-Haarschnitten ab, um dir die besten 9 Varianten vorzuschlagen."
+                        a: "Frisuren.ai nutzt modernste künstliche Intelligenz, um dein hochgeladenes Foto in Sekundenschnelle zu analysieren. Wir erkennen deine Gesichtsform und gleichen sie mit Tausenden von Profi-Haarschnitten ab, um dir die besten 9 Varianten vorzuschlagen."
                       },
                       {
                         q: "Sind meine Fotos bei euch sicher?",
@@ -2886,12 +2937,12 @@ export default function App() {
                         a: "Ja! Unsere Premium-Funktionen ermöglichen es dir, jeden Haarschnitt mit über 20 verschiedenen Trend-Haarfarben zu kombinieren – von klassischem Blond bis hin zu modernen Balayage-Tönen."
                       },
                       {
-                        q: "Muss ich ein Abo abschließen, um HairVision zu nutzen?",
+                        q: "Muss ich ein Abo abschließen, um Frisuren.ai zu nutzen?",
                         a: "Nein. Du kannst sofort 3 Frisuren kostenlos testen. Für den vollen Zugriff auf alle 9 Styles und Profi-Anweisungen bieten wir sowohl eine günstige Einmal-Freischaltung als auch flexible Flatrate-Abos an."
                       },
                       {
                         q: "Sind die Frisuren-Vorschläge für Friseure geeignet?",
-                        a: "Ja, genau dafür ist HairVision gedacht! Zu jedem Premium-Look erhältst du detaillierte Anweisungen und Tipps, die du direkt deinem Friseur zeigen kannst, um Missverständnisse zu vermeiden."
+                        a: "Ja, genau dafür ist Frisuren.ai gedacht! Zu jedem Premium-Look erhältst du detaillierte Anweisungen und Tipps, die du direkt deinem Friseur zeigen kannst, um Missverständnisse zu vermeiden."
                       }
                     ].map((faq, i) => (
                       <div key={i} className="p-6 bg-white rounded-3xl border border-black/5 hover:border-[#FF9EBE]/20 transition-all space-y-2 group">
@@ -2918,7 +2969,7 @@ export default function App() {
                           "name": "Wie funktioniert die KI-Frisuren-Analyse?",
                           "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "HairVision nutzt modernste künstliche Intelligenz, um dein hochgeladenes Foto in Sekundenschnelle zu analysieren."
+                            "text": "Frisuren.ai nutzt modernste künstliche Intelligenz, um dein hochgeladenes Foto in Sekundenschnelle zu analysieren."
                           }
                         },
                         {
@@ -3589,11 +3640,17 @@ export default function App() {
       {/* Footer */}
       <footer className="py-12 px-4 md:px-8 bg-white border-t border-black/5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
-          <div className="flex items-center gap-2 opacity-40">
-            <div className="w-8 h-8 bg-brand-primary rounded-full flex items-center justify-center text-[#FF9EBE]">
-              <Scissors size={16} />
+          <div className="flex items-center gap-3 opacity-60 hover:opacity-100 transition-opacity duration-300">
+            <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-[#FF9EBE] shadow-lg">
+              <Scissors size={20} />
             </div>
-            <span className="font-serif font-bold">HairVision</span>
+            <div className="flex flex-col -gap-1 text-left">
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-lg font-serif font-bold tracking-tight text-brand-primary">Frisuren</span>
+                <span className="text-lg font-sans font-light text-[#FF9EBE] italic">.ai</span>
+              </div>
+              <span className="text-[7px] font-black tracking-[0.2em] text-brand-primary uppercase -mt-0.5">AI Styling Studio</span>
+            </div>
           </div>
           
           <div className="flex flex-wrap justify-center gap-6 md:gap-10">
@@ -3605,7 +3662,7 @@ export default function App() {
           </div>
 
           <p className="text-xs text-brand-primary/30 font-medium">
-            © 2026 HairVision AI Solutions. Alle Rechte vorbehalten.
+            © 2026 Frisuren.ai AI Solutions. Alle Rechte vorbehalten.
           </p>
         </div>
       </footer>
@@ -3873,7 +3930,7 @@ export default function App() {
 
       {/* Footer */}
       <footer className="py-8 px-4 border-t border-black/5 text-center text-brand-primary/40 text-sm">
-        <p>© 2026 HairVision AI. Alle Rechte vorbehalten.</p>
+        <p>© 2026 Frisuren.ai AI. Alle Rechte vorbehalten.</p>
       </footer>
 
       {/* Login Modal */}
@@ -4387,7 +4444,7 @@ export default function App() {
                                       <button 
                                         onClick={() => {
                                           const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
-                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine HairVision Umfrage an: ${url}`;
+                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine Frisuren.ai Umfrage an: ${url}`;
                                           window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
                                         }}
                                         className="w-12 h-12 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
@@ -4656,7 +4713,7 @@ export default function App() {
                       <Palette size={20} />
                    </div>
                    <div>
-                      <h1 className="text-xl font-serif font-bold italic text-brand-primary">HairVision Styling Studio</h1>
+                      <h1 className="text-xl font-serif font-black text-brand-primary flex items-baseline gap-0.5">Frisuren<span className="font-sans font-extralight italic text-[#FF9EBE]">.ai</span><span className="ml-2 font-serif font-bold italic opacity-30">Styling Studio</span></h1>
                       <div className="flex items-center gap-2">
                          <span className="w-2 h-2 rounded-full bg-[#FF9EBE] animate-pulse" />
                          <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Premium Access</span>
@@ -4721,7 +4778,11 @@ export default function App() {
                       <div className="w-10 h-10 bg-[#FF9EBE] rounded-xl flex items-center justify-center">
                         <Sparkles size={24} className="text-white" />
                       </div>
-                      <span className="text-2xl font-bold tracking-tight">HairVision Premium</span>
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-2xl font-serif font-black text-white">Frisuren</span>
+                        <span className="text-2xl font-sans font-extralight italic text-[#FF9EBE]">.ai</span>
+                        <span className="ml-2 text-2xl font-serif font-bold italic text-white/40">Premium</span>
+                      </div>
                     </div>
                     
                     <h2 className="text-2xl lg:text-4xl font-bold mb-6 leading-tight">
@@ -4757,7 +4818,7 @@ export default function App() {
 
                     <div className="p-5 bg-white/5 rounded-2xl border border-white/10 hidden lg:block">
                       <p className="text-sm italic text-white/60">
-                        "Ich war mir unsicher, ob mir kurze Haare stehen. Dank HairVision habe ich mich getraut und liebe meinen neuen Look!"
+                        "Ich war mir unsicher, ob mir kurze Haare stehen. Dank Frisuren.ai habe ich mich getraut und liebe meinen neuen Look!"
                       </p>
                       <p className="text-xs font-bold mt-3 text-[#FF9EBE] uppercase tracking-widest">— Sarah, 28</p>
                     </div>
@@ -4809,7 +4870,7 @@ export default function App() {
                             className="mt-1 w-4 h-4 rounded border-gray-300 text-[#FF9EBE] focus:ring-[#FF9EBE]"
                           />
                           <span className="text-[10px] lg:text-xs text-brand-primary/60 leading-relaxed">
-                            Ich stimme ausdrücklich zu, dass HairVision vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags über digitale Inhalte beginnt. Mir ist bekannt, dass ich dadurch mit Beginn der Ausführung mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.
+                            Ich stimme ausdrücklich zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags über digitale Inhalte beginnt. Mir ist bekannt, dass ich dadurch mit Beginn der Ausführung mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.
                           </span>
                         </label>
                       </div>
