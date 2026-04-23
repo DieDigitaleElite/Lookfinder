@@ -179,14 +179,14 @@ export const generateBaseAvatarSketch = async (
   mimeType: string
 ): Promise<string | null> => {
   const model = "gemini-2.5-flash-image";
-  const prompt = `Create a high-end, minimalist charcoal fashion sketch of ONLY the person's face and head. 
-  
-  CRITICAL REQUIREMENTS:
-  - CLOSE-UP PORTRAIT: Focus strictly on the face and head silhouette. No shoulders or body.
-  - HAIRLESS/BALD BASE: Render the person with a clean bald head or very tight pulled back hair. This is a base for overlays.
-  - STYLE: Elegant, professional ink lines on a clean white background. 
-  - IDENTITY: Maintain the exact facial features and proportions to ensure recognition. THE FACE MUST BE 100% IDENTICAL to the source.
-  - NO BACKGROUND: Plain white background only.`;
+  const prompt = `Create a high-end, minimalist charcoal fashion sketch of the person's face and head.
+
+  CRITICAL IDENTITY REQUIREMENT:
+  - You MUST preserve the exact facial features, eye shape, nose structure, and mouth of the person in the photo. The person must be 100% recognizable.
+  - Render the person with a clean bald head (hairless base) while keeping the face perfectly intact. This will be used as a template for hairstyles.
+  - Use elegant, professional ink/charcoal lines on a clean white background. 
+  - Close-up portrait only (head and neck).
+  - NO background details.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
@@ -214,15 +214,14 @@ export const generateFashionSketch = async (
   baseSketch?: string | null
 ): Promise<string | null> => {
   const model = "gemini-2.5-flash-image";
-  const prompt = `Create a high-end, realistic fashion illustration of the person's head and neck with a ${styleName} hairstyle.
+  const prompt = `Create a high-end fashion illustration of the person with the hairstyle: ${styleName}.
   
-  STYLE REQUIREMENTS:
-  - PORTRAIT HEADSHOT: Focus strictly on the head and neck. Do NOT show the full body or torso.
-  - HIGH FIDELITY: Use professional fashion illustration techniques (pencil, charcoal, subtle watercolor).
-  - STERN IDENTITY PRESERVATION: The person's facial features MUST look exactly like the original photo. DO NOT change the person's appearance.
-  - CONSISTENCY: If a base sketch is provided, use it as a reference for the artistic style, perspective, and facial proportions. 
-  - HAIRSTYLE: The ${styleName} must look natural, textured, and elegant.
-  - BACKGROUND: Clean, empty white background.`;
+  ABSOLUTE IDENTITY PERSERVATION:
+  - The facial features (eyes, nose, mouth, chin, skin texture) must be an EXACT 1:1 artistic copy of the person in the provided photo. Do not beautify or alter them.
+  - Seamlessly add the ${styleName} hairstyle to their existing head.
+  - Maintain the head position and perspective perfectly.
+  - Use professional fashion illustration techniques (pencil, charcoal, subtle wash).
+  - Clean white background. Do not show body or clothes.`;
 
   const parts: any[] = [{ inlineData: { data: originalBase64, mimeType } }];
   
@@ -255,18 +254,13 @@ export const generateHairstyleImage = async (
   description: string
 ): Promise<string | null> => {
   const model = "gemini-2.5-flash-image";
-  const prompt = `Render a photograph of the person in the image with the following hairstyle and professional salon coloring: ${styleName}. ${description}. 
+  const prompt = `Perform a pixel-perfect hairstyle swap. Render a photograph of the person in the image wearing this hairstyle: ${styleName}. ${description}. 
   
-  COLORING & TEXTURE REQUIREMENTS:
-  - Use high-fidelity photorealistic textures for the hair.
-  - The color must be natural and sophisticated, with realistic highlights, lowlights, and dimension as seen in high-end salon work.
-  - Ensure the color precisely matches the requested shade provided in the description.
-  
-  ABSOLUTE IDENTITY PRESERVATION (STRICT MANDATE):
-  1. KEEP THE FACE 100% UNCHANGED. Every single pixel of the facial features (eyes, nose, lips, bone structure, unique marks) MUST be identical to the original person.
-  2. ONLY modify the hair area. Do not adjust skin tone, eyes, or face shape.
-  3. This is a virtual try-on: the person must be RECOGNIZABLE as themselves, just with a new hairstyle. Any alteration of the face is a failure.
-  4. The identity and lighting of the original photo must be perfectly preserved.`;
+  STRICT MANDATORY RULES:
+  1. FACE PRESERVATION: The person's face, features, eyes, nose, mouth, expressions, and skin texture MUST be 100% identical to the original photo. No retouching, no beautification, no smoothing.
+  2. SEAMLESS OVERLAY: Only generate the new hair. The hair should follow the person's natural hairline and face shape perfectly.
+  3. PHOTOREALISM: The hair must have ultra-realistic textures, salon-quality color with highlights/lowlights, and natural light interaction.
+  4. NO HALLUCINATION: Do not change the background, lighting, or clothes unless absolutely necessary for the hair to look natural.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
