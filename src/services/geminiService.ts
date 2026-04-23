@@ -37,7 +37,7 @@ const getAI = () => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 8): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -57,8 +57,10 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> =>
                           [429, 500, 503, 504].includes(status);
 
       if (isRetryable) {
-        // More patient backoff: 5s, 10s, 20s...
-        const waitTime = Math.pow(2, i) * 5000 + Math.random() * 2000;
+        // More patient backoff for rate limits: 7s, 14s, 28s... 
+        // We add more jitter to avoid "thundering herd" if multiple users retry at once
+        const baseDelay = errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") ? 8000 : 5000;
+        const waitTime = Math.pow(2, i) * baseDelay + Math.random() * 5000;
         console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms... Error: ${errorMsg}`);
         await sleep(waitTime);
         continue;

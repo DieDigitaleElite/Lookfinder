@@ -184,7 +184,9 @@ export default function App() {
 
   // Background sketch generation for all library styles
   useEffect(() => {
-    if (!avatarSketch || !image || isGeneratingBackground) return;
+    // Only generate background sketches when NOT doing main generation and ONLY when user might actually see them
+    const isInStudioView = showStylingStudio || (dashboardTab === 'studio' && user);
+    if (!avatarSketch || !image || isGeneratingBackground || isGenerating || !isInStudioView) return;
     
     const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
     if (stylesToGenerate.length === 0) return;
@@ -196,7 +198,9 @@ export default function App() {
       let localSketches = { ...hairstyleSketches };
 
       for (const style of stylesToGenerate) {
+        // Double check conditions inside the loop
         if (localSketches[style.id]) continue;
+        if (isGenerating) break; // Pause if user starts a new main generation
 
         try {
           const base64Data = image.split(',')[1];
@@ -226,14 +230,15 @@ export default function App() {
           }
         }
         
-        await new Promise(r => setTimeout(r, 1500));
+        // Wait longer between background tasks to be extremely gentle on the API
+        await new Promise(r => setTimeout(r, 4500));
       }
       
       setIsGeneratingBackground(false);
     };
 
     processQueue();
-  }, [avatarSketch, image, !!user]); // Trigger on avatarSketch or login/logout (to handle persistence)
+  }, [avatarSketch, image, !!user, showStylingStudio, dashboardTab, isGenerating]); // Added dependencies to handle state changes
 
   // Sync existing guest sketches to newly logged in user
   useEffect(() => {
@@ -1469,8 +1474,8 @@ export default function App() {
         const suggestion = suggestions[i];
         console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
         try {
-          // Small delay between requests to be gentle on the API
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 1500));
+          // Increased delay between requests to avoid overlapping limits, especially on mobile
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 3500));
           
           const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
           
@@ -2074,22 +2079,29 @@ export default function App() {
                 <div className="flex items-center gap-1.5 opacity-30 group-hover:opacity-60 transition-opacity duration-300">
                   <div className="h-px w-3 bg-brand-primary"></div>
                   <span className="text-[8px] md:text-[9px] font-black tracking-[0.3em] text-brand-primary uppercase">
-                    AI Styling Studio
+                    Styling Studio
                   </span>
                 </div>
               </div>
             </div>
             
             {/* Mobile Badge - Refined */}
-            <div className="md:hidden flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/5 rounded-full border border-brand-primary/5 mt-1">
-              <span className="text-[7px] font-black text-brand-primary/40 uppercase tracking-[0.15em] flex items-center gap-1">
-                MADE IN GERMANY
-                <div className="flex flex-col w-2.5 h-1.5 overflow-hidden rounded-[0.5px] shadow-sm shrink-0 opacity-60">
-                  <div className="h-1/3 bg-black"></div>
-                  <div className="h-1/3 bg-[#FF0000]"></div>
-                  <div className="h-1/3 bg-[#FFCC00]"></div>
-                </div>
-              </span>
+            <div className="md:hidden flex flex-wrap items-center gap-1.5 mt-1">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/5 rounded-full border border-brand-primary/5">
+                <span className="text-[7px] font-black text-brand-primary/40 uppercase tracking-[0.15em] flex items-center gap-1">
+                  MADE IN GERMANY
+                  <div className="flex flex-col w-2.5 h-1.5 overflow-hidden rounded-[0.5px] shadow-sm shrink-0 opacity-60">
+                    <div className="h-1/3 bg-black"></div>
+                    <div className="h-1/3 bg-[#FF0000]"></div>
+                    <div className="h-1/3 bg-[#FFCC00]"></div>
+                  </div>
+                </span>
+              </div>
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/5 rounded-full border border-emerald-500/10">
+                <span className="text-[7px] font-black text-emerald-600/60 uppercase tracking-[0.15em]">
+                  🔒 Maximale Datensicherheit
+                </span>
+              </div>
             </div>
           </button>
           
@@ -3099,7 +3111,7 @@ export default function App() {
                   {isGenerating && (
                     <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full">
                       <Loader2 className="animate-spin" size={18} />
-                      <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => r.imageUrl).length}/{isPremium ? 9 : 4})</span>
+                      <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => r.imageUrl).length}/{isPremium ? 9 : 3})</span>
                     </div>
                   )}
                 </div>
@@ -3107,8 +3119,8 @@ export default function App() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {results.map((result, index) => {
-                  const isLocked = !isPremium && index >= 4;
-                  const isBlurred = !isPremium && index === 3;
+                  const isLocked = !isPremium && index >= 3;
+                  const isBlurred = false; // Disabled blurred look for better performance
                   
                   return (
                     <React.Fragment key={result.id}>
@@ -3137,7 +3149,7 @@ export default function App() {
                              />
                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                                 <Palette size={48} className="text-brand-primary/20 mb-4" />
-                                <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Studio betreten</button>
+                                <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Jetzt freischalten</button>
                              </div>
                           </div>
 
