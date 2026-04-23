@@ -1417,6 +1417,7 @@ export default function App() {
     }
 
     setIsAnalyzing(true);
+    setIsGenerating(false);
     setError(null);
     
     // Clear any previous pending data when starting a new analysis
@@ -1426,6 +1427,21 @@ export default function App() {
     localStorage.removeItem('frisurenai_pending_image');
     localStorage.removeItem('frisurenai_pending_plan');
     localStorage.removeItem('frisurenai_pending_uid');
+
+    // PERCEIVED PERFORMANCE: Pre-initialize results to move to results view immediately
+    // For free users we show 3 spots, for premium we show 9 (or suggestions count)
+    const initialCount = isPremium ? 9 : 3;
+    const placeholders = Array.from({ length: initialCount }, (_, i) => ({
+      id: `placeholder-${i}`,
+      name: "Wird analysiert...",
+      description: "KI berechnet den besten Style...",
+      imageUrl: "",
+      rating: 0,
+      barberInstructions: "",
+      suitabilityReason: "",
+      recommendedProducts: []
+    }));
+    setResults(placeholders);
     
     try {
       const base64Data = image.split(',')[1];
@@ -1446,10 +1462,8 @@ export default function App() {
       setIsGenerating(true);
       setGenerationProgress(0);
 
-      const generatedResults: GeneratedResult[] = [];
-      
-      // Initialize results with suggestions but no images yet to show placeholders
-      setResults(suggestions.map(s => ({ ...s, imageUrl: "" })));
+      // Initialize results with real suggestions but no images yet
+      setResults(suggestions.slice(0, isPremium ? suggestions.length : 3).map(s => ({ ...s, imageUrl: "" })));
 
       // Generate images sequentially to avoid rate limits and improve stability
       const maxToGenerate = isPremium ? suggestions.length : 3;
@@ -3077,21 +3091,34 @@ export default function App() {
             >
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-4 max-w-2xl">
-                  <h2 className="text-3xl md:text-4xl font-serif font-bold">Das sind deine ersten 3 personalisierten Styles🔥</h2>
-                  <p className="text-brand-primary/80 text-base md:text-lg font-medium">Jeder einzelne wurde speziell für deine Gesichtsform und deinen Typ erstellt.</p>
-                  <div className="space-y-2 pt-2">
-                    <p className="text-brand-primary/60 font-semibold">Tippe auf einen Look und erhalte sofort:</p>
-                    <ul className="text-brand-primary/60 space-y-1 list-disc list-inside ml-1">
-                      <li>Genau passende Friseur-Anweisungen</li>
-                      <li>Farb- & Pflege-Empfehlungen</li>
-                    </ul>
-                  </div>
+                  {isAnalyzing ? (
+                    <div className="space-y-2">
+                       <h2 className="text-3xl md:text-4xl font-serif font-bold italic text-brand-primary animate-pulse">KI analysiert dein Gesicht...</h2>
+                       <p className="text-brand-primary/60 text-lg">Wir finden die perfekten Styles für deinen Typ. Das dauert nur einen Moment.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <h2 className="text-3xl md:text-4xl font-serif font-bold">
+                        Dein Typ: <span className="text-[#FF9EBE]">{faceAnalysis?.faceShape || 'Individuell'}</span> ✨
+                      </h2>
+                      <p className="text-brand-primary/80 text-base md:text-lg font-medium">
+                        {faceAnalysis?.summary || "Jeder einzelne Look wurde speziell für deine Gesichtsform erstellt."}
+                      </p>
+                      <div className="space-y-2 pt-2">
+                        <p className="text-brand-primary/60 font-semibold">In jedem Look enthalten:</p>
+                        <ul className="text-brand-primary/60 space-y-1 list-disc list-inside ml-1 text-sm">
+                          <li>Passende Friseur-Anweisungen</li>
+                          <li>Farb- & Pflege-Empfehlungen</li>
+                        </ul>
+                      </div>
+                    </>
+                  )}
                 </div>
                 <div className="flex flex-col gap-4">
                   <button 
                     onClick={() => handleCreatePoll(results[0])}
-                    disabled={isCreatingPoll || results.filter(r => r.imageUrl).length < 2}
-                    className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2 text-sm uppercase tracking-widest"
+                    disabled={isCreatingPoll || results.filter(r => r.imageUrl).length < 2 || isAnalyzing}
+                    className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2 text-sm uppercase tracking-widest disabled:opacity-50 disabled:grayscale"
                   >
                     {isCreatingPoll ? <Loader2 className="animate-spin" size={16} /> : <Users size={16} />}
                     Freunde entscheiden lassen 🗳️
@@ -3450,11 +3477,13 @@ export default function App() {
                             </button>
                           </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
-                            <Loader2 className="animate-spin text-[#FF9EBE]" size={32} />
+                          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-black/5 text-center gap-4">
+                            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-[#FF9EBE] shadow-sm animate-pulse">
+                              <Loader2 className="animate-spin" size={24} />
+                            </div>
                             <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">Wird generiert...</p>
-                              <p className="text-[8px] text-brand-primary/40 leading-tight">Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren.</p>
+                              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary animate-pulse">Wird generiert...</p>
+                              <p className="text-[8px] font-bold text-brand-primary/20 uppercase tracking-widest">KI erstellt deinen Style</p>
                             </div>
                           </div>
                         )}

@@ -185,7 +185,7 @@ export const generateBaseAvatarSketch = async (
   - CLOSE-UP PORTRAIT: Focus strictly on the face and head silhouette. No shoulders or body.
   - HAIRLESS/BALD BASE: Render the person with a clean bald head or very tight pulled back hair. This is a base for overlays.
   - STYLE: Elegant, professional ink lines on a clean white background. 
-  - IDENTITY: Maintain the exact facial features and proportions to ensure recognition.
+  - IDENTITY: Maintain the exact facial features and proportions to ensure recognition. THE FACE MUST BE 100% IDENTICAL to the source.
   - NO BACKGROUND: Plain white background only.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
@@ -219,7 +219,7 @@ export const generateFashionSketch = async (
   STYLE REQUIREMENTS:
   - PORTRAIT HEADSHOT: Focus strictly on the head and neck. Do NOT show the full body or torso.
   - HIGH FIDELITY: Use professional fashion illustration techniques (pencil, charcoal, subtle watercolor).
-  - ACCURACY: The person's facial features must look exactly like the original photo.
+  - STERN IDENTITY PRESERVATION: The person's facial features MUST look exactly like the original photo. DO NOT change the person's appearance.
   - CONSISTENCY: If a base sketch is provided, use it as a reference for the artistic style, perspective, and facial proportions. 
   - HAIRSTYLE: The ${styleName} must look natural, textured, and elegant.
   - BACKGROUND: Clean, empty white background.`;
@@ -262,10 +262,11 @@ export const generateHairstyleImage = async (
   - The color must be natural and sophisticated, with realistic highlights, lowlights, and dimension as seen in high-end salon work.
   - Ensure the color precisely matches the requested shade provided in the description.
   
-  CRITICAL IDENTITY PRESERVATION:
-  1. Keep the person's face EXACTLY as it is. Do not alter facial features, skin tone, or underlying bone structure.
-  2. ONLY modify the hair area.
-  3. The identity and lighting of the original photo must be perfectly preserved.`;
+  ABSOLUTE IDENTITY PRESERVATION (STRICT MANDATE):
+  1. KEEP THE FACE 100% UNCHANGED. Every single pixel of the facial features (eyes, nose, lips, bone structure, unique marks) MUST be identical to the original person.
+  2. ONLY modify the hair area. Do not adjust skin tone, eyes, or face shape.
+  3. This is a virtual try-on: the person must be RECOGNIZABLE as themselves, just with a new hairstyle. Any alteration of the face is a failure.
+  4. The identity and lighting of the original photo must be perfectly preserved.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
