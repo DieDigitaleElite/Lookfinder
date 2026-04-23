@@ -32,8 +32,10 @@ interface StylingStudioProps {
   avatarSketch?: string | null;
   isPremium?: boolean;
   preGeneratedSketches?: Record<string, string>;
+  isPremiumFetching?: boolean;
   isGeneratingBackground?: boolean;
   onCheckout?: (plan: 'monthly' | 'yearly') => void;
+  onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
 }
 
 export default function StylingStudio({ 
@@ -45,13 +47,17 @@ export default function StylingStudio({
   isPremium = false,
   preGeneratedSketches = {},
   isGeneratingBackground = false,
-  onCheckout
+  onCheckout,
+  onOpenLegalModal
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
   const [selectedWorld, setSelectedWorld] = useState(COLOR_WORLDS[0].id);
   const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToWiderruf, setAgreedToWiderruf] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -411,11 +417,61 @@ export default function StylingStudio({
                   </div>
                 </div>
 
+                {/* Error Message */}
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3 text-red-600 text-xs font-bold"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center shrink-0">!</div>
+                    <span>{error}</span>
+                  </motion.div>
+                )}
+
+                {/* Legal Checkboxes */}
+                <div className={`space-y-4 p-5 rounded-[2rem] border transition-all ${(!agreedToTerms || !agreedToWiderruf) && error ? 'bg-red-50 border-red-200' : 'bg-black/5 border-transparent'}`}>
+                  <label className="flex items-start gap-4 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={agreedToTerms} 
+                      onChange={(e) => {
+                        setAgreedToTerms(e.target.checked);
+                        if (e.target.checked && agreedToWiderruf) setError(null);
+                      }}
+                      className="mt-1 w-5 h-5 rounded-lg border-black/10 text-brand-primary focus:ring-brand-primary"
+                    />
+                    <span className="text-[10px] md:text-xs text-brand-primary/60 leading-relaxed font-medium">
+                      Ich akzeptiere die <button onClick={() => onOpenLegalModal?.('agb')} className="text-brand-primary font-bold underline">AGB</button> und habe die <button onClick={() => onOpenLegalModal?.('datenschutz')} className="text-brand-primary font-bold underline">Datenschutzerklärung</button> gelesen.
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-4 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={agreedToWiderruf} 
+                      onChange={(e) => {
+                        setAgreedToWiderruf(e.target.checked);
+                        if (e.target.checked && agreedToTerms) setError(null);
+                      }}
+                      className="mt-1 w-5 h-5 rounded-lg border-black/10 text-brand-primary focus:ring-brand-primary"
+                    />
+                    <span className="text-[10px] md:text-xs text-brand-primary/60 leading-relaxed font-medium">
+                      Ich stimme ausdrücklich zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags beginnt. Mir ist bekannt, dass ich dadurch mein <button onClick={() => onOpenLegalModal?.('widerruf')} className="text-brand-primary font-bold underline">Widerrufsrecht</button> verliere.
+                    </span>
+                  </label>
+                </div>
+
                 {/* Plans Selection */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Yearly Plan - The Winner */}
                   <button 
-                    onClick={() => onCheckout?.('yearly')}
+                    onClick={() => {
+                      if (!agreedToTerms || !agreedToWiderruf) {
+                        setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                        return;
+                      }
+                      onCheckout?.('yearly');
+                    }}
                     className="relative p-6 rounded-3xl border-2 border-[#FF9EBE] bg-[#FF9EBE]/5 text-left group hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(255,158,190,0.1)] hover:shadow-[0_0_30px_rgba(255,158,190,0.2)]"
                   >
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-brand-primary text-[#FF9EBE] rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg animate-pulse">
@@ -433,7 +489,13 @@ export default function StylingStudio({
 
                   {/* Monthly Plan */}
                   <button 
-                    onClick={() => onCheckout?.('monthly')}
+                    onClick={() => {
+                      if (!agreedToTerms || !agreedToWiderruf) {
+                        setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                        return;
+                      }
+                      onCheckout?.('monthly');
+                    }}
                     className="p-6 rounded-3xl border-2 border-black/5 bg-white text-left group hover:border-[#FF9EBE]/40 hover:scale-[1.02] transition-all shadow-sm"
                   >
                     <div className="space-y-1">
@@ -448,10 +510,16 @@ export default function StylingStudio({
                 </div>
 
                 <div className="space-y-4 pt-2">
-                   <button 
-                    onClick={() => onCheckout?.('yearly')}
-                    className="w-full py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/40 flex items-center justify-center gap-3 hover:scale-[1.01] transition-transform relative overflow-hidden group"
-                   >
+                    <button 
+                     onClick={() => {
+                       if (!agreedToTerms || !agreedToWiderruf) {
+                         setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                         return;
+                       }
+                       onCheckout?.('yearly');
+                     }}
+                     className="w-full py-5 bg-brand-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-2xl shadow-brand-primary/40 flex items-center justify-center gap-3 hover:scale-[1.01] transition-transform relative overflow-hidden group"
+                    >
                      <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
                      <span>Meinen neuen Look jetzt erleben</span>
                      <ArrowRightLeft size={18} />

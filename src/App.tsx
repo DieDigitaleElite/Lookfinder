@@ -171,6 +171,7 @@ export default function App() {
   const [usageCount, setUsageCount] = useState(0);
   const [clientIp, setClientIp] = useState<string | null>(null);
 
+  const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | null>(null);
   const [activePoll, setActivePoll] = useState<any>(null);
   const [isPollSyncing, setIsPollSyncing] = useState(() => new URLSearchParams(window.location.search).has('poll'));
   const [votedId, setVotedId] = useState<string | null>(null);
@@ -181,6 +182,15 @@ export default function App() {
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls'>('overview');
   const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
+
+  // Handle post-login redirects
+  useEffect(() => {
+    if (user && pendingTab) {
+      setDashboardTab(pendingTab);
+      setPendingTab(null);
+      setShowLoginModal(false);
+    }
+  }, [user, pendingTab]);
 
   // Background sketch generation for all library styles
   useEffect(() => {
@@ -665,6 +675,7 @@ export default function App() {
 
       setUser(currentUser);
       setAuthInitializing(false);
+      
       if (currentUser) {
         // Sync user profile and listen for changes (like premium status)
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -2483,6 +2494,7 @@ export default function App() {
                         preGeneratedSketches={hairstyleSketches}
                         isGeneratingBackground={isGeneratingBackground}
                         onCheckout={handleCheckout}
+                        onOpenLegalModal={setActiveLegalModal}
                       />
                     </div>
                   </div>
@@ -3133,7 +3145,14 @@ export default function App() {
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          onClick={() => setDashboardTab('studio')}
+                          onClick={() => {
+                            if (!user) {
+                              setPendingTab('studio');
+                              setShowLoginModal(true);
+                            } else {
+                              setDashboardTab('studio');
+                            }
+                          }}
                           className="group relative bg-white p-6 rounded-[2.5rem] border-2 border-[#FF9EBE] shadow-xl hover:shadow-2xl transition-all cursor-pointer flex flex-col items-center justify-between overflow-hidden"
                         >
                           <div className="absolute top-0 right-0 p-3 bg-[#FF9EBE] text-white text-[8px] font-black uppercase tracking-widest rounded-bl-2xl">
