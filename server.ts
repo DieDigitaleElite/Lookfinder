@@ -45,11 +45,17 @@ function getStripe() {
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  // Shorten headers for logs
+  const safeHeaders = { ...req.headers };
+  if (safeHeaders.authorization) safeHeaders.authorization = "[REDACTED]";
+  if (safeHeaders.cookie) safeHeaders.cookie = "[REDACTED]";
+  console.log(`Headers: ${JSON.stringify(safeHeaders)}`);
   next();
 });
 
@@ -203,6 +209,10 @@ apiRouter.all("*", (req, res) => {
 });
 
 app.use("/api", apiRouter);
+// Also mount at root for Vercel functions where the /api path might be stripped by the serverless loader
+if (process.env.VERCEL) {
+  app.use("/", apiRouter);
+}
 
 async function startServer() {
   console.log("Starting server with NODE_ENV:", process.env.NODE_ENV);

@@ -1420,7 +1420,8 @@ function MainApp() {
     localStorage.removeItem('frisurenai_pending_uid');
     
     try {
-      const base64Data = image.split(',')[1];
+      const processedImage = await getProcessedImage(image);
+      const base64Data = processedImage.split(',')[1];
       const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       if (suggestions.length === 0) {
@@ -1612,11 +1613,22 @@ function MainApp() {
     }
   };
 
+  const getProcessedImage = async (base64: string): Promise<string> => {
+    try {
+      console.log("Processing image for AI...");
+      return await fastResizeImage(base64, 1024, 0.85);
+    } catch (err) {
+      console.warn("Processing failed, using original", err);
+      return base64;
+    }
+  };
+
   const handleAnalyzeFace = async () => {
     if (!image) return;
     setIsGenerating(true);
     try {
-      const base64Data = image.split(',')[1];
+      const processedImage = await getProcessedImage(image);
+      const base64Data = processedImage.split(',')[1];
       const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       const faceShape = analysis[0]?.faceShape || 'Oval';
@@ -1649,7 +1661,8 @@ function MainApp() {
   const handleGenerateFashionSketch = async (styleName: string): Promise<string | null> => {
     if (!image) return null;
     try {
-      const base64Data = image.split(',')[1];
+      const processedImage = await getProcessedImage(image);
+      const base64Data = processedImage.split(',')[1];
       return await generateFashionSketch(base64Data, mimeType, styleName, avatarSketch);
     } catch (err) {
       console.error("Fashion sketch generation failed", err);
@@ -1665,7 +1678,8 @@ function MainApp() {
     setAvatarSketch(null); // Clear previous sketch
 
     try {
-      const base64Data = base64.split(',')[1];
+      const processedImage = await getProcessedImage(base64);
+      const base64Data = processedImage.split(',')[1];
       const sketch = await generateBaseAvatarSketch(base64Data, type);
       if (sketch) {
         setAvatarSketch(sketch);
@@ -1702,7 +1716,8 @@ function MainApp() {
     setError(null);
     
     try {
-      const base64Data = image.split(',')[1];
+      const processedImage = await getProcessedImage(image);
+      const base64Data = processedImage.split(',')[1];
       const styleWithColor = `${selectedLibraryStyle.name} in der Farbe ${selectedColor.name}`;
       const descriptionWithColor = `${selectedLibraryStyle.description} Die Haarfarbe soll ein realistisches ${selectedColor.name} sein.`;
       
