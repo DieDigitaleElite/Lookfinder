@@ -15,7 +15,7 @@ import {
   Filter
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db } from '../firebase';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
 
 interface UserData {
@@ -42,8 +42,9 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
   }, []);
 
   const fetchUsers = async () => {
+    const path = 'users';
     try {
-      const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'), limit(100));
       const querySnapshot = await getDocs(q);
       const fetchedUsers = querySnapshot.docs.map(doc => ({
         ...doc.data()
@@ -60,7 +61,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
       
       setLoading(false);
     } catch (err) {
-      console.error("Failed to fetch admin data", err);
+      handleFirestoreError(err, OperationType.LIST, path);
       setLoading(false);
     }
   };

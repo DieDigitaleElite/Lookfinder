@@ -18,7 +18,10 @@ import {
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc, increment, collection, addDoc, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, deleteDoc, getDocFromServer } from 'firebase/firestore';
 
-import firebaseConfigJson from '../firebase-applet-config.json';
+// Import the Firebase configuration optionally (to not break build if file is missing)
+// @ts-ignore
+const configFiles = import.meta.glob('../firebase-applet-config.json', { eager: true, import: 'default' });
+const firebaseConfigJson = (configFiles['../firebase-applet-config.json'] as any) || {};
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
@@ -33,7 +36,7 @@ const firebaseConfig = {
 
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

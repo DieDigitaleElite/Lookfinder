@@ -28,9 +28,6 @@ declare global {
 import ReactGA from 'react-ga4';
 import { jsPDF } from 'jspdf';
 import confetti from 'canvas-confetti';
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
-import { HelmetProvider, Helmet } from 'react-helmet-async';
-import SEOLandingPage from './components/SEOLandingPage';
 import { 
   auth, 
   googleProvider, 
@@ -63,19 +60,6 @@ import {
 } from './firebase';
 
 export default function App() {
-  return (
-    <HelmetProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/frisuren-online-testen" element={<SEOLandingPage />} />
-          <Route path="/*" element={<MainApp />} />
-        </Routes>
-      </BrowserRouter>
-    </HelmetProvider>
-  );
-}
-
-function MainApp() {
   const [image, setImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_image'));
   const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('frisurenai_pending_mime_type') || '');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -2053,11 +2037,7 @@ function MainApp() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col font-sans text-brand-primary overflow-x-hidden">
-      <Helmet>
-        <title>Frisuren.ai – Deine KI-Frisur-Analyse & Hairstyler</title>
-        <meta name="description" content="Entdecke deinen neuen Look mit KI. Lade ein Foto hoch und teste hunderte Frisuren und Farben realistisch in HD." />
-      </Helmet>
+    <div className="min-h-screen flex flex-col">
       {needsApiKey && (
         <div className="bg-red-600 text-white p-3 text-center text-sm font-medium flex items-center justify-center gap-3 sticky top-0 z-[60]">
           <Lock size={16} />
