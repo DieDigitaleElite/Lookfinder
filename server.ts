@@ -227,14 +227,12 @@ async function startServer() {
         next(e);
       }
     });
-  } else {
+  } else if (!process.env.VERCEL) {
+    // Standard Node.js production environment (not Vercel)
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     
-    // API routes are already handled above
     app.get("*", (req, res) => {
-      // If it's an API route that wasn't caught, it falls through to the 404 handler in apiRouter
-      // Otherwise, serve the SPA
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
