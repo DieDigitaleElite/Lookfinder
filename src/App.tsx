@@ -142,6 +142,7 @@ function MainApp() {
     }
     return [];
   });
+  const [needsApiKey, setNeedsApiKey] = useState(false);
   
   const isPaymentProcessingRef = useRef(false);
   
@@ -307,12 +308,12 @@ function MainApp() {
 
   // Manage body overflow for full-screen modals
   useEffect(() => {
-    if (showStylingStudio || showGallery || showProfileModal || showDeleteConfirm || showPricingModal || showUpsellModal || activeLegalModal) {
+    if (showStylingStudio || showGallery || showProfileModal || showDeleteConfirm || showPricingModal || showUpsellModal || activeLegalModal || needsApiKey) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
     }
-  }, [showStylingStudio, showGallery, showProfileModal, showDeleteConfirm, showPricingModal, showUpsellModal, activeLegalModal]);
+  }, [showStylingStudio, showGallery, showProfileModal, showDeleteConfirm, showPricingModal, showUpsellModal, activeLegalModal, needsApiKey]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -843,6 +844,22 @@ function MainApp() {
     };
   }, []);
 
+  // Check for API key on mount
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio) {
+        try {
+          const hasKey = await window.aistudio.hasSelectedApiKey();
+          if (!hasKey) {
+            setNeedsApiKey(true);
+          }
+        } catch (err) {
+          console.error("Failed to check API key status", err);
+        }
+      }
+    };
+    checkKey();
+  }, []);
 
   // Separate effect to handle pending payment once user is logged in
   useEffect(() => {
@@ -1392,8 +1409,30 @@ function MainApp() {
     }
   };
 
+  const handleOpenSelectKey = async () => {
+    if (window.aistudio) {
+      try {
+        await window.aistudio.openSelectKey();
+        setNeedsApiKey(false);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to open key selection", err);
+      }
+    }
+  };
+
   const processImage = async () => {
     if (!image) return;
+
+    // Check for API key if needed
+    if (window.aistudio) {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        setNeedsApiKey(true);
+        setError("Bitte wähle zuerst einen API-Key aus, um die KI-Funktionen zu nutzen.");
+        return;
+      }
+    }
 
     // Usage check
     const limit = isPremium ? Infinity : 100; // Increased to 100 for testing
@@ -1420,8 +1459,7 @@ function MainApp() {
     localStorage.removeItem('frisurenai_pending_uid');
     
     try {
-      const processedImage = await getProcessedImage(image);
-      const base64Data = processedImage.split(',')[1];
+      const base64Data = image.split(',')[1];
       const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       if (suggestions.length === 0) {
@@ -1515,8 +1553,9 @@ function MainApp() {
       
       // Check for API key error
       const errorMsg = err.message || String(err);
-      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT") || errorMsg.includes("GEMINI_API_KEY")) {
-        setError("KI-Konfigurationsfehler: Der API-Dienst konnte nicht initialisiert werden. Bitte kontaktiere den Support.");
+      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT")) {
+        setNeedsApiKey(true);
+        setError("API-Key ungültig oder nicht ausgewählt. Bitte wähle einen gültigen API-Key aus, um die KI-Funktionen zu nutzen.");
       } else {
         setError(errorMsg || "Ein Fehler ist aufgetreten. Bitte versuche es erneut.");
       }
@@ -1613,22 +1652,11 @@ function MainApp() {
     }
   };
 
-  const getProcessedImage = async (base64: string): Promise<string> => {
-    try {
-      console.log("Processing image for AI...");
-      return await fastResizeImage(base64, 1024, 0.85);
-    } catch (err) {
-      console.warn("Processing failed, using original", err);
-      return base64;
-    }
-  };
-
   const handleAnalyzeFace = async () => {
     if (!image) return;
     setIsGenerating(true);
     try {
-      const processedImage = await getProcessedImage(image);
-      const base64Data = processedImage.split(',')[1];
+      const base64Data = image.split(',')[1];
       const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       const faceShape = analysis[0]?.faceShape || 'Oval';
@@ -1661,8 +1689,7 @@ function MainApp() {
   const handleGenerateFashionSketch = async (styleName: string): Promise<string | null> => {
     if (!image) return null;
     try {
-      const processedImage = await getProcessedImage(image);
-      const base64Data = processedImage.split(',')[1];
+      const base64Data = image.split(',')[1];
       return await generateFashionSketch(base64Data, mimeType, styleName, avatarSketch);
     } catch (err) {
       console.error("Fashion sketch generation failed", err);
@@ -1678,8 +1705,7 @@ function MainApp() {
     setAvatarSketch(null); // Clear previous sketch
 
     try {
-      const processedImage = await getProcessedImage(base64);
-      const base64Data = processedImage.split(',')[1];
+      const base64Data = base64.split(',')[1];
       const sketch = await generateBaseAvatarSketch(base64Data, type);
       if (sketch) {
         setAvatarSketch(sketch);
@@ -1716,8 +1742,7 @@ function MainApp() {
     setError(null);
     
     try {
-      const processedImage = await getProcessedImage(image);
-      const base64Data = processedImage.split(',')[1];
+      const base64Data = image.split(',')[1];
       const styleWithColor = `${selectedLibraryStyle.name} in der Farbe ${selectedColor.name}`;
       const descriptionWithColor = `${selectedLibraryStyle.description} Die Haarfarbe soll ein realistisches ${selectedColor.name} sein.`;
       
@@ -1769,8 +1794,9 @@ function MainApp() {
     } catch (err: any) {
       console.error("Custom generation failed", err);
       const errorMsg = err.message || String(err);
-      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT") || errorMsg.includes("GEMINI_API_KEY")) {
-        setError("KI-Konfigurationsfehler: Bitte kontaktiere den Support.");
+      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT")) {
+        setNeedsApiKey(true);
+        setError("API-Key ungültig oder nicht ausgewählt. Bitte wähle einen gültigen API-Key aus.");
       } else {
         setError("Fehler bei der individuellen Generierung.");
       }
@@ -2032,6 +2058,18 @@ function MainApp() {
         <title>Frisuren.ai – Deine KI-Frisur-Analyse & Hairstyler</title>
         <meta name="description" content="Entdecke deinen neuen Look mit KI. Lade ein Foto hoch und teste hunderte Frisuren und Farben realistisch in HD." />
       </Helmet>
+      {needsApiKey && (
+        <div className="bg-red-600 text-white p-3 text-center text-sm font-medium flex items-center justify-center gap-3 sticky top-0 z-[60]">
+          <Lock size={16} />
+          <span>API-Key erforderlich für KI-Funktionen</span>
+          <button 
+            onClick={handleOpenSelectKey}
+            className="bg-white text-red-600 px-4 py-1 rounded-full text-xs font-bold hover:bg-red-50 transition-colors"
+          >
+            Jetzt auswählen
+          </button>
+        </div>
+      )}
       {/* Header */}
       <header className="py-6 px-4 md:px-8 border-b border-black/5 bg-white/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -3052,6 +3090,15 @@ function MainApp() {
                         <AlertCircle size={16} className="mt-0.5 shrink-0" />
                         <span>{error}</span>
                       </div>
+                      {needsApiKey && (
+                        <button 
+                          onClick={handleOpenSelectKey}
+                          className="w-full py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <Lock size={14} />
+                          API-Key auswählen
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

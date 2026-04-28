@@ -3,22 +3,8 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
 import dotenv from "dotenv";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
-
-// AI Setup
-let genAI: GoogleGenerativeAI | null = null;
-function getGenAI() {
-  if (!genAI) {
-    const key = process.env.GEMINI_API_KEY;
-    if (!key) {
-      throw new Error("GEMINI_API_KEY is not configured.");
-    }
-    genAI = new GoogleGenerativeAI(key);
-  }
-  return genAI;
-}
 
 let stripe: Stripe | null = null;
 
@@ -45,17 +31,11 @@ function getStripe() {
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+app.use(express.json());
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  // Shorten headers for logs
-  const safeHeaders = { ...req.headers };
-  if (safeHeaders.authorization) safeHeaders.authorization = "[REDACTED]";
-  if (safeHeaders.cookie) safeHeaders.cookie = "[REDACTED]";
-  console.log(`Headers: ${JSON.stringify(safeHeaders)}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
@@ -74,38 +54,6 @@ apiRouter.get("/test", (req, res) => {
 apiRouter.get("/get-client-ip", (req, res) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
   res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
-});
-
-apiRouter.post("/ai/generate", async (req, res) => {
-  try {
-    const { model, contents, config } = req.body;
-    const ai = getGenAI();
-    const genModel = ai.getGenerativeModel({ model });
-    
-    const result = await genModel.generateContent({
-      contents,
-      generationConfig: config
-    });
-    
-    const response = await result.response;
-    const text = response.text();
-    
-    // Check for inlineData (images) in parts
-    const parts = response.candidates?.[0]?.content?.parts || [];
-    const images = parts.filter(p => !!p.inlineData).map(p => ({
-      data: p.inlineData?.data,
-      mimeType: p.inlineData?.mimeType
-    }));
-
-    res.json({ 
-      text,
-      images,
-      candidates: response.candidates 
-    });
-  } catch (error: any) {
-    console.error("AI Generation error:", error);
-    res.status(500).json({ error: error.message });
-  }
 });
 
 apiRouter.post("/create-checkout-session", async (req, res) => {
@@ -209,10 +157,6 @@ apiRouter.all("*", (req, res) => {
 });
 
 app.use("/api", apiRouter);
-// Also mount at root for Vercel functions where the /api path might be stripped by the serverless loader
-if (process.env.VERCEL) {
-  app.use("/", apiRouter);
-}
 
 async function startServer() {
   console.log("Starting server with NODE_ENV:", process.env.NODE_ENV);
@@ -237,12 +181,14 @@ async function startServer() {
         next(e);
       }
     });
-  } else if (!process.env.VERCEL) {
-    // Standard Node.js production environment (not Vercel)
+  } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     
+    // API routes are already handled above
     app.get("*", (req, res) => {
+      // If it's an API route that wasn't caught, it falls through to the 404 handler in apiRouter
+      // Otherwise, serve the SPA
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

@@ -1,19 +1,38 @@
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-const callAIProxy = async (model: string, contents: any, config?: any) => {
-  const response = await fetch("/api/ai/generate", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model, contents, config }),
-  });
+const getAI = () => {
+  // Use a helper to get the key safely from multiple sources
+  const getApiKey = () => {
+    const win = window as any;
+    
+    // 1. Try direct Vite env access (most reliable in local/build)
+    try {
+      const env = (import.meta as any).env;
+      if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
+      if (env?.VITE_API_KEY) return env.VITE_API_KEY;
+    } catch {}
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "Failed to generate AI content");
+    // 2. Try global variables (often used in production/cloud environments)
+    if (win.GEMINI_API_KEY) return win.GEMINI_API_KEY;
+    if (win.API_KEY) return win.API_KEY;
+    
+    // 3. Try process.env (fallback for some environments)
+    try {
+      if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+      if (process.env.API_KEY) return process.env.API_KEY;
+    } catch {}
+
+    return null;
+  };
+  
+  const apiKey = getApiKey();
+  
+  if (!apiKey) {
+    // This error message will be caught by App.tsx to show the selection UI
+    throw new Error("API key is missing. Please provide a valid API key.");
   }
-
-  return response.json();
+  
+  return new GoogleGenAI({ apiKey });
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -95,15 +114,19 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   
   WICHTIG: Erkläre in 'suitabilityReason' ganz genau, warum dieser Style zur erkannten Gesichtsform passt (z.B. 'Dieses Volumen an den Seiten gleicht dein eher schmales Gesicht perfekt aus').`;
 
-  const response = await withRetry(() => callAIProxy(model, [
-    {
-      parts: [
-        { inlineData: { data: base64Image, mimeType } },
-        { text: prompt }
-      ]
+  const response = await withRetry(() => getAI().models.generateContent({
+    model,
+    contents: [
+      {
+        parts: [
+          { inlineData: { data: base64Image, mimeType } },
+          { text: prompt }
+        ]
+      }
+    ],
+    config: {
+      responseMimeType: "application/json",
     }
-  ], {
-    responseMimeType: "application/json",
   }));
 
   try {
@@ -135,9 +158,13 @@ export const getAIPoweredStylingReason = async (
     
     Die Antwort muss auf Deutsch sein und den User begeistern. Erwähne spezifische Merkmale wie 'Wangenknochen betonen', 'Gesicht optisch strecken' oder 'weiche Konturen schaffen'.`;
 
-    const response = await withRetry(() => callAIProxy(model, [{ role: "user", parts: [{ text: prompt }] }], {
-      temperature: 0.7,
-      maxOutputTokens: 150,
+    const response = await withRetry(() => getAI().models.generateContent({
+      model,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0.7,
+        maxOutputTokens: 150,
+      }
     }));
 
     return response.text || `Dieser Look schmeichelt deiner ${faceShape}en Gesichtsform und betont deine Züge auf elegante Weise.`;
@@ -161,15 +188,20 @@ export const generateBaseAvatarSketch = async (
   - Close-up portrait only (head and neck).
   - NO background details.`;
 
-  const response = await withRetry(() => callAIProxy(model, {
-    parts: [
-      { inlineData: { data: originalBase64, mimeType } },
-      { text: prompt }
-    ]
+  const response = await withRetry(() => getAI().models.generateContent({
+    model,
+    contents: {
+      parts: [
+        { inlineData: { data: originalBase64, mimeType } },
+        { text: prompt }
+      ]
+    }
   }));
 
-  if (response.images && response.images.length > 0) {
-    return `data:image/png;base64,${response.images[0].data}`;
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
   }
 
   return null;
@@ -201,10 +233,15 @@ export const generateFashionSketch = async (
 
   parts.push({ text: prompt });
 
-  const response = await withRetry(() => callAIProxy(model, { parts }));
+  const response = await withRetry(() => getAI().models.generateContent({
+    model,
+    contents: { parts }
+  }));
 
-  if (response.images && response.images.length > 0) {
-    return `data:image/png;base64,${response.images[0].data}`;
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
   }
 
   return null;
@@ -225,15 +262,20 @@ export const generateHairstyleImage = async (
   3. PHOTOREALISM: The hair must have ultra-realistic textures, salon-quality color with highlights/lowlights, and natural light interaction.
   4. NO HALLUCINATION: Do not change the background, lighting, or clothes unless absolutely necessary for the hair to look natural.`;
 
-  const response = await withRetry(() => callAIProxy(model, {
-    parts: [
-      { inlineData: { data: originalBase64, mimeType } },
-      { text: prompt }
-    ]
+  const response = await withRetry(() => getAI().models.generateContent({
+    model,
+    contents: {
+      parts: [
+        { inlineData: { data: originalBase64, mimeType } },
+        { text: prompt }
+      ]
+    }
   }));
 
-  if (response.images && response.images.length > 0) {
-    return `data:image/png;base64,${response.images[0].data}`;
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      return `data:image/png;base64,${part.inlineData.data}`;
+    }
   }
 
   return null;
