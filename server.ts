@@ -3,8 +3,22 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
 import dotenv from "dotenv";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
+
+// AI Setup
+let genAI: GoogleGenerativeAI | null = null;
+function getGenAI() {
+  if (!genAI) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      throw new Error("GEMINI_API_KEY is not configured.");
+    }
+    genAI = new GoogleGenerativeAI(key);
+  }
+  return genAI;
+}
 
 let stripe: Stripe | null = null;
 
@@ -54,6 +68,38 @@ apiRouter.get("/test", (req, res) => {
 apiRouter.get("/get-client-ip", (req, res) => {
   const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
   res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
+});
+
+apiRouter.post("/ai/generate", async (req, res) => {
+  try {
+    const { model, contents, config } = req.body;
+    const ai = getGenAI();
+    const genModel = ai.getGenerativeModel({ model });
+    
+    const result = await genModel.generateContent({
+      contents,
+      generationConfig: config
+    });
+    
+    const response = await result.response;
+    const text = response.text();
+    
+    // Check for inlineData (images) in parts
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    const images = parts.filter(p => !!p.inlineData).map(p => ({
+      data: p.inlineData?.data,
+      mimeType: p.inlineData?.mimeType
+    }));
+
+    res.json({ 
+      text,
+      images,
+      candidates: response.candidates 
+    });
+  } catch (error: any) {
+    console.error("AI Generation error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 apiRouter.post("/create-checkout-session", async (req, res) => {
