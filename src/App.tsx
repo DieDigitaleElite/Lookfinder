@@ -1301,14 +1301,17 @@ export default function App() {
       });
 
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const base64 = event.target?.result as string;
         
         // Reset current generation state immediately
         setResults([]);
         setError(null);
         setMimeType(file.type);
-        setImage(base64); // Set original image immediately for zero-lag UI
+        
+        // Resize image immediately
+        const processedImage = await fastResizeImage(base64, 1024, 0.7);
+        setImage(processedImage); 
       };
       reader.readAsDataURL(file);
     }
@@ -1685,11 +1688,14 @@ export default function App() {
     setResults([]);
     setError(null);
     setMimeType(type);
-    setImage(base64);
+    
+    // Resize image immediately to keep memory usage low and prevent API timeouts
+    const processedImage = await fastResizeImage(base64, 1024, 0.7);
+    setImage(processedImage);
     setAvatarSketch(null); // Clear previous sketch
 
     try {
-      const base64Data = base64.split(',')[1];
+      const base64Data = processedImage.split(',')[1];
       const sketch = await generateBaseAvatarSketch(base64Data, type);
       if (sketch) {
         setAvatarSketch(sketch);

@@ -3,32 +3,32 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 const getAI = () => {
   // Use a helper to get the key safely from multiple sources
   const getApiKey = () => {
+    // 1. Try process.env (primary source for AI Studio)
+    try {
+      if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+      if (process.env.VITE_GEMINI_API_KEY) return process.env.VITE_GEMINI_API_KEY;
+    } catch {}
+
     const win = window as any;
     
-    // 1. Try direct Vite env access (most reliable in local/build)
+    // 2. Try direct Vite env access (fallback)
     try {
       const env = (import.meta as any).env;
       if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
       if (env?.VITE_API_KEY) return env.VITE_API_KEY;
     } catch {}
 
-    // 2. Try global variables (often used in production/cloud environments)
+    // 3. Try global variables
     if (win.GEMINI_API_KEY) return win.GEMINI_API_KEY;
     if (win.API_KEY) return win.API_KEY;
     
-    // 3. Try process.env (fallback for some environments)
-    try {
-      if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-      if (process.env.API_KEY) return process.env.API_KEY;
-    } catch {}
-
     return null;
   };
   
   const apiKey = getApiKey();
   
   if (!apiKey) {
-    // This error message will be caught by App.tsx to show the selection UI
+    console.error("Gemini API key is missing from all expected sources.");
     throw new Error("API key is missing. Please provide a valid API key.");
   }
   
@@ -37,7 +37,7 @@ const getAI = () => {
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 8): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -56,12 +56,10 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 8): Promise<T> =>
                           errorMsg.includes("DEADLINE_EXCEEDED") ||
                           [429, 500, 503, 504].includes(status);
 
-      if (isRetryable) {
-        // More patient backoff for rate limits: 7s, 14s, 28s... 
-        // We add more jitter to avoid "thundering herd" if multiple users retry at once
-        const baseDelay = errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") ? 8000 : 5000;
-        const waitTime = Math.pow(2, i) * baseDelay + Math.random() * 5000;
-        console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms... Error: ${errorMsg}`);
+      if (isRetryable && i < maxRetries - 1) {
+        const baseDelay = errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") ? 5000 : 2000;
+        const waitTime = Math.pow(2, i) * baseDelay + Math.random() * 2000;
+        console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms...`);
         await sleep(waitTime);
         continue;
       }
@@ -116,14 +114,12 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
-    contents: [
-      {
-        parts: [
-          { inlineData: { data: base64Image, mimeType } },
-          { text: prompt }
-        ]
-      }
-    ],
+    contents: {
+      parts: [
+        { inlineData: { data: base64Image, mimeType } },
+        { text: prompt }
+      ]
+    },
     config: {
       responseMimeType: "application/json",
     }
