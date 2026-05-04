@@ -1309,8 +1309,8 @@ export default function App() {
         setError(null);
         setMimeType(file.type);
         
-        // Resize image immediately
-        const processedImage = await fastResizeImage(base64, 1024, 0.7);
+        // Resize image immediately - using smaller size for mobile/web upload to save tokens/bandwidth
+        const processedImage = await fastResizeImage(base64, 800, 0.65);
         setImage(processedImage); 
       };
       reader.readAsDataURL(file);
@@ -1464,36 +1464,37 @@ export default function App() {
       setIsGenerating(true);
       setGenerationProgress(0);
 
-      const generatedResults: GeneratedResult[] = [];
-      
       // Initialize results with suggestions but no images yet to show placeholders
       setResults(suggestions.map(s => ({ ...s, imageUrl: "" })));
 
-      // Generate images sequentially to avoid rate limits and improve stability
       const maxToGenerate = isPremium ? suggestions.length : 3;
       
-      // Generate the "drawn miniature" head (Hingucker) as soon as possible
-      generateBaseAvatarSketch(base64Data, mimeType).then(async (sketch) => {
-        if (sketch) {
-          setAvatarSketch(sketch);
-          // If user is logged in, save it to their profile for persistence
-          if (auth.currentUser) {
-            try {
+      // Delay avatar sketch to avoid hitting rate limit at the start
+      const generateSketchDelayed = async () => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const sketch = await generateBaseAvatarSketch(base64Data, mimeType);
+          if (sketch) {
+            setAvatarSketch(sketch);
+            if (auth.currentUser) {
               const userRef = doc(db, 'users', auth.currentUser.uid);
               await updateDoc(userRef, { avatarSketch: sketch });
-            } catch (err) {
-              console.warn("Failed to save sketch to profile", err);
             }
           }
+        } catch (err) {
+          console.warn("Avatar sketch failed (likely rate limit), skipping...", err);
         }
-      }).catch(err => console.error("Avatar calculation failed", err));
+      };
+      
+      generateSketchDelayed();
 
       for (let i = 0; i < maxToGenerate; i++) {
         const suggestion = suggestions[i];
         console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
         try {
-          // Increased delay between requests to avoid overlapping limits, especially on mobile
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 3500));
+          // Increased delay between requests to avoid overlapping limits (15 RPM = 1 req / 4s)
+          // We use 5 seconds to be safe, especially on mobile networks
+          if (i > 0) await new Promise(resolve => setTimeout(resolve, 5000));
           
           const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
           
