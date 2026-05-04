@@ -369,6 +369,7 @@ export default function App() {
 
   const handleCreatePoll = async (result: GeneratedResult) => {
     if (!user) {
+      setIsRegistering(true);
       setShowLoginModal(true);
       return;
     }
@@ -457,6 +458,7 @@ export default function App() {
 
   const handleCreateAdvancedPoll = async (selectedItems: any[], pollQuestion: string) => {
     if (!user) {
+      setIsRegistering(true);
       setShowLoginModal(true);
       return;
     }
@@ -1217,7 +1219,10 @@ export default function App() {
 
   const saveResult = async (result: GeneratedResult, silent = false) => {
     if (!user || failedSaves.has(result.id)) {
-      if (!user && !silent) setShowLoginModal(true);
+      if (!user && !silent) {
+        setIsRegistering(true);
+        setShowLoginModal(true);
+      }
       return;
     }
 
@@ -1426,6 +1431,7 @@ export default function App() {
     if (usageCount >= limit) {
       if (!user) {
         setAuthMessage({ type: 'info', text: "Du hast dein kostenloses Limit als Gast erreicht. Bitte registriere dich, um weitere Styles zu sehen!" });
+        setIsRegistering(true);
         setShowLoginModal(true);
       } else {
         setAuthMessage({ type: 'info', text: "Du hast dein kostenloses Limit erreicht. Werde Premium-Mitglied für unbegrenzte Styles!" });
@@ -1533,7 +1539,10 @@ export default function App() {
 
       // Show login modal if user is not logged in to show benefits
       if (!auth.currentUser) {
-        setTimeout(() => setShowLoginModal(true), 1500);
+        setTimeout(() => {
+          setIsRegistering(true);
+          setShowLoginModal(true);
+        }, 1500);
       }
 
     } catch (err: any) {
@@ -3155,6 +3164,7 @@ export default function App() {
                           onClick={() => {
                             if (!user) {
                               setPendingTab('studio');
+                              setIsRegistering(true);
                               setShowLoginModal(true);
                             } else {
                               setDashboardTab('studio');
@@ -3962,7 +3972,10 @@ export default function App() {
                         <p className="text-white/60 text-sm">Melde dich an, um deine Favoriten dauerhaft in deiner persönlichen Galerie zu sichern.</p>
                       </div>
                       <button 
-                        onClick={() => setShowLoginModal(true)}
+                        onClick={() => {
+                          setIsRegistering(true);
+                          setShowLoginModal(true);
+                        }}
                         className="w-full py-3 bg-white text-black rounded-xl font-bold hover:bg-white/90 transition-all flex items-center justify-center gap-2"
                       >
                         <User size={18} />

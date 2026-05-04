@@ -91,26 +91,34 @@ export interface GeneratedResult extends HairstyleSuggestion {
 
 export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
   const model = "gemini-3-flash-preview";
-  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr gut stehen würden. 
-  
-  WICHTIG FÜR DIE AUSWAHL:
-  - Die ersten 4 Vorschläge (Index 0 bis 3) MÜSSEN so unterschiedlich wie möglich sein (z.B. 1x kurz, 1x mittellang, 1x lang, 1x Trend-Style).
-  - Wähle Styles, die wirklich zur Gesichtsform passen.
-  - Alle 9 Vorschläge sollten insgesamt eine breite Palette abdecken.
+  const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr hervorragend stehen würden.
+
+  WICHTIG FÜR DIE AUSWAHL (ERSTEN 3 VORSCHLÄGE):
+  - Der ABSOLUT wichtigste Fokus liegt auf der ERHALTUNG DER IDENTITÄT. Das Gesicht (Augen, Nase, Kinn, Wangenknochen, Kopfdrehung) muss später bei der Bildgenerierung völlig unverändert bleiben.
+  - Berücksichtige bei den ersten 3 Vorschlägen die ORIGINAL-Haarfarbe und Struktur des Users, um ein realistisches und harmonisches Ergebnis zu erzielen.
+  - Die Reihenfolge der ersten 3 Styles MUSS exakt so sein:
+    1. Ein MITTELLANGER Style (Index 0)
+    2. Ein LANGER Style (Index 1)
+    3. Ein KURZER Style (Index 2)
+  - Ab Index 3 können die Styles variieren (Trends, mutige Änderungen etc.).
+
+  TONALITÄT & FORMULIERUNG:
+  - Formuliere die Texte bei 'suitabilityReason' (Warum dieser Style?) besonders nett, wertschätzend und positiv.
+  - Vermeide rein technische oder potenziell demotivierende Aussagen wie "Dein Gesicht ist zu lang" oder "Deine Stirn ist breit".
+  - Nutze stattdessen begeisternde Formulierungen wie: "Dieser Look betont deine eleganten Gesichtszüge perfekt" oder "Das Volumen schmeichelt deiner markanten Kinnlinie und verleiht deinem Look eine sanfte Note".
+  - Erschaffe einen "Wohlfühl-Vibe" – der User soll sich nach dem Lesen attraktiv fühlen.
 
   Gib für jede der 9 Frisuren folgendes an:
   1. Einen präzisen Namen (z.B. "Textured Crop mit Mid Fade").
   2. Eine kurze Beschreibung.
   3. Eine Bewertung von 1-10, wie gut der Style zur Person passt.
   4. Detaillierte Anweisungen für einen Friseur, um genau diesen Look zu erzielen.
-  5. Einen Grund, warum dieser spezifische Style zur Gesichtsform passt.
+  5. Einen positiven Grund ('suitabilityReason'), warum dieser spezifische Style die natürlichen Vorzüge betont.
   6. Eine Liste von 2-3 empfohlenen Styling-Produkten (Name, Typ, Grund der Empfehlung).
   7. Die erkannte Gesichtsform (z.B. "oval", "rund", "eckig", "herzförmig").
 
   Antworte ausschließlich in deutscher Sprache.
-  Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.
-  
-  WICHTIG: Erkläre in 'suitabilityReason' ganz genau, warum dieser Style zur erkannten Gesichtsform passt (z.B. 'Dieses Volumen an den Seiten gleicht dein eher schmales Gesicht perfekt aus').`;
+  Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
@@ -148,11 +156,11 @@ export const getAIPoweredStylingReason = async (
 ): Promise<string> => {
   try {
     const model = "gemini-3-flash-preview";
-    const prompt = `Du bist ein professioneller Star-Friseur. Erkläre kurz und emotional (max. 2 Sätze), warum die Frisur "${styleName}" in der Farbe "${colorName}" perfekt zu einer ${faceShape}en Gesichtsform passt. 
+    const prompt = `Du bist ein professioneller Star-Friseur. Erkläre kurz, extrem positiv und emotional (max. 2 Sätze), warum die Frisur "${styleName}" in der Farbe "${colorName}" die natürliche Schönheit einer ${faceShape}en Gesichtsform perfekt unterstreicht. 
     
     Kontext zum Style: ${styleDescription}
     
-    Die Antwort muss auf Deutsch sein und den User begeistern. Erwähne spezifische Merkmale wie 'Wangenknochen betonen', 'Gesicht optisch strecken' oder 'weiche Konturen schaffen'.`;
+    Die Antwort muss auf Deutsch sein und den User absolut begeistern. Sei charmant und wertschätzend. Erwähne spezifische Merkmale wie 'deine tollen Wangenknochen betonen', 'deine Augen zum Strahlen bringen' oder 'eine harmonische Aura kreieren'. Vermeide technische Begriffe und fokussiere dich auf den positiven Effekt.`;
 
     const response = await withRetry(() => getAI().models.generateContent({
       model,
@@ -252,11 +260,11 @@ export const generateHairstyleImage = async (
   const model = "gemini-2.5-flash-image";
   const prompt = `Perform a pixel-perfect hairstyle swap. Render a photograph of the person in the image wearing this hairstyle: ${styleName}. ${description}. 
   
-  STRICT MANDATORY RULES:
-  1. FACE PRESERVATION: The person's face, features, eyes, nose, mouth, expressions, and skin texture MUST be 100% identical to the original photo. No retouching, no beautification, no smoothing.
-  2. SEAMLESS OVERLAY: Only generate the new hair. The hair should follow the person's natural hairline and face shape perfectly.
-  3. PHOTOREALISM: The hair must have ultra-realistic textures, salon-quality color with highlights/lowlights, and natural light interaction.
-  4. NO HALLUCINATION: Do not change the background, lighting, or clothes unless absolutely necessary for the hair to look natural.`;
+  STRICT MANDATORY RULES (ZERO TOLERANCE FOR DEVIATION):
+  1. ABSOLUTE FACE PRESERVATION: The person's identity MUST remain 100% identical. Every pixel of the eyes, eyelids, nose (bridge, tip, nostrils), mouth (lip shape), chin, jawline, teeth, skin texture, wrinkles, moles, and eyebrows MUST look exactly as they do in the original photo. The head rotation and facial expression must be maintained perfectly.
+  2. HAIR SWAP ONLY: Only modify the hair area. The new hairstyle must originate from the natural hairline and blend seamlessly with the temples and ears of the ORIGINAL person.
+  3. PHOTOREALISM: The hair must look real, not like a wig. Use natural lighting that matches the original photo's environment.
+  4. CONSISTENCY: Ensure that the forehead and face are not covered more than the chosen style strictly requires.`;
 
   const response = await withRetry(() => getAI().models.generateContent({
     model,
