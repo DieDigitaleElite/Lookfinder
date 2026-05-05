@@ -396,7 +396,15 @@ export const AboutContent: React.FC<{ onCtaClick?: () => void }> = ({ onCtaClick
     <section className="bg-brand-primary text-white p-8 md:p-12 rounded-[2rem] space-y-6">
       <div className="flex flex-col md:flex-row gap-8 items-start">
         <div className="flex-1 space-y-4">
-          <h4 className="text-xl font-serif font-bold text-brand-accent">Made in Germany</h4>
+          <h4 className="text-xl font-serif font-bold text-brand-accent flex items-center gap-2">
+            Entwickelt in Deutschland
+            <div className="flex flex-col w-3.5 h-2.5 overflow-hidden rounded-[1px] shadow-sm shrink-0">
+              <div className="h-1/3 bg-black"></div>
+              <div className="h-1/3 bg-[#FF0000]"></div>
+              <div className="h-1/3 bg-[#FFCC00]"></div>
+            </div>
+            ❤️
+          </h4>
           <p className="text-white/80">
             Frisuren.ai ist ein Münchner Startup und wird in Deutschland entwickelt. 
             Für uns bedeutet das nicht nur ein klares Qualitätsversprechen, sondern auch Verantwortung: 

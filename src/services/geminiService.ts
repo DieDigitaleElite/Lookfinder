@@ -148,33 +148,61 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   }
 };
 
-export const getAIPoweredStylingReason = async (
+export interface StylingMetadata {
+  description: string;
+  suitabilityReason: string;
+  barberInstructions: string;
+  rating: number;
+}
+
+export const getAIPoweredStylingMetadata = async (
   faceShape: string,
   styleName: string,
   colorName: string,
   styleDescription: string
-): Promise<string> => {
+): Promise<StylingMetadata> => {
   try {
     const model = "gemini-3-flash-preview";
-    const prompt = `Du bist ein professioneller Star-Friseur. Erkläre kurz, extrem positiv und emotional (max. 2 Sätze), warum die Frisur "${styleName}" in der Farbe "${colorName}" die natürliche Schönheit einer ${faceShape}en Gesichtsform perfekt unterstreicht. 
+    const prompt = `Du bist ein professioneller Star-Friseur und Image-Berater. 
+    Analysiere die Kombination aus der Frisur "${styleName}" in der Farbe "${colorName}" für eine Person mit einer ${faceShape}en Gesichtsform.
     
-    Kontext zum Style: ${styleDescription}
+    Kontext zum gewählten Style: ${styleDescription}
     
-    Die Antwort muss auf Deutsch sein und den User absolut begeistern. Sei charmant und wertschätzend. Erwähne spezifische Merkmale wie 'deine tollen Wangenknochen betonen', 'deine Augen zum Strahlen bringen' oder 'eine harmonische Aura kreieren'. Vermeide technische Begriffe und fokussiere dich auf den positiven Effekt.`;
+    Erstelle drei hochwertige Texte auf Deutsch:
+    1. Eine detaillierte BESCHREIBUNG des Looks (2-3 Sätze).
+    2. Einen positiven GRUND ('suitabilityReason'), warum dieser Style die natürlichen Vorzüge des Users (Wangenknochen, Augen, Konturen) bei dieser Gesichtsform perfekt unterstreicht. Sei begeisternd und wertschätzend (2-3 Sätze).
+    3. Detaillierte ANWEISUNGEN für einen Friseur (barberInstructions), um exakt diesen Schnitt und diese Farbe meisterhaft umzusetzen.
+    4. Eine BEWERTUNG von 1-10 (rating), wie gut dieser Look zur Person passt.
+    
+    Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
     const response = await withRetry(() => getAI().models.generateContent({
       model,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
+        responseMimeType: "application/json",
         temperature: 0.7,
-        maxOutputTokens: 150,
       }
     }));
 
-    return response.text || `Dieser Look schmeichelt deiner ${faceShape}en Gesichtsform und betont deine Züge auf elegante Weise.`;
+    let text = response.text || "{}";
+    text = text.replace(/```json\n?|```/g, "").trim();
+    const data = JSON.parse(text);
+    
+    return {
+      description: data.description || styleDescription,
+      suitabilityReason: data.suitabilityReason || `Dieser Look schmeichelt deiner ${faceShape}en Gesichtsform hervorragend.`,
+      barberInstructions: data.barberInstructions || `Schnitt: ${styleName}. Farbe: ${colorName}. ${styleDescription}`,
+      rating: data.rating || 9.5
+    };
   } catch (err) {
-    console.error("Failed to get AI styling reason", err);
-    return `Dieser Look ist eine exzellente Wahl für deine ${faceShape}e Gesichtsform und unterstreicht deine natürliche Ausstrahlung.`;
+    console.error("Failed to get AI styling metadata", err);
+    return {
+      description: styleDescription,
+      suitabilityReason: `Dieser Look ist eine exzellente Wahl für deine ${faceShape}e Gesichtsform und unterstreicht deine natürliche Ausstrahlung.`,
+      barberInstructions: `Schnitt: ${styleName}. Nuance: ${colorName}. ${styleDescription}`,
+      rating: 9.2
+    };
   }
 };
 

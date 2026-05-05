@@ -34,6 +34,10 @@ const firebaseConfig = {
   firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId
 };
 
+if (!firebaseConfig.apiKey && !firebaseConfigJson.apiKey) {
+  console.error("Firebase API Key is missing! Auth will not work. Please check your .env or firebase-applet-config.json");
+}
+
 // Initialize Firebase SDK
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');

@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingReason } from './services/geminiService';
+import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
 import { HAIRSTYLE_LIBRARY, HAIR_COLORS } from './constants';
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
@@ -1058,7 +1058,29 @@ export default function App() {
   const handleLogin = async () => {
     setAuthLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      // Initialize or update user profile in Firestore
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          lastLogin: serverTimestamp(),
+          // We use merge: true to avoid overwriting premium status if it exists
+        }, { merge: true });
+        
+        // If it's a new document, ensure createdAt exists
+        const userSnap = await getDoc(doc(db, 'users', user.uid));
+        if (userSnap.exists() && !userSnap.data().createdAt) {
+          await setDoc(doc(db, 'users', user.uid), { createdAt: serverTimestamp() }, { merge: true });
+        }
+      } catch (dbErr) {
+        console.error("Failed to sync user profile to Firestore", dbErr);
+      }
+      
       setError(null);
       setShowLoginModal(false);
     } catch (err: any) {
@@ -1068,7 +1090,7 @@ export default function App() {
       if (err.code === 'auth/operation-not-allowed') {
         setError("Google Login ist derzeit nicht verfügbar.");
       } else if (err.code === 'auth/invalid-credential') {
-        setError("E-Mail oder Passwort ist nicht korrekt. Bitte überprüfe deine Daten.");
+        setError("Die Google-Anmeldung ist fehlgeschlagen. Bitte stelle sicher, dass Drittanbieter-Cookies erlaubt sind oder versuche es mit einer E-Mail.");
       } else if (err.code === 'auth/network-request-failed') {
         setError("Netzwerkfehler. Bitte überprüfe deine Internetverbindung.");
       } else {
@@ -1086,17 +1108,32 @@ export default function App() {
     setError(null);
     try {
       if (isForgotPassword) {
-        await sendPasswordResetEmail(auth, loginEmail);
+        await sendPasswordResetEmail(auth, loginEmail.trim());
         setAuthMessage({ type: 'success', text: "E-Mail zum Zurücksetzen des Passworts wurde gesendet!" });
         setTimeout(() => setIsForgotPassword(false), 3000);
       } else if (isRegistering) {
-        const userCredential = await createUserWithEmailAndPassword(auth, loginEmail, loginPassword);
-        await updateProfile(userCredential.user, { displayName: loginName });
+        const userCredential = await createUserWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+        const displayName = loginName.trim();
+        await updateProfile(userCredential.user, { displayName });
+        
+        // Initialize user profile in Firestore
+        try {
+          await setDoc(doc(db, 'users', userCredential.user.uid), {
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            displayName: displayName,
+            createdAt: serverTimestamp(),
+            isPremium: false
+          });
+        } catch (dbErr) {
+          console.error("Failed to initialize user profile document", dbErr);
+        }
+
         await sendEmailVerification(userCredential.user);
         setAuthMessage({ type: 'info', text: "Konto erstellt! Bitte bestätige deine E-Mail-Adresse." });
         setTimeout(() => setShowLoginModal(false), 4000);
       } else {
-        await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
+        await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
         setShowLoginModal(false);
       }
       setLoginEmail('');
@@ -1387,35 +1424,8 @@ export default function App() {
 
   const saveResultToHistory = async (result: GeneratedResult) => {
     if (!user || !result.imageUrl) return;
-
-    try {
-      // Compress the image before saving to Firestore to avoid size limits
-      let finalImageUrl = result.imageUrl;
-      if (finalImageUrl.startsWith('data:')) {
-        try {
-          finalImageUrl = await compressBase64Image(finalImageUrl, 'image/jpeg', 800000);
-        } catch (compErr) {
-          console.warn("Compression failed in saveResultToHistory", compErr);
-        }
-      }
-
-      const historyRef = collection(db, 'users', user.uid, 'results');
-      await addDoc(historyRef, {
-        name: result.name,
-        description: result.description,
-        barberInstructions: result.barberInstructions || '',
-        suitabilityReason: result.suitabilityReason || '',
-        imageUrl: finalImageUrl,
-        createdAt: serverTimestamp(),
-        faceShape: result.faceShape || 'unbekannt'
-      });
-    } catch (err) {
-      console.warn("Failed to save result to history", err);
-      const errInfo = handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}/results`);
-      if (errInfo?.error.includes('Quota') || errInfo?.error.includes('exhausted')) {
-        console.warn("History save paused due to database quota.");
-      }
-    }
+    // Use the unified saveResult function to ensure consistent rules compliance
+    return saveResult(result, true);
   };
 
   const handleOpenSelectKey = async () => {
@@ -1627,8 +1637,8 @@ export default function App() {
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
-        // Generate a more emotional and face-shape specific reason using AI
-        const dynamicReason = await getAIPoweredStylingReason(
+        // Generate a more emotional and face-shape specific metadata using AI
+        const stylingMetadata = await getAIPoweredStylingMetadata(
           faceAnalysis?.faceShape || 'oval',
           style.name,
           color.name,
@@ -1638,11 +1648,11 @@ export default function App() {
         const result: GeneratedResult = {
           id: `studio-${Date.now()}`,
           name: style.name,
-          description: style.description,
+          description: stylingMetadata.description,
           imageUrl,
-          rating: 9.8,
-          suitabilityReason: dynamicReason,
-          barberInstructions: `Schnitt: ${style.name}. Nuance: ${color.name}. ${style.description}`,
+          rating: stylingMetadata.rating,
+          suitabilityReason: stylingMetadata.suitabilityReason,
+          barberInstructions: stylingMetadata.barberInstructions,
           faceShape: faceAnalysis?.faceShape || 'unbekannt',
           recommendedProducts: [
             { name: "Pro-Protect Shampoo", type: "Care", reason: "Schützt die neue Nuance vor dem Verblassen." },
@@ -1768,18 +1778,26 @@ export default function App() {
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, styleWithColor, descriptionWithColor);
       
       if (imageUrl) {
+        // Generate a more emotional and face-shape specific metadata using AI
+        const stylingMetadata = await getAIPoweredStylingMetadata(
+          results[0]?.faceShape || faceAnalysis?.faceShape || 'oval',
+          selectedLibraryStyle.name,
+          selectedColor.name,
+          selectedLibraryStyle.description
+        );
+
         const newResult: GeneratedResult = {
           id: `custom-${Date.now()}`,
           name: styleWithColor,
-          description: descriptionWithColor,
-          rating: 10,
-          barberInstructions: `Schneide einen ${selectedLibraryStyle.name}. Färbe das Haar anschließend in einem gleichmäßigen ${selectedColor.name}.`,
-          suitabilityReason: "Selbst gewählter Style aus der Premium-Bibliothek.",
+          description: stylingMetadata.description,
+          rating: stylingMetadata.rating,
+          barberInstructions: stylingMetadata.barberInstructions,
+          suitabilityReason: stylingMetadata.suitabilityReason,
           recommendedProducts: [
             { name: "Color Protection Shampoo", type: "Pflege", reason: "Um die neue Farbe lange strahlend zu halten." }
           ],
           imageUrl,
-          faceShape: results[0]?.faceShape || "unbekannt"
+          faceShape: results[0]?.faceShape || faceAnalysis?.faceShape || "unbekannt"
         };
         
         setCustomResults(prev => [newResult, ...prev]);
@@ -2131,12 +2149,13 @@ export default function App() {
             <div className="md:hidden flex flex-wrap items-center gap-1.5 mt-1">
               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-brand-primary/5 rounded-full border border-brand-primary/5">
                 <span className="text-[7px] font-black text-brand-primary/40 uppercase tracking-[0.15em] flex items-center gap-1">
-                  MADE IN GERMANY
+                  Entwickelt in Deutschland
                   <div className="flex flex-col w-2.5 h-1.5 overflow-hidden rounded-[0.5px] shadow-sm shrink-0 opacity-60">
                     <div className="h-1/3 bg-black"></div>
                     <div className="h-1/3 bg-[#FF0000]"></div>
                     <div className="h-1/3 bg-[#FFCC00]"></div>
                   </div>
+                  ❤️
                 </span>
               </div>
               <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/5 rounded-full border border-emerald-500/10">
@@ -2355,7 +2374,18 @@ export default function App() {
                     Kostenlose Analyse starten
                     <ChevronRight size={18} />
                   </button>
-                  <p className="mt-6 text-[10px] text-white/60 font-bold uppercase tracking-[0.2em]">100% Kostenlos • DSGVO-konform • Made in Germany</p>
+                  <p className="mt-6 text-[10px] text-white/60 font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2">
+                    100% Kostenlos • DSGVO-konform • 
+                    <span className="flex items-center gap-1.5">
+                      Entwickelt in Deutschland
+                      <div className="flex flex-col w-3.5 h-2.5 overflow-hidden rounded-[1px] shadow-sm shrink-0 border border-white/20">
+                        <div className="h-1/3 bg-black"></div>
+                        <div className="h-1/3 bg-[#FF0000]"></div>
+                        <div className="h-1/3 bg-[#FFCC00]"></div>
+                      </div>
+                      ❤️
+                    </span>
+                  </p>
                 </div>
               </div>
 
@@ -2533,47 +2563,50 @@ export default function App() {
                         <h2 className="text-4xl font-serif font-bold italic">Gespeicherte Looks</h2>
                         <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
                       </div>
-                      {savedResults.length === 0 ? (
-                        <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
-                          <Bookmark className="mx-auto text-brand-primary/20" size={48} />
-                          <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
-                          <button onClick={() => setDashboardTab('studio')} className="text-[#FF9EBE] font-black uppercase tracking-widest text-xs pt-4">Jetzt den ersten Look erstellen</button>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                          {savedResults.map((result, index) => (
-                            <motion.div
-                              key={result.id}
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: index * 0.1 }}
-                              onClick={() => setSelectedResult(result)}
-                              className="group space-y-4 cursor-pointer bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-black/5 transition-all shadow-sm hover:shadow-xl"
-                            >
-                              <div className="aspect-[3/4] rounded-[1.8rem] overflow-hidden shadow-lg relative bg-black/5">
-                                <img 
-                                  src={result.imageUrl} 
-                                  alt={result.name} 
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                                  <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
-                                  <span className="text-sm font-bold">{result.rating}/10</span>
+                      {(() => {
+                        const allGalleryResults = [...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+                        return allGalleryResults.length === 0 ? (
+                          <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
+                            <Bookmark className="mx-auto text-brand-primary/20" size={48} />
+                            <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
+                            <button onClick={() => setDashboardTab('studio')} className="text-[#FF9EBE] font-black uppercase tracking-widest text-xs pt-4">Jetzt den ersten Look erstellen</button>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {allGalleryResults.map((result, index) => (
+                              <motion.div
+                                key={result.id}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: index * 0.1 }}
+                                onClick={() => setSelectedResult(result)}
+                                className="group space-y-4 cursor-pointer bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-black/5 transition-all shadow-sm hover:shadow-xl"
+                              >
+                                <div className="aspect-[3/4] rounded-[1.8rem] overflow-hidden shadow-lg relative bg-black/5">
+                                  <img 
+                                    src={result.imageUrl} 
+                                    alt={result.name} 
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                    <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
+                                    <span className="text-sm font-bold">{result.rating || 9}/10</span>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="px-4 pb-2">
-                                <h3 className="text-xl font-black italic tracking-tight truncate text-brand-primary">{result.name}</h3>
-                                <p className="text-[10px] text-brand-primary/40 font-black uppercase tracking-widest">
-                                  {result.id.includes('-') && !isNaN(parseInt(result.id.split('-')[1])) 
-                                    ? new Date(parseInt(result.id.split('-')[1])).toLocaleDateString() 
-                                    : new Date().toLocaleDateString()}
-                                </p>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      )}
+                                <div className="px-4 pb-2">
+                                  <h3 className="text-xl font-black italic tracking-tight truncate text-brand-primary">{result.name}</h3>
+                                  <p className="text-[10px] text-brand-primary/40 font-black uppercase tracking-widest">
+                                    {result.id.includes('-') && !isNaN(parseInt(result.id.split('-')[1])) 
+                                      ? new Date(parseInt(result.id.split('-')[1])).toLocaleDateString() 
+                                      : new Date().toLocaleDateString()}
+                                  </p>
+                                </div>
+                              </motion.div>
+                            ))}
+                          </div>
+                        );
+                      })()}
                   </div>
                 )}
 
