@@ -3329,12 +3329,24 @@ export default function App() {
                                 <div className="absolute -left-8 top-4 -rotate-45 bg-red-500 text-white text-[7px] font-black px-8 py-1 uppercase tracking-widest shadow-sm">
                                   -52% RABATT
                                 </div>
-                                <div>
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block mb-2">Jahresabo</span>
-                                  <p className="text-sm font-bold text-brand-primary leading-snug">Styling-Flatrate: Unbegrenzt testen + monatlich neue Trends.</p>
+                                <div className="space-y-2">
+                                  <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block mb-1">Styling-Flatrate (Jahresabo)</span>
+                                    <p className="text-sm font-bold text-brand-primary leading-snug">Unbegrenzt testen + monatlich neue Trends.</p>
+                                  </div>
+                                  <div className="space-y-1 py-2 border-y border-[#FF9EBE]/10">
+                                    <p className="text-[9px] text-brand-primary/60 flex items-center gap-2">
+                                      <Calendar size={10} className="text-[#FF9EBE]" />
+                                      <span>Vertrag läuft 12 Monate, dann automatisch jährlich verlängerbar</span>
+                                    </p>
+                                    <p className="text-[9px] text-brand-primary/60 flex items-center gap-2">
+                                      <RefreshCw size={10} className="text-[#FF9EBE]" />
+                                      <span>Jederzeit zum Jahresende kündbar</span>
+                                    </p>
+                                  </div>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-[#FF9EBE]/10">
-                                  <span className="text-lg font-black text-[#FF9EBE]">Nur 3,33 € / Monat</span>
+                                  <span className="text-lg font-black text-[#FF9EBE]">3,33 € / Monat</span>
                                   <span className="text-[10px] text-brand-primary/40 block">39,99 € jährlich</span>
                                 </div>
                               </div>
@@ -3342,9 +3354,17 @@ export default function App() {
                               {/* Option 3: Monthly Subscription */}
                               <div className="bg-white/50 p-5 rounded-2xl border border-[#FF9EBE]/10 text-left flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden">
                                 <div className="absolute top-0 right-0 bg-brand-primary text-white text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest">BELIEBT ⭐</div>
-                                <div>
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block mb-2">Monatsabo</span>
-                                  <p className="text-sm font-bold text-brand-primary leading-snug">Flexibel jederzeit kündbar. Alle Styles & Trends.</p>
+                                <div className="space-y-2">
+                                  <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block mb-1">Monatsabo</span>
+                                    <p className="text-sm font-bold text-brand-primary leading-snug">Flexibel jederzeit kündbar. Alle Styles & Trends.</p>
+                                  </div>
+                                  <div className="space-y-1 py-2 border-y border-black/5">
+                                    <p className="text-[9px] text-brand-primary/60 flex items-center gap-2">
+                                      <RefreshCw size={10} className="text-brand-primary/20" />
+                                      <span>Flexibel monatlich kündbar</span>
+                                    </p>
+                                  </div>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-black/5">
                                   <span className="text-lg font-black text-brand-primary">9,99€ / Monat</span>
@@ -3770,31 +3790,98 @@ export default function App() {
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
-                      {[
-                        "🎨 Über 100 Frisuren & Farben testen",
-                        "🆕 Monatlich neue Trend-Kollektionen",
-                        "📖 Profi-Friseur-Guide als PDF",
-                        "💎 HD-Downloads ohne Wasserzeichen"
-                      ].map((benefit, i) => (
-                        <div key={i} className="flex items-center gap-3 bg-white/50 p-3 rounded-xl border border-white">
-                          <CheckCircle2 size={18} className="text-[#FF9EBE] shrink-0" />
-                          <span className="text-sm font-medium text-brand-primary/80">{benefit}</span>
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                       {/* Yearly Option */}
+                       <div className="bg-white p-8 rounded-[2rem] border-4 border-[#FF9EBE] shadow-xl relative overflow-hidden flex flex-col text-left group hover:scale-[1.02] transition-transform">
+                          <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] font-black px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
+                            Empfohlen ★
+                          </div>
+                          <div className="space-y-4 flex-1">
+                            <div>
+                               <h3 className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] mb-1">Styling-Flatrate</h3>
+                               <div className="flex items-baseline gap-2">
+                                 <span className="text-3xl font-black text-brand-primary">39,99 €</span>
+                                 <span className="text-sm text-brand-primary/40 font-bold">/ Jahr</span>
+                               </div>
+                               <p className="text-[10px] font-bold text-[#FF9EBE] uppercase tracking-wider mt-1">Nur 3,33 € / Monat (Spare 66%)</p>
+                            </div>
+
+                            <div className="space-y-2 py-3 border-y border-black/5">
+                              <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                                <Calendar size={12} className="text-[#FF9EBE]" />
+                                <span>Vertrag läuft 12 Monate, dann automatisch jährlich verlängerbar</span>
+                              </p>
+                              <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                                <RefreshCw size={12} className="text-[#FF9EBE]" />
+                                <span>Jederzeit zum Jahresende kündbar</span>
+                              </p>
+                            </div>
+
+                            <ul className="space-y-2">
+                              {["Unbegrenzt Frisuren & Farben testen", "Premium-Bibliothek (12.000+ Styles)", "Monatlich neue Trend-Kollektionen", "Friseur-Guide PDF & HD-Downloads"].map((f, i) => (
+                                <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-brand-primary/70">
+                                  <Check size={12} className="text-emerald-500 shrink-0" /> {f}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <button 
+                            onClick={() => setShowPricingModal(true)}
+                            className="w-full mt-6 py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-[#FF9EBE]/90 transition-all shadow-lg"
+                          >
+                            Jetzt sichern
+                          </button>
+                       </div>
+
+                       {/* Monthly Option */}
+                       <div className="bg-white p-8 rounded-[2rem] border-2 border-black/5 shadow-sm text-left flex flex-col hover:border-[#FF9EBE]/20 transition-all">
+                          <div className="space-y-4 flex-1">
+                            <div>
+                               <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 mb-1">Monatsabo</h3>
+                               <div className="flex items-baseline gap-2">
+                                 <span className="text-3xl font-black text-brand-primary">9,99 €</span>
+                                 <span className="text-sm text-brand-primary/40 font-bold">/ Monat</span>
+                               </div>
+                               <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider mt-1">Maximale Flexibilität</p>
+                            </div>
+
+                            <div className="space-y-2 py-3 border-y border-black/5">
+                              <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                                <RefreshCw size={12} className="text-brand-primary/20" />
+                                <span>Flexibel monatlich kündbar</span>
+                              </p>
+                              <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                                <Star size={12} className="text-brand-primary/20" />
+                                <span>Alle Styles & Trends inklusive</span>
+                              </p>
+                            </div>
+
+                            <ul className="space-y-2">
+                              {["Unbegrenzt testen & speichern", "Premium Bibliothek Zugriff", "Kündigung jederzeit per Klick"].map((f, i) => (
+                                <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-brand-primary/70">
+                                  <Check size={12} className="text-emerald-500 shrink-0" /> {f}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <button 
+                            onClick={() => setShowPricingModal(true)}
+                            className="w-full mt-6 py-4 bg-brand-primary text-white rounded-xl font-black uppercase tracking-widest text-xs hover:bg-brand-primary/90 transition-all"
+                          >
+                            Monatlich wählen
+                          </button>
+                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setShowPricingModal(true)}
-                      className="inline-flex items-center gap-3 px-8 py-4 bg-brand-primary text-white rounded-2xl font-bold hover:bg-brand-primary/90 transition-all shadow-xl group"
-                    >
-                      Jetzt Pro-Upgrade sichern
-                      <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
-                    </button>
-                    
-                    <p className="text-xs text-brand-primary/40 font-medium">
-                      Bereits ab 3,33 € pro Monat verfügbar. Jederzeit kündbar.
-                    </p>
+                    <div className="flex items-center justify-center gap-6 pt-4 grayscale opacity-40">
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" className="h-4" referrerPolicy="no-referrer" />
+                      <img src="https://upload.wikimedia.org/wikipedia/commons/4/42/SEPA_logo.svg" alt="SEPA" className="h-3" referrerPolicy="no-referrer" />
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] font-black text-brand-primary">PayPal & Klarna</span>
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               )}

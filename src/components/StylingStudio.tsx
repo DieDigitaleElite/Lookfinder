@@ -13,7 +13,8 @@ import {
   ArrowRightLeft,
   ShieldCheck,
   Star,
-  Clock
+  Clock,
+  Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -34,7 +35,7 @@ interface StylingStudioProps {
   preGeneratedSketches?: Record<string, string>;
   isPremiumFetching?: boolean;
   isGeneratingBackground?: boolean;
-  onCheckout?: (plan: 'monthly' | 'yearly') => void;
+  onCheckout?: (plan: 'single' | 'monthly' | 'yearly') => void;
   onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
 }
 
@@ -462,8 +463,8 @@ export default function StylingStudio({
                 </div>
 
                 {/* Plans Selection */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Yearly Plan - The Winner */}
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Yearly Option - Styling Flatrate */}
                   <button 
                     onClick={() => {
                       if (!agreedToTerms || !agreedToWiderruf) {
@@ -472,41 +473,87 @@ export default function StylingStudio({
                       }
                       onCheckout?.('yearly');
                     }}
-                    className="relative p-6 rounded-3xl border-2 border-[#FF9EBE] bg-[#FF9EBE]/5 text-left group hover:scale-[1.02] transition-all shadow-[0_0_20px_rgba(255,158,190,0.1)] hover:shadow-[0_0_30px_rgba(255,158,190,0.2)]"
+                    className="bg-white p-6 rounded-[2rem] border-4 border-[#FF9EBE] shadow-xl relative overflow-hidden flex flex-col text-left group hover:scale-[1.02] transition-transform"
                   >
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-brand-primary text-[#FF9EBE] rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg animate-pulse">
-                      BESTSELLER – 66% SPAREN
+                    <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[9px] font-black px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
+                      Empfohlen ★
                     </div>
-                    <div className="space-y-1">
-                       <p className="text-sm font-black uppercase text-brand-primary">Jahres-Pass</p>
-                       <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black">3,33€</span>
-                          <span className="text-[10px] font-medium opacity-40">/ Monat</span>
-                       </div>
-                       <p className="text-[9px] opacity-40 italic">Inkl. 12 Monate vollem Zugriff</p>
+                    <div className="space-y-4 w-full">
+                      <div>
+                         <h3 className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] mb-1">Styling-Flatrate</h3>
+                         <div className="flex items-baseline gap-2">
+                           <span className="text-3xl font-black text-brand-primary">39,99 €</span>
+                           <span className="text-sm text-brand-primary/40 font-bold">/ Jahr</span>
+                         </div>
+                         <p className="text-[10px] font-bold text-[#FF9EBE] uppercase tracking-wider mt-1">Nur 3,33 € / Monat (Spare 66%)</p>
+                      </div>
+
+                      <div className="space-y-2 py-3 border-y border-black/5">
+                        <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                          <Calendar size={12} className="text-[#FF9EBE]" />
+                          <span>Vertrag läuft 12 Monate, dann automatisch jährlich verlängerbar</span>
+                        </p>
+                        <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                          <RotateCcw size={12} className="text-[#FF9EBE]" />
+                          <span>Jederzeit zum Jahresende kündbar</span>
+                        </p>
+                      </div>
                     </div>
                   </button>
 
-                  {/* Monthly Plan */}
-                  <button 
-                    onClick={() => {
-                      if (!agreedToTerms || !agreedToWiderruf) {
-                        setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
-                        return;
-                      }
-                      onCheckout?.('monthly');
-                    }}
-                    className="p-6 rounded-3xl border-2 border-black/5 bg-white text-left group hover:border-[#FF9EBE]/40 hover:scale-[1.02] transition-all shadow-sm"
-                  >
-                    <div className="space-y-1">
-                       <p className="text-sm font-black uppercase text-brand-primary opacity-40">Monats-Pass</p>
-                       <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-black">9,99€</span>
-                          <span className="text-[10px] font-medium opacity-40">/ Monat</span>
-                       </div>
-                       <p className="text-[9px] opacity-40 italic">Sofort kündbar</p>
-                    </div>
-                  </button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Monthly Option */}
+                    <button 
+                      onClick={() => {
+                        if (!agreedToTerms || !agreedToWiderruf) {
+                          setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                          return;
+                        }
+                        onCheckout?.('monthly');
+                      }}
+                      className="bg-white p-6 rounded-[2rem] border-2 border-black/5 shadow-sm text-left flex flex-col hover:border-[#FF9EBE]/20 transition-all hover:scale-[1.02]"
+                    >
+                      <div className="relative w-full">
+                        <div className="absolute top-0 right-0 bg-brand-primary text-white text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest">BELIEBT ⭐</div>
+                        <div className="space-y-4">
+                          <div>
+                             <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 mb-1">Monatsabo</h3>
+                             <div className="flex items-baseline gap-2">
+                               <span className="text-2xl font-black text-brand-primary">9,99 €</span>
+                               <span className="text-sm text-brand-primary/40 font-bold">/ Monat</span>
+                             </div>
+                             <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider mt-1">Maximale Flexibilität</p>
+                          </div>
+                          <div className="pt-3 border-t border-black/5">
+                            <p className="text-[10px] text-brand-primary/60 flex items-center gap-2">
+                              <RotateCcw size={12} className="text-brand-primary/20" />
+                              <span>Flexibel monatlich kündbar</span>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Single Unlock Option */}
+                    <button 
+                      onClick={() => {
+                        if (!agreedToTerms || !agreedToWiderruf) {
+                          setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                          return;
+                        }
+                        onCheckout?.('single');
+                      }}
+                      className="bg-white/50 p-6 rounded-[2rem] border-2 border-black/5 text-left flex flex-col justify-between hover:border-black/10 transition-all hover:scale-[1.02]"
+                    >
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block mb-2">Einmalig</span>
+                        <p className="text-xs font-bold text-brand-primary leading-snug">Schalte dieses eine Bild sofort in HD frei.</p>
+                      </div>
+                      <div className="mt-4 pt-4 border-t border-black/5">
+                        <span className="text-lg font-black text-brand-primary">Nur 2,99€</span>
+                      </div>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="space-y-4 pt-2">
