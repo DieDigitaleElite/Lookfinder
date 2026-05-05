@@ -48,20 +48,21 @@ export const COLOR_WORLDS = [
   { id: 'braun', name: 'Braun', description: 'Tiefe Schokoladen- und Kastanientöne.' },
   { id: 'fantasy', name: 'Fantasy', description: 'Gewagte Pastell- und Leuchtfarben.' },
   { id: 'dark', name: 'Dark/Classic', description: 'Zeitloses Schwarz und dunkle Nuancen.' },
-  { id: 'techniken', name: 'Farb-Techniken', description: 'Balayage, Ombré und mehr für Tiefe und Dimension.' },
+];
+
+export const HAIR_TECHNOLOGIES = [
+  { id: 'tech-none', name: 'Klassische Färbung', description: 'Gleichmäßige Farbe vom Ansatz bis in die Spitzen.' },
+  { id: 'tech-balayage', name: 'Balayage', description: 'Handgemalte Highlights für einen natürlichen Sun-kissed Look.' },
+  { id: 'tech-babylights', name: 'Babylights', description: 'Extrem feine, zarte Highlights für subtile Aufhellung.' },
+  { id: 'tech-straehnen', name: 'Klassische Strähnen', description: 'Präzise Highlights für maximale Dimension.' },
+  { id: 'tech-foilayage', name: 'Foilayage', description: 'Intensivere Kontraste durch Kombination aus Balayage und Folie.' },
+  { id: 'tech-airtouch', name: 'Airtouch', description: 'Nahtlose, extrem weiche Farbverläufe mittels Föhn-Technik.' },
+  { id: 'tech-ombre', name: 'Ombré', description: 'Markanter Verlauf von dunklem Ansatz zu hellen Spitzen.' },
 ];
 
 export const HAIR_COLORS = [
   // Original / Natural
   { id: 'col-original', name: 'Ursprüngliche Haarfarbe beibehalten', hex: 'transparent', world: 'all', description: 'Deine natürliche Haarfarbe beibehalten.' },
-
-  // Techniken
-  { id: 'col-balayage', name: 'Balayage', hex: 'linear-gradient(to bottom, #3B2F2A, #D4AF37)', world: 'techniken', description: 'Handgemalte Highlights für einen natürlichen Sun-kissed Look mit weichen Übergängen.' },
-  { id: 'col-babylights', name: 'Babylights', hex: '#F5F5DC', world: 'techniken', description: 'Extrem feine, zarte Highlights für eine subtile Aufhellung wie bei Kinderhaar.' },
-  { id: 'col-straehnen', name: 'Klassische Strähnen', hex: '#EEDC82', world: 'techniken', description: 'Präzise Highlights vom Ansatz bis in die Spitzen für maximale Dimension.' },
-  { id: 'col-foilayage', name: 'Foilayage', hex: 'linear-gradient(to bottom, #4A3728, #F0EAD6)', world: 'techniken', description: 'Kombination aus Balayage und Folientechnik für intensivere, hellere Kontraste.' },
-  { id: 'col-airtouch', name: 'Airtouch', hex: '#FAF3E0', world: 'techniken', description: 'Hochmoderne Technik mit Föhn-Hilfe für nahtlose, extrem weiche Farbverläufe.' },
-  { id: 'col-ombre', name: 'Ombré', hex: 'linear-gradient(to bottom, #2A1B0E, #9F7336)', world: 'techniken', description: 'Markanter Farbverlauf von dunklem Ansatz zu hellen Spitzen.' },
 
   // Blond
   // Kühle Blondtöne

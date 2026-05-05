@@ -21,13 +21,14 @@ import {
   HAIRSTYLE_LIBRARY, 
   HAIRSTYLE_CATEGORIES, 
   HAIR_COLORS, 
+  HAIR_TECHNOLOGIES,
   COLOR_WORLDS,
   LIGHTING_SIMULATIONS 
 } from '../constants';
 
 interface StylingStudioProps {
   image: string | null;
-  onTryOn: (style: any, color: any, lighting: any) => Promise<void>;
+  onTryOn: (style: any, color: any, tech: any, lighting: any) => Promise<void>;
   isGenerating: boolean;
   onImageUpload: (image: string, mimeType: string) => void;
   avatarSketch?: string | null;
@@ -55,6 +56,7 @@ export default function StylingStudio({
   const [selectedWorld, setSelectedWorld] = useState(COLOR_WORLDS[0].id);
   const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);
+  const [selectedTechId, setSelectedTechId] = useState<string>(HAIR_TECHNOLOGIES[0].id);
   const [showPaywall, setShowPaywall] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToWiderruf, setAgreedToWiderruf] = useState(false);
@@ -77,6 +79,10 @@ export default function StylingStudio({
   const currentColor = useMemo(() => 
     HAIR_COLORS.find(c => c.id === selectedColorId),
   [selectedColorId]);
+
+  const currentTech = useMemo(() => 
+    HAIR_TECHNOLOGIES.find(t => t.id === selectedTechId),
+  [selectedTechId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -112,7 +118,7 @@ export default function StylingStudio({
     }
     
     if (currentStyle && currentColor) {
-      onTryOn(currentStyle, currentColor, LIGHTING_SIMULATIONS[0]);
+      onTryOn(currentStyle, currentColor, currentTech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0]);
     }
   };
 
@@ -343,6 +349,36 @@ export default function StylingStudio({
               })()}
             </div>
           </section>
+
+          {/* STEP 4: TECHNOLOGY (Optionaler Unterpunkt) */}
+          <section className="space-y-8">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-black">4</div>
+              <h3 className="text-lg font-black uppercase tracking-widest">Farb-Technik <span className="text-[10px] opacity-40 lowercase tracking-normal">(Optional)</span></h3>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {HAIR_TECHNOLOGIES.map(tech => (
+                <button
+                  key={tech.id}
+                  onClick={() => setSelectedTechId(tech.id)}
+                  className={`flex flex-col items-start gap-2 p-4 rounded-2xl border-2 transition-all min-w-[160px] flex-1 ${
+                    selectedTechId === tech.id ? 'border-[#FF9EBE] bg-[#FF9EBE]/5' : 'border-black/5 bg-white'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-[10px] font-black uppercase tracking-wider ${selectedTechId === tech.id ? 'text-brand-primary' : 'text-brand-primary/40'}`}>
+                      {tech.name}
+                    </span>
+                    {selectedTechId === tech.id && <Check size={14} className="text-[#FF9EBE]" strokeWidth={4} />}
+                  </div>
+                  <p className="text-[8px] opacity-30 leading-relaxed text-left">
+                    {tech.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
 
@@ -357,6 +393,10 @@ export default function StylingStudio({
              <div className="space-y-1">
                 <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Wunschfarbe</p>
                 <p className="text-xs font-bold">{currentColor?.name || '---'}</p>
+             </div>
+             <div className="space-y-1">
+                <p className="text-[8px] font-black uppercase tracking-widest opacity-40">Farb-Technik</p>
+                <p className="text-xs font-bold">{currentTech?.name || 'Klassisch'}</p>
              </div>
           </div>
           

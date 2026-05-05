@@ -1678,18 +1678,28 @@ export default function App() {
     }
   };
 
-  const handleStudioTryOn = async (style: any, color: any, lighting: any) => {
+  const handleStudioTryOn = async (style: any, color: any, tech: any, lighting: any) => {
     if (!image) return;
     setIsGenerating(true);
     setError(null);
     try {
       const base64Data = image.split(',')[1];
       const isOriginalColor = color.id === 'col-original';
-      const colorText = isOriginalColor 
-        ? 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)' 
-        : `Farbe/Technik: ${color.name} (${color.description})`;
+      const isCustomTech = tech && tech.id !== 'tech-none';
+      
+      let colorAndTechText = '';
+      if (isOriginalColor) {
+        colorAndTechText = 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)';
+      } else {
+        colorAndTechText = `Farbe: ${color.name}`;
+      }
+
+      if (isCustomTech) {
+        colorAndTechText += ` applied with ${tech.name} technique (${tech.description})`;
+      }
+
       const lightingPrompt = lighting.prompt || '';
-      const customPrompt = `${style.name}, ${style.description}. ${colorText}. Lighting: ${lightingPrompt}. Ensure hyper-realistic photo quality with precise high-end hair salon results. The hair color must look completely natural, with realistic depth, texture, and light reflection. Maintain perfect facial consistency and professional photography style.`;
+      const customPrompt = `${style.name}, ${style.description}. ${colorAndTechText}. Lighting: ${lightingPrompt}. Ensure hyper-realistic photo quality with precise high-end hair salon results. The hair color must look completely natural, with realistic depth, texture, and light reflection. Maintain perfect facial consistency and professional photography style.`;
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
