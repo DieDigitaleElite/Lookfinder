@@ -86,6 +86,7 @@ export interface HairstyleSuggestion {
 
 export interface GeneratedResult extends HairstyleSuggestion {
   imageUrl: string;
+  sourceImageUrl?: string;
   failed?: boolean;
 }
 

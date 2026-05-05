@@ -545,7 +545,8 @@ export default function App() {
   };
 
   const handleCreateInstagramStory = async (result: GeneratedResult) => {
-    if (!image) return;
+    const sourceImage = result.sourceImageUrl || image; // Use original source image if available
+    if (!sourceImage) return;
 
     try {
       const canvas = document.createElement('canvas');
@@ -572,22 +573,48 @@ export default function App() {
       });
 
       const [beforeImg, afterImg] = await Promise.all([
-        loadImg(image),
+        loadImg(sourceImage),
         loadImg(result.imageUrl)
       ]);
 
-      // Draw Before
-      const drawCover = (img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
+      // Draw Before & After with "Contain" logic to show full image
+      const drawContain = (img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
         const imgRatio = img.width / img.height;
         const targetRatio = w / h;
-        let sx, sy, sw, sh;
-        if (imgRatio > targetRatio) { sh = img.height; sw = sh * targetRatio; sx = (img.width - sw) / 2; sy = 0; }
-        else { sw = img.width; sh = sw / targetRatio; sx = 0; sy = (img.height - sh) / 2; }
-        ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+        let dw, dh, dx, dy;
+        
+        if (imgRatio > targetRatio) {
+          // Wider than target box
+          dw = w;
+          dh = w / imgRatio;
+          dx = x;
+          dy = y + (h - dh) / 2;
+        } else {
+          // Taller than target box (common for portraits)
+          dh = h;
+          dw = h * imgRatio;
+          dy = y;
+          dx = x + (w - dw) / 2;
+        }
+        
+        ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
       };
 
-      drawCover(beforeImg, 0, 0, width, height / 2);
-      drawCover(afterImg, 0, height / 2, width, height / 2);
+      // Draw top half (Before)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, width, height / 2);
+      ctx.clip();
+      drawContain(beforeImg, 0, 0, width, height / 2);
+      ctx.restore();
+
+      // Draw bottom half (After)
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, height / 2, width, height / 2);
+      ctx.clip();
+      drawContain(afterImg, 0, height / 2, width, height / 2);
+      ctx.restore();
 
       // Gradient overlays for better text readability at edges
       const topGradient = ctx.createLinearGradient(0, 0, 0, 200);
@@ -1498,7 +1525,7 @@ export default function App() {
       setGenerationProgress(0);
 
       // Initialize results with suggestions but no images yet to show placeholders
-      setResults(suggestions.map(s => ({ ...s, imageUrl: "" })));
+      setResults(suggestions.map(s => ({ ...s, imageUrl: "", sourceImageUrl: image })));
 
       const maxToGenerate = isPremium ? suggestions.length : 3;
       
@@ -1534,7 +1561,7 @@ export default function App() {
           setResults(prev => {
             const newResults = [...prev];
             if (imageUrl) {
-              const updatedResult = { ...newResults[i], imageUrl, failed: false };
+              const updatedResult = { ...newResults[i], imageUrl, sourceImageUrl: image, failed: false };
               newResults[i] = updatedResult;
               
               // NEW: Auto-save to history for premium users
@@ -1608,7 +1635,7 @@ export default function App() {
       setResults(prev => {
         const newResults = [...prev];
         if (imageUrl) {
-          newResults[index] = { ...newResults[index], imageUrl, failed: false };
+          newResults[index] = { ...newResults[index], imageUrl, sourceImageUrl: image, failed: false };
         } else {
           newResults[index] = { ...newResults[index], failed: true };
         }
@@ -1650,6 +1677,7 @@ export default function App() {
           name: style.name,
           description: stylingMetadata.description,
           imageUrl,
+          sourceImageUrl: image,
           rating: stylingMetadata.rating,
           suitabilityReason: stylingMetadata.suitabilityReason,
           barberInstructions: stylingMetadata.barberInstructions,
@@ -1659,6 +1687,8 @@ export default function App() {
             { name: "Texture Clay", type: "Styling", reason: "Hält den Look den ganzen Tag in Form." }
           ]
         };
+        
+        setLastCustomResult(result);
         
         // Auto-save for logged-in users
         if (user) {
@@ -1797,6 +1827,7 @@ export default function App() {
             { name: "Color Protection Shampoo", type: "Pflege", reason: "Um die neue Farbe lange strahlend zu halten." }
           ],
           imageUrl,
+          sourceImageUrl: image,
           faceShape: results[0]?.faceShape || faceAnalysis?.faceShape || "unbekannt"
         };
         
