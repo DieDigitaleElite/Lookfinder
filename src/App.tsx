@@ -115,7 +115,7 @@ export default function App() {
   const [selectedLibraryStyle, setSelectedLibraryStyle] = useState<typeof HAIRSTYLE_LIBRARY[0] | null>(null);
   const [selectedColor, setSelectedColor] = useState<typeof HAIR_COLORS[0] | null>(null);
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
-  const [lastGeneratedCustomResult, setLastGeneratedCustomResult] = useState<GeneratedResult | null>(null);
+  const [lastCustomResult, setLastCustomResult] = useState<GeneratedResult | null>(null);
   const [customResults, setCustomResults] = useState<GeneratedResult[]>(() => {
     const saved = localStorage.getItem('frisurenai_pending_custom_results');
     if (saved) {
@@ -1039,6 +1039,36 @@ export default function App() {
     }
   }, [user, image]);
 
+  // Sync local custom results to Firestore on login
+  useEffect(() => {
+    if (user && customResults.length > 0) {
+      const syncLocalResults = async () => {
+        for (const res of customResults) {
+          // Check if already in savedResults
+          if (!savedResults.some(sr => sr.id === res.id)) {
+            try {
+              let finalImageUrl = res.imageUrl;
+              if (finalImageUrl.startsWith('data:')) {
+                finalImageUrl = await compressBase64Image(finalImageUrl, 'image/jpeg', 800000);
+              }
+              
+              const resultRef = doc(db, 'users', user.uid, 'results', res.id);
+              await setDoc(resultRef, {
+                ...res,
+                imageUrl: finalImageUrl,
+                userId: user.uid,
+                createdAt: serverTimestamp()
+              });
+            } catch (e) {
+              console.warn("Failed to sync local result to firestore", e);
+            }
+          }
+        }
+      };
+      syncLocalResults();
+    }
+  }, [user]);
+
   const handleLogin = async () => {
     setAuthLoading(true);
     try {
@@ -1312,8 +1342,6 @@ export default function App() {
         
         // Reset current generation state immediately
         setResults([]);
-        setCustomResults([]);
-        setLastGeneratedCustomResult(null);
         setError(null);
         setMimeType(file.type);
         
@@ -1730,6 +1758,7 @@ export default function App() {
     setImage(null);
     setResults([]);
     setCustomResults([]);
+    setLastCustomResult(null);
     setSelectedResult(null);
     setError(null);
     setGenerationProgress(0);
@@ -1742,17 +1771,8 @@ export default function App() {
     if (!image || !selectedLibraryStyle || !selectedColor) return;
     
     setIsGeneratingCustom(true);
+    setLastCustomResult(null);
     setError(null);
-    
-    // Auto-scroll to result area for Pro users to see loading state
-    if (isPro) {
-      setTimeout(() => {
-        const element = document.getElementById('active-result-area');
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 100);
-    }
     
     try {
       const base64Data = image.split(',')[1];
@@ -1777,17 +1797,35 @@ export default function App() {
         };
         
         setCustomResults(prev => [newResult, ...prev]);
-        setLastGeneratedCustomResult(newResult);
+        setLastCustomResult(newResult);
         
-        // Skip popup for premium users to show result in-page
-        if (!isPro) {
-          setSelectedResult(newResult);
+        // Save to Firebase immediately if user is logged in
+        if (user) {
+          try {
+            // Compress image for Firestore (1MB limit)
+            const compressedImageUrl = await compressBase64Image(imageUrl, 'image/jpeg', 800000);
+            
+            const resultRef = doc(db, 'users', user.uid, 'results', newResult.id);
+            await setDoc(resultRef, {
+              ...newResult,
+              imageUrl: compressedImageUrl, // Use compressed version for storage
+              userId: user.uid,
+              createdAt: serverTimestamp()
+            });
+            
+            // Also add to savedResults locally for immediate gallery feedback
+            setSavedResults(prev => [
+              { ...newResult, imageUrl: compressedImageUrl, createdAt: new Date() },
+              ...prev
+            ]);
+          } catch (fsErr) {
+            console.error("Failed to save to Firestore", fsErr);
+          }
         }
         
-        // Save to Firebase and update gallery if user is logged in
-        if (user) {
-          // saveResult handles compression and Firestore saving
-          saveResult(newResult, true);
+        // Only open popup if NOT Pro, otherwise show inline
+        if (!isPro) {
+          setSelectedResult(newResult);
         }
         
         confetti({
@@ -3627,65 +3665,67 @@ export default function App() {
                         </p>
                       </div>
 
-                      {/* Display Latest Result or Loading State directly for Pro users */}
-                      {isPro && (isGeneratingCustom || lastGeneratedCustomResult) && (
+                      {/* Display Latest Result Inline for Pro users */}
+                      {isPro && lastCustomResult && (
                         <motion.div 
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className="bg-white p-6 rounded-[2rem] shadow-xl border-2 border-[#FF9EBE] space-y-4"
-                          id="active-result-area"
+                          className="bg-white p-6 rounded-[2rem] shadow-xl border-2 border-[#FF9EBE]/30 space-y-4"
                         >
-                          <div className="flex justify-between items-center">
-                            <h4 className="text-sm font-black uppercase tracking-widest text-[#FF9EBE]">
-                              {isGeneratingCustom ? 'Dein Styling wird erstellt...' : 'Dein neues Styling ✨'}
-                            </h4>
-                            {!isGeneratingCustom && lastGeneratedCustomResult && (
-                              <div className="flex gap-2">
-                                <button 
-                                  onClick={() => handleDownload(lastGeneratedCustomResult.imageUrl, lastGeneratedCustomResult.name)}
-                                  className="w-8 h-8 rounded-full bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center hover:bg-[#FF9EBE]/20 transition-colors"
-                                >
-                                  <Download size={14} />
-                                </button>
-                                <button 
-                                  onClick={() => setSelectedResult(lastGeneratedCustomResult)}
-                                  className="w-8 h-8 rounded-full bg-black/5 text-brand-primary flex items-center justify-center hover:bg-black/10 transition-colors"
-                                >
-                                  <Maximize2 size={14} />
-                                </button>
-                              </div>
-                            )}
+                          <div className="flex items-center justify-between mb-2">
+                             <h4 className="text-xs font-black uppercase tracking-widest text-[#FF9EBE]">Dein neuer Look ✨</h4>
+                             <button 
+                               onClick={() => setSelectedResult(lastCustomResult)}
+                               className="text-[10px] font-bold text-brand-primary/40 hover:text-brand-primary transition-colors flex items-center gap-1"
+                             >
+                               Details & Download <ChevronRight size={12} />
+                             </button>
                           </div>
                           
-                          <div className="aspect-[3/4] rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group">
-                            {isGeneratingCustom ? (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-primary/5 space-y-4">
-                                <div className="relative">
-                                  <Loader2 className="animate-spin text-[#FF9EBE]" size={48} />
-                                  <Sparkles className="absolute -top-1 -right-1 text-[#FF9EBE] animate-pulse" size={20} />
-                                </div>
-                                <div className="text-center px-6">
-                                  <p className="text-sm font-bold text-brand-primary">Gleich fertig!</p>
-                                  <p className="text-[10px] text-brand-primary/40 uppercase tracking-widest mt-1">Details werden berechnet...</p>
-                                </div>
-                              </div>
-                            ) : lastGeneratedCustomResult && (
-                              <>
-                                <img src={lastGeneratedCustomResult.imageUrl} alt="Result" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
-                                  <p className="text-white text-xs font-bold">{lastGeneratedCustomResult.name}</p>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                          
-                          {!isGeneratingCustom && lastGeneratedCustomResult && (
-                            <div className="p-3 bg-black/5 rounded-xl border border-black/5">
-                              <p className="text-[11px] text-brand-primary/80 italic leading-relaxed">
-                                {lastGeneratedCustomResult.suitabilityReason}
-                              </p>
+                          <div className="relative group aspect-[3/4] rounded-2xl overflow-hidden shadow-inner bg-black/5">
+                            <img 
+                              src={lastCustomResult.imageUrl} 
+                              alt="Result" 
+                              className="w-full h-full object-cover" 
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                               <button 
+                                 onClick={() => handleDownload(lastCustomResult.imageUrl, lastCustomResult.name)}
+                                 className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                               >
+                                 <Download size={18} />
+                               </button>
+                               <button 
+                                 onClick={() => setSelectedResult(lastCustomResult)}
+                                 className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                               >
+                                 <Maximize2 size={18} />
+                               </button>
                             </div>
-                          )}
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <p className="text-sm font-bold text-brand-primary">{lastCustomResult.name}</p>
+                            <p className="text-xs text-brand-primary/60 line-clamp-2 italic">"{lastCustomResult.suitabilityReason}"</p>
+                          </div>
+
+                          <div className="flex gap-2 pt-2">
+                             <button 
+                               onClick={() => handleCreateInstagramStory(lastCustomResult)}
+                               className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
+                             >
+                               <Share2 size={14} />
+                               Story
+                             </button>
+                             <button 
+                               onClick={() => generatePDF(lastCustomResult)}
+                               className="flex-1 py-3 bg-brand-primary/5 text-brand-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary/10 transition-all flex items-center justify-center gap-2"
+                             >
+                               <FileText size={14} />
+                               PDF
+                             </button>
+                          </div>
                         </motion.div>
                       )}
 
