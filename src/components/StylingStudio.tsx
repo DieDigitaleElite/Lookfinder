@@ -307,7 +307,7 @@ export default function StylingStudio({
                 >
                   <div 
                     className="w-10 h-10 rounded-lg shadow-inner relative overflow-hidden group/color" 
-                    style={{ backgroundColor: c.hex }}
+                    style={{ background: c.hex.includes('gradient') ? c.hex : (c.id === 'col-original' ? 'transparent' : c.hex) }}
                   >
                     {/* Subtle shine/texture overlay */}
                     <div className="absolute inset-0 bg-linear-to-tr from-black/20 via-transparent to-white/30" />

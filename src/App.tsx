@@ -1685,9 +1685,11 @@ export default function App() {
     try {
       const base64Data = image.split(',')[1];
       const isOriginalColor = color.id === 'col-original';
-      const colorText = isOriginalColor ? 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)' : `Farbe: ${color.name}`;
+      const colorText = isOriginalColor 
+        ? 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)' 
+        : `Farbe/Technik: ${color.name} (${color.description})`;
       const lightingPrompt = lighting.prompt || '';
-      const customPrompt = `${style.name}, ${style.description}. ${colorText}. Lighting: ${lightingPrompt}. Make it look realistic, high quality, consistent with the person's face.`;
+      const customPrompt = `${style.name}, ${style.description}. ${colorText}. Lighting: ${lightingPrompt}. Make it look realistic, high quality, consistent with the person's face. Focus on realistic hair texture and precise coloring technique application.`;
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
