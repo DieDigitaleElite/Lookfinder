@@ -4828,7 +4828,16 @@ export default function App() {
                   <div className="p-8 lg:p-12 flex flex-col justify-center bg-white">
                     <div className="text-center mb-6 lg:mb-8">
                       <h3 className="text-xl lg:text-2xl font-bold text-brand-primary mb-2">Wähle deinen Plan</h3>
-                      <p className="text-sm text-brand-primary/60">Keine versteckten Kosten. Jederzeit kündbar.</p>
+                      <p className="text-sm text-brand-primary/60 mb-4">Keine versteckten Kosten. Jederzeit kündbar.</p>
+                      
+                      <div className="flex items-center justify-center gap-3 py-2 px-4 bg-[#FF9EBE]/5 rounded-xl border border-[#FF9EBE]/10 inline-flex mx-auto">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Wir akzeptieren:</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] font-black text-brand-primary/60 bg-white px-2 py-0.5 rounded border border-black/5 shadow-sm">PAYPAL</span>
+                          <span className="text-[10px] font-black text-brand-primary/60 bg-white px-2 py-0.5 rounded border border-black/5 shadow-sm">KREDITKARTE</span>
+                          <span className="text-[10px] font-black text-brand-primary/60 bg-white px-2 py-0.5 rounded border border-black/5 shadow-sm">KLARNA</span>
+                        </div>
+                      </div>
                       
                       {error && (
                         <motion.div 
@@ -5054,6 +5063,9 @@ export default function App() {
                 <p className="text-brand-primary/60 text-lg">
                   Hol dir jetzt unbegrenzte Looks + Premium Styles
                 </p>
+                <div className="flex items-center gap-2 justify-center py-1.5 px-3 bg-black/5 border border-black/5 rounded-xl w-fit mx-auto">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-brand-primary/40">Inkl. PayPal & Klarna</span>
+                </div>
               </div>
 
               <div className="p-6 bg-[#FF9EBE]/5 rounded-[2rem] border-2 border-dashed border-[#FF9EBE]/30 space-y-4">

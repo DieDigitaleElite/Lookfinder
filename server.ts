@@ -131,7 +131,6 @@ apiRouter.post("/create-checkout-session", async (req, res) => {
     console.log(`Creating checkout session with baseUrl: ${baseUrl} (Protocol: ${protocol}, Host: ${host}) for user: ${userId}`);
 
     const session = await stripeClient.checkout.sessions.create({
-      payment_method_types: ["card"],
       line_items: lineItems,
       mode: mode,
       client_reference_id: userId,
