@@ -10,17 +10,17 @@ import {
   TrendingUp,
   Camera,
   Star,
-  Users
+  Users,
+  User,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface UserDashboardProps {
   user: any;
-  activeTab: 'overview' | 'studio' | 'gallery' | 'polls';
+  activeTab: 'overview' | 'studio' | 'gallery' | 'polls' | 'account';
   setActiveTab: (tab: any) => void;
   children: React.ReactNode;
   onLogout: () => void;
-  onProfileClick: () => void;
   avatarSketch?: string | null;
 }
 
@@ -30,7 +30,6 @@ export default function UserDashboard({
   setActiveTab, 
   children, 
   onLogout,
-  onProfileClick,
   avatarSketch
 }: UserDashboardProps) {
   const navItems = [
@@ -38,6 +37,7 @@ export default function UserDashboard({
     { id: 'studio', name: 'Styling Studio', icon: Palette },
     { id: 'gallery', name: 'Meine Looks', icon: History },
     { id: 'polls', name: 'Umfragen', icon: MessageSquare },
+    { id: 'account', name: 'Mein Account', icon: User },
   ];
 
   return (
@@ -80,13 +80,6 @@ export default function UserDashboard({
           </nav>
 
           <div className="pt-6 border-t border-black/5 space-y-1">
-            <button 
-              onClick={onProfileClick}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary transition-all"
-            >
-              <Settings size={18} />
-              Einstellungen
-            </button>
             <button 
               onClick={onLogout}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold text-red-500 hover:bg-red-50 transition-all"

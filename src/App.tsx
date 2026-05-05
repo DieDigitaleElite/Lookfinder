@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink } from 'lucide-react';
+import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink, AlertTriangle, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
@@ -44,6 +44,7 @@ import {
   doc, 
   setDoc, 
   getDoc, 
+  getDocs,
   updateDoc,
   addDoc,
   collection, 
@@ -104,6 +105,7 @@ export default function App() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
@@ -151,6 +153,7 @@ export default function App() {
 
   // Firebase State
   const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userData, setUserData] = useState<any>(null);
   const [savedResults, setSavedResults] = useState<GeneratedResult[]>([]);
   const [showGallery, setShowGallery] = useState(false);
   const [isSaving, setIsSaving] = useState<string | null>(null);
@@ -172,7 +175,7 @@ export default function App() {
   const [usageCount, setUsageCount] = useState(0);
   const [clientIp, setClientIp] = useState<string | null>(null);
 
-  const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | null>(null);
+  const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account' | null>(null);
   const [activePoll, setActivePoll] = useState<any>(null);
   const [isPollSyncing, setIsPollSyncing] = useState(() => new URLSearchParams(window.location.search).has('poll'));
   const [votedId, setVotedId] = useState<string | null>(null);
@@ -181,8 +184,7 @@ export default function App() {
   const [userPolls, setUserPolls] = useState<any[]>([]);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
-  const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls'>('overview');
-  const [profileTab, setProfileTab] = useState<'results' | 'polls' | 'gallery'>('gallery');
+  const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
 
   // Handle post-login redirects
   useEffect(() => {
@@ -727,6 +729,7 @@ export default function App() {
           if (docSnap.exists()) {
             const data = docSnap.data();
             console.log("User profile loaded:", data);
+            setUserData(data);
             
             // If we are currently processing a payment, don't let the snapshot overwrite our local premium state
             // unless the snapshot itself shows premium is active
@@ -1213,7 +1216,7 @@ export default function App() {
       await updateProfile(user, { displayName: loginName });
       await setDoc(doc(db, 'users', user.uid), { displayName: loginName }, { merge: true });
       setAuthMessage({ type: 'success', text: "Profil aktualisiert!" });
-      setTimeout(() => setShowProfileModal(false), 2000);
+      setTimeout(() => setAuthMessage(null), 3000);
     } catch (err) {
       setAuthMessage({ type: 'error', text: "Update fehlgeschlagen." });
     } finally {
@@ -1222,29 +1225,53 @@ export default function App() {
   };
 
   const handleDeleteAccount = async () => {
-    if (!user || !window.confirm("Möchtest du dein Konto wirklich unwiderruflich löschen? Alle gespeicherten Frisuren gehen verloren.")) return;
+    if (!user) return;
     
     setIsDeletingAccount(true);
     try {
-      // 1. Delete user results from Firestore
+      // 1. Delete all results from subcollection
       const resultsRef = collection(db, 'users', user.uid, 'results');
-      const snapshot = await getDoc(doc(db, 'users', user.uid)); // Just to check existence
-      // In a real app, you'd loop through and delete subcollections
-      // For simplicity here, we delete the user doc
+      const resultsSnap = await getDocs(resultsRef);
+      const deleteResultsPromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deleteResultsPromises);
+
+      // 2. Delete all sketches from subcollection
+      const sketchesRef = collection(db, 'users', user.uid, 'sketches');
+      const sketchesSnap = await getDocs(sketchesRef);
+      const deleteSketchesPromises = sketchesSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deleteSketchesPromises);
+      
+      // 3. Delete all polls created by this user
+      const pollsRef = collection(db, 'polls');
+      const pollsQ = query(pollsRef, where('creatorId', '==', user.uid));
+      const pollsSnap = await getDocs(pollsQ);
+      const deletePollsPromises = pollsSnap.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePollsPromises);
+
+      // 4. Delete user usage tracking
+      await deleteDoc(doc(db, 'usage', user.uid));
+
+      // 5. Delete the main user document
       await deleteDoc(doc(db, 'users', user.uid));
       
-      // 2. Delete the Auth user
+      // 6. Delete the Auth user
       await deleteUser(user);
       
-      setShowProfileModal(false);
+      setShowDeleteConfirm(false);
       setUser(null);
-      setAuthMessage({ type: 'success', text: "Konto erfolgreich gelöscht." });
+      setAuthMessage({ type: 'success', text: "Dein Konto und alle deine Daten wurden erfolgreich gelöscht." });
+      
+      // Reset local state
+      reset();
     } catch (err: any) {
       console.error("Delete failed", err);
       if (err.code === 'auth/requires-recent-login') {
-        setAuthMessage({ type: 'error', text: "Bitte melde dich erneut an, um dein Konto zu löschen." });
+        setAuthMessage({ type: 'error', text: "Aus Sicherheitsgründen musst du dich erneut anmelden, bevor du dein Konto löschen kannst." });
+        setShowDeleteConfirm(false);
+        // Force logout to allow re-login
+        await signOut(auth);
       } else {
-        setAuthMessage({ type: 'error', text: "Fehler beim Löschen des Kontos." });
+        setAuthMessage({ type: 'error', text: "Fehler beim Löschen des Kontos. Bitte versuche es später erneut." });
       }
     } finally {
       setIsDeletingAccount(false);
@@ -2242,11 +2269,7 @@ export default function App() {
                 <div className="h-8 w-px bg-black/10 hidden sm:block" />
                 <button 
                   onClick={() => {
-                    if (dashboardTab === 'overview') {
-                       setShowProfileModal(true);
-                    } else {
-                       setDashboardTab('overview');
-                    }
+                    setDashboardTab('account');
                   }}
                   className="flex items-center gap-3 p-1 pr-3 hover:bg-black/5 rounded-full transition-all group"
                 >
@@ -2468,7 +2491,6 @@ export default function App() {
                 activeTab={dashboardTab}
                 setActiveTab={setDashboardTab}
                 onLogout={handleLogout}
-                onProfileClick={() => setShowProfileModal(true)}
                 avatarSketch={avatarSketch}
               >
                 {dashboardTab === 'overview' && (
@@ -2478,7 +2500,7 @@ export default function App() {
                       <p className="text-brand-primary/60">Willkommen in deinem persönlichen Frisuren.ai Bereich.</p>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                       {/* Quick Actions */}
                       <button 
                         onClick={() => setDashboardTab('studio')}
@@ -2518,6 +2540,19 @@ export default function App() {
                           <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Teile deine Looks und lass Freunde abstimmen.</p>
                         </div>
                       </button>
+
+                      <button 
+                        onClick={() => setDashboardTab('account')}
+                        className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-xl shadow-black/[0.02] text-left space-y-4 hover:border-[#FF9EBE]/50 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-[#FF9EBE]/10 flex items-center justify-center text-[#FF9EBE] group-hover:scale-110 transition-transform">
+                          <User size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg text-brand-primary">Mein Account</h4>
+                          <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Verwalte dein Profil und deine Mitgliedschaft.</p>
+                        </div>
+                      </button>
                     </div>
 
                     {/* Promo Section */}
@@ -2536,6 +2571,267 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+                )}
+
+                {dashboardTab === 'account' && (
+                  <motion.div 
+                    key="account-tab"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="p-8 lg:p-12 space-y-10 bg-white rounded-[3rem] border border-black/5"
+                  >
+                    <div className="space-y-4">
+                      <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Mein Account</h2>
+                      <div className="flex items-center gap-2">
+                         <span className="px-3 py-1 bg-black/5 rounded-full text-[10px] font-black uppercase tracking-widest text-brand-primary/40">
+                           Mitglied seit {userData?.createdAt?.toDate ? userData.createdAt.toDate().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' }) : 'unbekannt'}
+                         </span>
+                      </div>
+                    </div>
+
+                    {/* Stats Row */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Gespeicherte Looks</p>
+                        <p className="text-2xl font-serif font-bold">{savedResults.length}</p>
+                      </div>
+                      <div className="p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Umfragen</p>
+                        <p className="text-2xl font-serif font-bold">{userPolls.length}</p>
+                      </div>
+                      <div className="hidden md:block p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Status</p>
+                        <p className={`text-sm font-black uppercase tracking-widest ${isPremium ? 'text-emerald-500' : 'text-brand-primary/40'}`}>
+                          {isPremium ? 'Premium' : 'Basis'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Premium Status Card */}
+                    <div className={`p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col justify-between min-h-[220px] ${
+                      isPremium ? 'bg-gradient-to-br from-brand-primary to-[#2A2A2A] text-white shadow-2xl shadow-brand-primary/20' : 'bg-gradient-to-br from-[#FF9EBE]/5 to-[#FF9EBE]/20 text-brand-primary'
+                    }`}>
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center justify-between mb-8">
+                           <div className="flex items-center gap-3">
+                              <div className={`p-2 rounded-xl ${isPremium ? 'bg-[#FF9EBE]' : 'bg-brand-primary'}`}>
+                                <ShieldCheck size={24} className="text-white" />
+                              </div>
+                              <div>
+                                <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Aktueller Tarif</p>
+                                <h4 className="text-xl font-bold font-serif">{isPremium ? (userPlan === 'single' ? 'Premium' : 'Pro Mitglied') : 'Kostenloser Account'}</h4>
+                              </div>
+                           </div>
+                           {isPremium && (
+                            <span className="bg-green-500/20 text-green-400 text-[10px] font-black px-4 py-1.5 rounded-full uppercase border border-green-500/30">
+                              Aktiv
+                            </span>
+                           )}
+                        </div>
+
+                        {isPremium && premiumExpiresAt ? (
+                          <p className="text-xs font-bold opacity-60 flex items-center gap-2">
+                            <Clock size={14} />
+                            {(() => {
+                              const expiryDate = premiumExpiresAt.toDate();
+                              const now = new Date();
+                              const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                              return `Läuft in ${diffDays} Tagen ab (${expiryDate.toLocaleDateString('de-DE')})`;
+                            })()}
+                          </p>
+                        ) : (
+                          <div className="space-y-4">
+                            <ul className="space-y-2">
+                              <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Unbegrenzt Frisuren-Analysen</li>
+                              <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Premium-Styling Studio</li>
+                              <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Alle Looks in der Galerie speichern</li>
+                            </ul>
+                            <button 
+                              onClick={() => setShowPricingModal(true)}
+                              className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20"
+                            >
+                              Jetzt zum Pro Upgrade
+                            </button>
+                          </div>
+                        )}
+
+                        {isPremium && (
+                          <button 
+                            onClick={() => {
+                              setDashboardTab('studio');
+                            }}
+                            className="w-full mt-6 py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-2"
+                          >
+                            <Palette size={18} />
+                            Zum Styling Studio
+                          </button>
+                        )}
+
+                        {user?.email === 'google@diedigitaleelite.de' && (
+                          <div className="pt-8 mt-8 border-t border-black/10">
+                            <button 
+                              onClick={() => {
+                                setShowAdminDashboard(true);
+                              }}
+                              className="w-full py-4 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-3 shadow-lg"
+                            >
+                              <ShieldCheck size={18} />
+                              Admin Dashboard öffnen
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {authMessage && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`p-5 rounded-3xl flex items-start gap-4 text-sm ${
+                          authMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
+                          authMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
+                          'bg-blue-50 text-blue-700 border border-blue-100'
+                        }`}
+                      >
+                        <Bell size={20} className="shrink-0 mt-0.5" />
+                        <p className="font-medium">{authMessage.text}</p>
+                      </motion.div>
+                    )}
+
+                    <div className="space-y-8">
+                      {!user.emailVerified && (
+                         <div className="p-6 bg-[#FF9EBE]/5 border border-[#FF9EBE]/20 rounded-3xl space-y-4">
+                            <div className="flex items-center gap-3 text-[#FF9EBE] font-bold">
+                              <AlertCircle size={24} />
+                              E-Mail bestätigen
+                            </div>
+                            <p className="text-brand-primary/60 text-sm leading-relaxed">
+                              Bestätige deine E-Mail-Adresse, um dein Profil zu sichern und Looks dauerhaft zu speichern.
+                            </p>
+                            <button 
+                              onClick={handleSendVerification}
+                              disabled={authLoading}
+                              className="w-full py-3 bg-[#FF9EBE] text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-[#FF9EBE]/90 transition-all disabled:opacity-50"
+                            >
+                              Bestätigungs-E-Mail senden
+                            </button>
+                         </div>
+                      )}
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <form onSubmit={handleUpdateProfile} className="space-y-6 p-8 bg-black/[0.02] border border-black/5 rounded-[2rem]">
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 mb-2">
+                              <User size={16} className="text-brand-primary/40" />
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Profil bearbeiten</h4>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold uppercase tracking-widest text-brand-primary/30 ml-1">Anzeigename</label>
+                              <input 
+                                type="text" 
+                                required
+                                value={loginName}
+                                onChange={(e) => setLoginName(e.target.value)}
+                                placeholder={user.displayName || "Dein Name"}
+                                className="w-full px-6 py-4 bg-white border border-black/5 rounded-2xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none text-sm font-bold shadow-sm"
+                              />
+                            </div>
+                          </div>
+                          <button 
+                            type="submit"
+                            disabled={authLoading}
+                            className="w-full py-4 bg-brand-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all disabled:opacity-50 shadow-lg shadow-brand-primary/10 flex items-center justify-center gap-2"
+                          >
+                            {authLoading ? <Loader2 className="animate-spin" size={18} /> : (
+                              <>
+                                <Save size={16} />
+                                Änderungen speichern
+                              </>
+                            )}
+                          </button>
+                        </form>
+
+                        <div className="flex flex-col gap-8">
+                           {/* Logout Section */}
+                           <div className="p-8 bg-black/[0.02] border border-black/5 rounded-[2rem] space-y-4">
+                             <div className="flex items-center gap-2">
+                               <LogOut size={16} className="text-brand-primary/40" />
+                               <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Sitzung</h4>
+                             </div>
+                             <button 
+                                onClick={handleLogout}
+                                className="w-full py-4 bg-white border border-black/5 text-brand-primary rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black/5 transition-all flex items-center justify-center gap-3 shadow-sm group"
+                              >
+                                <LogOut size={18} className="group-hover:translate-x-1 transition-transform" />
+                                Sicher abmelden
+                              </button>
+                           </div>
+
+                           {/* Danger Zone */}
+                           <div className="p-8 bg-red-50/30 border border-red-100 rounded-[2rem] space-y-4">
+                             <div className="flex items-center gap-2 text-red-500/60">
+                               <AlertTriangle size={16} />
+                               <h4 className="text-[10px] font-black uppercase tracking-widest">Gefahrenzone 😉</h4>
+                             </div>
+                             <p className="text-[11px] text-red-800/40 leading-relaxed">
+                               Das Löschen deines Kontos entfernt alle deine Daten dauerhaft. Dieser Vorgang kann nicht rückgängig gemacht werden.
+                             </p>
+                             <button 
+                                onClick={() => setShowDeleteConfirm(true)}
+                                disabled={isDeletingAccount}
+                                className="w-full py-4 text-red-500 border border-red-200 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-3"
+                              >
+                                {isDeletingAccount ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                                Konto unwiderruflich löschen
+                              </button>
+                           </div>
+                        </div>
+                      </div>
+
+                      {user.providerData.some(p => p.providerId === 'password') && (
+                        <div className="p-8 bg-black/[0.02] border border-black/5 rounded-[2rem] mt-8 flex flex-col md:flex-row items-center justify-between gap-6">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Lock size={16} className="text-brand-primary/40" />
+                              <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Sicherheit</h4>
+                            </div>
+                            <h3 className="font-bold">Passwort ändern?</h3>
+                            <p className="text-xs text-brand-primary/40">Wir senden dir einen Link zum Zurücksetzen an deine E-Mail-Adresse.</p>
+                          </div>
+                          <button 
+                            onClick={async () => {
+                              if (user.email) {
+                                await sendPasswordResetEmail(auth, user.email);
+                                setAuthMessage({ type: 'success', text: "E-Mail zum Zurücksetzen wurde gesendet!" });
+                                setTimeout(() => setAuthMessage(null), 3000);
+                              }
+                            }}
+                            className="px-8 py-3 bg-white border border-black/5 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-black/5 transition-all shadow-sm"
+                          >
+                            Link anfordern
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {/* Promo Section */}
+                    <div className="bg-brand-primary rounded-[3rem] p-12 text-center space-y-6 text-white relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF9EBE]/20 blur-[100px] -mr-32 -mt-32" />
+                      <TrendingUp className="mx-auto text-[#FF9EBE]" size={40} />
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-serif font-bold text-white">Dein nächster Style wartet</h3>
+                        <p className="text-white/60 max-w-sm mx-auto text-sm">Unsere KI erkennt jetzt auch die aktuelle Haar-Struktur. Lade ein neues Foto im Studio hoch!</p>
+                      </div>
+                      <button 
+                        onClick={() => setDashboardTab('studio')}
+                        className="px-10 py-3 bg-[#FF9EBE] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-transform"
+                      >
+                        Studio öffnen
+                      </button>
+                    </div>
+                  </motion.div>
                 )}
 
                 {dashboardTab === 'studio' && (
@@ -4005,6 +4301,82 @@ export default function App() {
 
       {/* Cookie Banner */}
       <CookieBanner />
+      
+      {/* Account Deletion Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isDeletingAccount) {
+                  setShowDeleteConfirm(false);
+                  setDeleteConfirmationText('');
+                }
+              }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 md:p-10 space-y-8 text-center text-brand-primary">
+                <div className="w-20 h-20 bg-red-50 text-red-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                  <AlertTriangle size={40} />
+                </div>
+                
+                <div className="space-y-4">
+                  <h3 className="text-2xl font-serif font-bold italic">Bist du dir sicher?</h3>
+                  <p className="text-sm leading-relaxed opacity-60">
+                    Diese Aktion ist <span className="font-bold text-red-500 italic">unwiderruflich</span>. 
+                    Dein Konto, alle gespeicherten Frisuren, deine Galerie und deine Umfragen werden 
+                    <span className="font-bold"> dauerhaft gelöscht</span>. 
+                    Deine Daten können nicht wiederhergestellt werden.
+                  </p>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Tippe "LÖSCHEN" zur Bestätigung</label>
+                    <input 
+                      type="text" 
+                      value={deleteConfirmationText}
+                      onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                      placeholder="LÖSCHEN"
+                      className="w-full px-6 py-4 bg-red-50 border-2 border-red-100 rounded-2xl focus:ring-4 focus:ring-red-500/10 transition-all outline-none text-center font-black tracking-widest text-red-600 placeholder:text-red-200"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <button 
+                      onClick={handleDeleteAccount}
+                      disabled={deleteConfirmationText !== 'LÖSCHEN' || isDeletingAccount}
+                      className="w-full py-4 bg-red-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 disabled:opacity-30 disabled:shadow-none flex items-center justify-center gap-2"
+                    >
+                      {isDeletingAccount ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                      Konto Endgültig Löschen
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowDeleteConfirm(false);
+                        setDeleteConfirmationText('');
+                      }}
+                      disabled={isDeletingAccount}
+                      className="w-full py-4 bg-black/5 text-brand-primary rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-black/10 transition-all"
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Admin Dashboard */}
       <AnimatePresence>
@@ -4226,11 +4598,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Footer */}
-      <footer className="py-8 px-4 border-t border-black/5 text-center text-brand-primary/40 text-sm">
-        <p>© 2026 Frisuren.ai AI. Alle Rechte vorbehalten.</p>
-      </footer>
-
       {/* Login Modal */}
       <AnimatePresence>
         {showLoginModal && (
@@ -4435,551 +4802,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Profile Modal */}
-      <AnimatePresence>
-        {showProfileModal && user && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowProfileModal(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
-            >
-              <button 
-                onClick={() => setShowProfileModal(false)}
-                className="absolute top-6 right-6 p-2 hover:bg-black/5 rounded-full transition-colors z-20 bg-white/80 backdrop-blur-sm shadow-sm"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="flex flex-col md:flex-row h-full overflow-hidden">
-                {/* Sidebar - User Info */}
-                <div className="w-full md:w-80 bg-black/[0.02] border-r border-black/5 p-8 flex flex-col items-center text-center">
-                  <div className="relative w-24 h-24 mb-6">
-                    {user.photoURL ? (
-                      <img src={user.photoURL} alt={user.displayName || ''} className="w-full h-full rounded-[2rem] object-cover shadow-xl border-4 border-white" />
-                    ) : (
-                      <div className="w-full h-full rounded-[2rem] bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center shadow-inner border-4 border-white">
-                        <User size={40} />
-                      </div>
-                    )}
-                    {isPremium && (
-                      <div className="absolute -bottom-2 -right-2 bg-[#FF9EBE] text-white p-2 rounded-xl shadow-lg border-2 border-white">
-                        <Sparkles size={16} />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-1 mb-8">
-                    <h3 className="text-xl font-serif font-bold text-brand-primary">{user.displayName || 'Nutzer'}</h3>
-                    <p className="text-brand-primary/40 text-xs font-medium">{user.email}</p>
-                  </div>
-
-                  <div className="w-full space-y-2 mt-auto">
-                    <button 
-                      onClick={() => setProfileTab('gallery')}
-                      className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-                        profileTab === 'gallery' ? 'bg-[#FF9EBE] text-white shadow-lg shadow-[#FF9EBE]/20' : 'text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary'
-                      }`}
-                    >
-                      <LayoutGrid size={18} />
-                      Galerie
-                    </button>
-                    <button 
-                      onClick={() => setProfileTab('polls')}
-                      className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-                        profileTab === 'polls' ? 'bg-[#FF9EBE] text-white shadow-lg shadow-[#FF9EBE]/20' : 'text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary'
-                      }`}
-                    >
-                      <Users size={18} />
-                      Umfragen
-                    </button>
-                    <button 
-                      onClick={() => setProfileTab('results')}
-                      className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-                        profileTab === 'results' ? 'bg-[#FF9EBE] text-white shadow-lg shadow-[#FF9EBE]/20' : 'text-brand-primary/40 hover:bg-black/5 hover:text-brand-primary'
-                      }`}
-                    >
-                      <Settings size={18} />
-                      Account
-                    </button>
-                  </div>
-                </div>
-
-                {/* Main Content Area */}
-                <div className="flex-1 overflow-y-auto bg-white">
-                  <AnimatePresence mode="wait">
-                    {profileTab === 'gallery' ? (
-                      <motion.div 
-                        key="gallery-tab"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="p-8 lg:p-12 space-y-10"
-                      >
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                          <div className="space-y-1">
-                            <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Styling-Galerie</h2>
-                            <p className="text-brand-primary/40 text-sm">Alle deine gespeicherten Looks an einem Ort.</p>
-                          </div>
-                          <div className="flex flex-wrap gap-4">
-                            <button 
-                              onClick={() => setShowPollCreator(true)}
-                              className="px-6 py-3 bg-white border-2 border-[#FF9EBE] text-[#FF9EBE] rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#FF9EBE] hover:text-white transition-all flex items-center justify-center gap-2"
-                            >
-                              <Users size={16} />
-                              Umfrage erstellen
-                            </button>
-                            <button 
-                              onClick={() => {
-                                if (isPremium) {
-                                  setShowProfileModal(false);
-                                  setShowStylingStudio(true);
-                                } else {
-                                  setShowProfileModal(false);
-                                  setShowPricingModal(true);
-                                }
-                              }}
-                              className="px-6 py-3 bg-brand-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 relative group"
-                            >
-                              <Palette size={16} />
-                              Styling Studio
-                              {!isPremium && (
-                                <span className="absolute -top-2 -right-2 bg-[#FF9EBE] text-white text-[8px] px-2 py-0.5 rounded-full shadow-lg border border-white animate-pulse">PRO</span>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {savedResults.length === 0 ? (
-                          <div className="py-20 flex flex-col items-center justify-center text-center space-y-6 bg-black/[0.02] rounded-[3rem] border-2 border-dashed border-black/5">
-                            <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center shadow-sm">
-                              <Camera className="text-brand-primary/10" size={40} />
-                            </div>
-                            <div className="space-y-4 px-8 max-w-sm">
-                              <h3 className="font-bold text-lg">Keine Looks gespeichert</h3>
-                              <p className="text-brand-primary/40 text-sm leading-relaxed">
-                                {isPremium 
-                                  ? "Starte eine neue Analyse, um deine Galerie zu füllen. Alle Ergebnisse werden hier automatisch gespeichert."
-                                  : "Als Premium-Mitglied kannst du unbegrenzt eigene Frisuren und Haarfarben ausprobieren und alle deine Looks hier automatisch speichern."}
-                              </p>
-                              {isPremium ? (
-                                <button 
-                                  onClick={() => {
-                                    setShowProfileModal(false);
-                                    setShowStylingStudio(true);
-                                  }}
-                                  className="mt-4 w-full py-3 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] shadow-lg shadow-brand-primary/20 transition-all"
-                                >
-                                  Styling Studio öffnen
-                                </button>
-                              ) : (
-                                <button 
-                                  onClick={() => {
-                                    setShowProfileModal(false);
-                                    setShowPricingModal(true);
-                                  }}
-                                  className="mt-4 w-full py-3 bg-[#FF9EBE] text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] shadow-lg shadow-[#FF9EBE]/20 transition-all"
-                                >
-                                  Jetzt Premium freischalten
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-                            {savedResults.map((item) => (
-                              <motion.div 
-                                key={item.id}
-                                whileHover={{ y: -5 }}
-                                className="group relative aspect-[3/4] rounded-3xl overflow-hidden bg-black/5 shadow-sm border border-black/5"
-                              >
-                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-6 flex flex-col justify-end gap-3">
-                                  <div className="space-y-1">
-                                    <p className="text-white text-xs font-bold tracking-tight">{item.name}</p>
-                                    <p className="text-white/60 text-[10px] font-medium">{item.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
-                                  </div>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    <button 
-                                      onClick={() => setSelectedResult(item as any)}
-                                      className="py-2 bg-white text-brand-primary text-[10px] font-black rounded-lg hover:bg-[#FF9EBE] hover:text-white transition-all uppercase tracking-widest"
-                                    >
-                                      Ansehen
-                                    </button>
-                                    <button 
-                                      onClick={() => {
-                                        setShowProfileModal(false);
-                                        handleCreateInstagramStory(item as any);
-                                      }}
-                                      className="py-2 bg-white/10 backdrop-blur-md text-white text-[10px] font-black rounded-lg hover:bg-[#FF9EBE] transition-all uppercase tracking-widest border border-white/20"
-                                    >
-                                      Story
-                                    </button>
-                                    <button 
-                                      onClick={() => {
-                                        setPollInitialSelectedIds([item.id]);
-                                        setShowPollCreator(true);
-                                      }}
-                                      className="py-2 bg-white/10 backdrop-blur-md text-white text-[10px] font-black rounded-lg hover:bg-emerald-500 transition-all uppercase tracking-widest border border-white/20"
-                                    >
-                                      Poll
-                                    </button>
-                                    <button 
-                                      onClick={async () => {
-                                        if (confirm("Möchtest du diesen Look wirklich löschen?")) {
-                                          try {
-                                            const historyRef = doc(db, 'users', user.uid, 'results', item.id);
-                                            await deleteDoc(historyRef);
-                                          } catch (err) {
-                                            console.error("Delete failed", err);
-                                          }
-                                        }
-                                      }}
-                                      className="py-2 bg-white/10 backdrop-blur-md text-white/60 rounded-lg hover:bg-red-500 hover:text-white transition-all flex items-center justify-center border border-white/20"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </motion.div>
-                            ))}
-                          </div>
-                        )}
-                      </motion.div>
-                    ) : profileTab === 'polls' ? (
-                      <motion.div 
-                        key="polls-tab"
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -10 }}
-                        className="p-8 lg:p-12 space-y-10"
-                      >
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                          <div className="space-y-1">
-                            <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine Umfragen</h2>
-                            <p className="text-brand-primary/40 text-sm">Teile deine Looks und lass deine Freunde entscheiden.</p>
-                          </div>
-                          <button 
-                            onClick={() => setShowPollCreator(true)}
-                            className="px-6 py-3 bg-[#FF9EBE] text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-[#FF9EBE]/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group"
-                          >
-                            <Plus size={16} />
-                            Neue Umfrage erstellen
-                          </button>
-                        </div>
-
-                        <div className="space-y-4">
-                          {userPolls.length === 0 ? (
-                            <div className="text-center py-20 bg-black/[0.02] rounded-[3rem] border-2 border-dashed border-black/5 space-y-6">
-                              <div className="w-20 h-20 bg-white rounded-3xl mx-auto flex items-center justify-center shadow-sm">
-                                <Users className="text-brand-primary/10" size={40} />
-                              </div>
-                              <p className="text-sm text-brand-primary/40 font-medium px-8 max-w-sm mx-auto leading-relaxed">Du hast noch keine Umfragen erstellt. Wähle deine besten Looks aus der Galerie und frag deine Freunde!</p>
-                              <button 
-                                onClick={() => setShowPollCreator(true)}
-                                className="mt-4 px-8 py-3 bg-brand-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:scale-[1.02] shadow-lg shadow-brand-primary/20 transition-all"
-                              >
-                                Erste Umfrage erstellen
-                              </button>
-                            </div>
-                          ) : (
-                            userPolls.map((poll) => {
-                              const options = poll.options || [];
-                              const totalVotes = options.reduce((acc: number, curr: any) => acc + (curr.votes || 0), 0);
-                              const winner = options.length > 0 
-                                ? options.reduce((prev: any, current: any) => (prev.votes > current.votes) ? prev : current, options[0])
-                                : null;
-                              return (
-                                <div key={poll.id} className="p-6 bg-white border border-black/5 rounded-3xl shadow-sm hover:shadow-md transition-all hover:border-[#FF9EBE]/20 group">
-                                  <div className="flex items-center gap-6">
-                                    <div className="relative w-20 h-24 rounded-2xl overflow-hidden bg-black/5 shrink-0 border-2 border-white shadow-md">
-                                      {winner?.imageUrl ? (
-                                        <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                      ) : (
-                                        <div className="w-full h-full bg-black/5 flex items-center justify-center">
-                                          <Users size={16} className="text-brand-primary/20" />
-                                        </div>
-                                      )}
-                                      <div className="absolute top-1 left-1 bg-[#FF9EBE] text-white text-[8px] px-1.5 py-0.5 rounded-md font-black uppercase tracking-tight shadow-sm">Favorit</div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-base font-bold truncate leading-tight">{poll.question || "Style Umfrage"}</p>
-                                        <span className="shrink-0 px-2 py-0.5 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase tracking-tighter">Aktiv</span>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                         <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{totalVotes} Stimmen</p>
-                                         <span className="w-1 h-1 bg-black/10 rounded-full" />
-                                         <p className="text-xs text-brand-primary/40 font-bold uppercase tracking-widest">{poll.createdAt?.toDate().toLocaleDateString('de-DE')}</p>
-                                      </div>
-                                      <div className="mt-3 flex -space-x-2">
-                                         {(poll.options || []).map((opt: any, i: number) => (
-                                           <div key={i} className="w-6 h-6 rounded-full border-2 border-white overflow-hidden bg-black/5">
-                                              {opt?.imageUrl && <img src={opt.imageUrl} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />}
-                                           </div>
-                                         ))}
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-2 px-2">
-                                      <button 
-                                        onClick={() => {
-                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
-                                          window.open(url, '_blank');
-                                        }}
-                                        className="w-12 h-12 flex items-center justify-center bg-black/5 text-brand-primary rounded-2xl hover:bg-brand-primary hover:text-white transition-all shadow-sm"
-                                        title="Umfrage öffnen"
-                                      >
-                                        <ExternalLink size={20} />
-                                      </button>
-                                      <button 
-                                        onClick={() => {
-                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
-                                          const text = `Welcher Look steht mir am besten? 🤔 Schau dir meine Frisuren.ai Umfrage an: ${url}`;
-                                          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-                                        }}
-                                        className="w-12 h-12 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-2xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                                        title="Per WhatsApp teilen"
-                                      >
-                                        <MessageSquare size={20} />
-                                      </button>
-                                      <button 
-                                        onClick={() => {
-                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
-                                          navigator.clipboard.writeText(url);
-                                          setAuthMessage({ type: 'success', text: "Link kopiert! Öffne Instagram... 📸" });
-                                          setTimeout(() => {
-                                            setAuthMessage(null);
-                                            window.open('https://www.instagram.com/', '_blank');
-                                          }, 2000);
-                                        }}
-                                        className="w-12 h-12 flex items-center justify-center bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-white rounded-2xl hover:scale-105 transition-all shadow-sm"
-                                        title="Instagram Story"
-                                      >
-                                        <Instagram size={20} />
-                                      </button>
-                                      <button 
-                                        onClick={async () => {
-                                          const url = `${window.location.origin}${window.location.pathname}?poll=${poll.id}`;
-                                          try {
-                                            await navigator.clipboard.writeText(url);
-                                            setAuthMessage({ type: 'success', text: "Link kopiert!" });
-                                            setTimeout(() => setAuthMessage(null), 3000);
-                                          } catch (err) {
-                                            console.error("Copy failed", err);
-                                          }
-                                        }}
-                                        className="w-12 h-12 flex items-center justify-center bg-black/5 text-brand-primary/40 rounded-2xl hover:bg-black/10 transition-all shadow-sm"
-                                        title="Teilen"
-                                      >
-                                        <Share2 size={20} />
-                                      </button>
-                                      <button 
-                                        onClick={async () => {
-                                          if (confirm("Umfrage wirklich löschen?")) {
-                                            await deleteDoc(doc(db, 'polls', poll.id));
-                                          }
-                                        }}
-                                        className="w-12 h-12 flex items-center justify-center text-red-500/20 hover:text-red-500 hover:bg-red-50 transition-all rounded-2xl"
-                                        title="Löschen"
-                                      >
-                                        <Trash2 size={20} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </motion.div>
-                    ) : (
-                      <motion.div 
-                        key="results-tab"
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: 10 }}
-                        className="p-8 lg:p-12 space-y-10"
-                      >
-                        <div className="space-y-1">
-                          <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Mein Account</h2>
-                          <p className="text-brand-primary/40 text-sm">Verwalte deine Mitgliedschaft und Profileinstellungen.</p>
-                        </div>
-
-                        {/* Premium Status Card */}
-                        <div className={`p-8 rounded-[2.5rem] relative overflow-hidden flex flex-col justify-between min-h-[220px] ${
-                          isPremium ? 'bg-gradient-to-br from-brand-primary to-[#2A2A2A] text-white' : 'bg-gradient-to-br from-[#FF9EBE]/5 to-[#FF9EBE]/20 text-brand-primary'
-                        }`}>
-                          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl pointer-events-none" />
-                          
-                          <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-8">
-                               <div className="flex items-center gap-3">
-                                  <div className={`p-2 rounded-xl ${isPremium ? 'bg-[#FF9EBE]' : 'bg-brand-primary'}`}>
-                                    <ShieldCheck size={24} className="text-white" />
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Aktueller Tarif</p>
-                                    <h4 className="text-xl font-bold font-serif">{isPremium ? (userPlan === 'single' ? 'Premium' : 'Pro Mitglied') : 'Kostenloser Account'}</h4>
-                                  </div>
-                               </div>
-                               {isPremium && (
-                                <span className="bg-green-500/20 text-green-400 text-[10px] font-black px-4 py-1.5 rounded-full uppercase border border-green-500/30">
-                                  Aktiv
-                                </span>
-                               )}
-                            </div>
-
-                            {isPremium && premiumExpiresAt ? (
-                              <p className="text-xs font-bold opacity-60 flex items-center gap-2">
-                                <Clock size={14} />
-                                {(() => {
-                                  const expiryDate = premiumExpiresAt.toDate();
-                                  const now = new Date();
-                                  const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                                  return `Läuft in ${diffDays} Tagen ab (${expiryDate.toLocaleDateString('de-DE')})`;
-                                })()}
-                              </p>
-                            ) : (
-                              <div className="space-y-4">
-                                <ul className="space-y-2">
-                                  <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Unbegrenzt Frisuren-Analysen</li>
-                                  <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Premium-Styling Studio</li>
-                                  <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Alle Looks in der Galerie speichern</li>
-                                </ul>
-                                <button 
-                                  onClick={() => setShowPricingModal(true)}
-                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20"
-                                >
-                                  Jetzt zum Pro Upgrade
-                                </button>
-                              </div>
-                            )}
-
-                            {isPremium && (
-                              <button 
-                                onClick={() => {
-                                  setShowProfileModal(false);
-                                  setShowStylingStudio(true);
-                                }}
-                                className="w-full mt-6 py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-2"
-                              >
-                                <Palette size={18} />
-                                Zum Styling Studio
-                              </button>
-                            )}
-
-                            {user?.email === 'google@diedigitaleelite.de' && (
-                              <div className="pt-8 mt-8 border-t border-black/10">
-                                <button 
-                                  onClick={() => {
-                                    setShowProfileModal(false);
-                                    setShowAdminDashboard(true);
-                                  }}
-                                  className="w-full py-4 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all flex items-center justify-center gap-3 shadow-lg"
-                                >
-                                  <ShieldCheck size={18} />
-                                  Admin Dashboard öffnen
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {authMessage && (
-                          <motion.div 
-                            initial={{ opacity: 0, y: -10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`p-5 rounded-3xl flex items-start gap-4 text-sm ${
-                              authMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
-                              authMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
-                              'bg-blue-50 text-blue-700 border border-blue-100'
-                            }`}
-                          >
-                            <Bell size={20} className="shrink-0 mt-0.5" />
-                            <p className="font-medium">{authMessage.text}</p>
-                          </motion.div>
-                        )}
-
-                        <div className="space-y-8">
-                          {!user.emailVerified && (
-                             <div className="p-6 bg-[#FF9EBE]/5 border border-[#FF9EBE]/20 rounded-3xl space-y-4">
-                                <div className="flex items-center gap-3 text-[#FF9EBE] font-bold">
-                                  <AlertCircle size={24} />
-                                  E-Mail bestätigen
-                                </div>
-                                <p className="text-brand-primary/60 text-sm leading-relaxed">
-                                  Bestätige deine E-Mail-Adresse, um dein Profil zu sichern und Looks dauerhaft zu speichern.
-                                </p>
-                                <button 
-                                  onClick={handleSendVerification}
-                                  disabled={authLoading}
-                                  className="w-full py-3 bg-[#FF9EBE] text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-[#FF9EBE]/90 transition-all disabled:opacity-50"
-                                >
-                                  Bestätigungs-E-Mail senden
-                                </button>
-                             </div>
-                          )}
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <form onSubmit={handleUpdateProfile} className="space-y-4">
-                              <label className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 ml-1">Profil-Name</label>
-                              <div className="relative">
-                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
-                                <input 
-                                  type="text" 
-                                  required
-                                  value={loginName}
-                                  onChange={(e) => setLoginName(e.target.value)}
-                                  placeholder={user.displayName || "Dein Name"}
-                                  className="w-full pl-12 pr-4 py-4 bg-black/[0.02] border-none rounded-2xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none text-sm font-bold"
-                                />
-                              </div>
-                              <button 
-                                type="submit"
-                                disabled={authLoading}
-                                className="w-full py-4 bg-brand-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all disabled:opacity-50 shadow-md"
-                              >
-                                {authLoading ? <Loader2 className="animate-spin" size={18} /> : 'Speichern'}
-                              </button>
-                            </form>
-
-                            <div className="space-y-4 pt-4 md:pt-0">
-                               <label className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 ml-1 block">Sitzung</label>
-                               <button 
-                                  onClick={handleLogout}
-                                  className="w-full py-4 bg-black/5 text-brand-primary rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-black/10 transition-all flex items-center justify-center gap-3"
-                                >
-                                  <LogOut size={18} />
-                                  Abmelden
-                                </button>
-                                <button 
-                                  onClick={handleDeleteAccount}
-                                  disabled={isDeletingAccount}
-                                  className="w-full py-4 text-red-500 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-50 transition-all flex items-center justify-center gap-3"
-                                >
-                                  {isDeletingAccount ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                                  Konto löschen
-                                </button>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* Footer */}
 
 
       {/* Pricing Modal */}
