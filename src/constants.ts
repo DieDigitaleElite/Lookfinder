@@ -64,13 +64,33 @@ export const HAIR_COLORS = [
   { id: 'col-ombre', name: 'Ombré', hex: 'linear-gradient(to bottom, #2A1B0E, #9F7336)', world: 'techniken', description: 'Markanter Farbverlauf von dunklem Ansatz zu hellen Spitzen.' },
 
   // Blond
-  { id: 'col-1', name: 'Platinblond', hex: '#F0EAD6', world: 'blond', description: 'Extrem helles, fast weißes Blond mit kühlem Unterton.' },
-  { id: 'col-2', name: 'Honigblond', hex: '#D4AF37', world: 'blond', description: 'Warmes, goldenes Blond mit viel Leuchtkraft.' },
-  { id: 'col-6', name: 'Aschblond', hex: '#D1C7B7', world: 'blond', description: 'Ein kühler, neutraler Beigeton ohne Gelbstich.' },
-  { id: 'col-7', name: 'Butterblond', hex: '#FAF3E0', world: 'blond', description: 'Warmer, cremiger Blondton, der sehr natürlich wirkt.' },
+  // Kühle Blondtöne
+  { id: 'col-platinblond', name: 'Platinblond', hex: '#F0EAD6', world: 'blond', tone: 'Kühle Blondtöne', description: 'Extrem helles, fast weißes Blond mit kühlem Unterton.' },
+  { id: 'col-eisblond', name: 'Eisblond', hex: '#F4F4F4', world: 'blond', tone: 'Kühle Blondtöne', description: 'Kristallklares, sehr helles Blond mit silbrigem Glanz.' },
+  { id: 'col-aschblond', name: 'Aschblond', hex: '#D1C7B7', world: 'blond', tone: 'Kühle Blondtöne', description: 'Kühler, neutraler Ton ohne Gelbstich.' },
+  { id: 'col-silberblond', name: 'Silberblond', hex: '#C0C0C0', world: 'blond', tone: 'Kühle Blondtöne', description: 'Edler Metallic-Look mit kühlen Reflexen.' },
+  { id: 'col-nordischblond', name: 'Nordischblond', hex: '#F8F8FF', world: 'blond', tone: 'Kühle Blondtöne', description: 'Natürliches, sehr helles Skandi-Blond.' },
+
+  // Warme Blondtöne
+  { id: 'col-goldblond', name: 'Goldblond', hex: '#FFD700', world: 'blond', tone: 'Warme Blondtöne', description: 'Sonniger Blondton mit warmen, goldenen Reflexen.' },
+  { id: 'col-honigblond', name: 'Honigblond', hex: '#D4AF37', world: 'blond', tone: 'Warme Blondtöne', description: 'Warmes, dunkleres Blond mit viel Leuchtkraft.' },
+  { id: 'col-karamellblond', name: 'Karamellblond', hex: '#9F7336', world: 'blond', tone: 'Warme Blondtöne', description: 'Tieferer, warmer Ton mit karamelligen Nuancen.' },
+  { id: 'col-erdbeerblond', name: 'Erdbeerblond', hex: '#FF8C69', world: 'blond', tone: 'Warme Blondtöne', description: 'Helles Blond mit einem Hauch von Kupfer und Rosé.' },
+  { id: 'col-kupferblond', name: 'Kupferblond', hex: '#CD7F32', world: 'blond', tone: 'Warme Blondtöne', description: 'Lebendiger Mix aus Blond und warmem Kupfer.' },
+
+  // Neutrale/Natürliche Töne
+  { id: 'col-dunkelblond', name: 'Dunkelblond', hex: '#7D6E5D', world: 'blond', tone: 'Neutrale/Natürliche Töne', description: 'Natürlicher Übergangston zwischen Blond und Hellbraun.' },
+  { id: 'col-mittelblond', name: 'Mittelblond', hex: '#B5A691', world: 'blond', tone: 'Neutrale/Natürliche Töne', description: 'Der klassische, ausgewogene Blondton.' },
+  { id: 'col-lichtblond', name: 'Lichtblond', hex: '#EEDC82', world: 'blond', tone: 'Neutrale/Natürliche Töne', description: 'Helles, strahlendes Naturblond.' },
+  { id: 'col-beigeblond', name: 'Beige-Blond', hex: '#F5F5DC', world: 'blond', tone: 'Neutrale/Natürliche Töne', description: 'Sanfter, cremiger Sandton für einen soften Look.' },
+  { id: 'col-vanilleblond', name: 'Vanilleblond', hex: '#F3E5AB', world: 'blond', tone: 'Neutrale/Natürliche Töne', description: 'Zarter, heller Gelb-Ocker für ein frisches Finish.' },
+  { id: 'col-sandblond', name: 'Sandblond', hex: '#E3DAC9', world: 'blond', tone: 'Neutrale/Natürliche Töne', description: 'Matter Naturton, der an Meersand erinnert.' },
 
   // Braun
   { id: 'col-4', name: 'Schokobraun', hex: '#3B2F2A', world: 'braun', description: 'Ein tiefes, sattes Braun mit kühler Note.' },
+  { id: 'col-goldbraun', name: 'Goldbraun', hex: '#996515', world: 'braun', description: 'Ein schimmerndes, warmes Braun mit goldenen Reflexen.' },
+  { id: 'col-haselnuss', name: 'Haselnuss', hex: '#8E5E31', world: 'braun', description: 'Ein klassisches Mittelbraun, angelehnt an die natürliche Haselnuss.' },
+  { id: 'col-aschbraun', name: 'Aschbraun', hex: '#6B5B51', world: 'braun', description: 'Ein kühler Braunton ohne jegliche Rot- oder Goldanteile.' },
   { id: 'col-8', name: 'Kastanienbraun', hex: '#633A2E', world: 'braun', description: 'Dunkles Braun mit lebendig warmen Reflexen.' },
   { id: 'col-3', name: 'Kupferrot', hex: '#8B4513', world: 'braun', description: 'Ein natürliches, warmes Braun mit rötlichem Schimmer.' },
   { id: 'col-11', name: 'Karamell', hex: '#9F7336', world: 'braun', description: 'Hellerer Braunton mit goldenem Glanz.' },

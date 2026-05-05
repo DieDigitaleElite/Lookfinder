@@ -1689,7 +1689,7 @@ export default function App() {
         ? 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)' 
         : `Farbe/Technik: ${color.name} (${color.description})`;
       const lightingPrompt = lighting.prompt || '';
-      const customPrompt = `${style.name}, ${style.description}. ${colorText}. Lighting: ${lightingPrompt}. Make it look realistic, high quality, consistent with the person's face. Focus on realistic hair texture and precise coloring technique application.`;
+      const customPrompt = `${style.name}, ${style.description}. ${colorText}. Lighting: ${lightingPrompt}. Ensure hyper-realistic photo quality with precise high-end hair salon results. The hair color must look completely natural, with realistic depth, texture, and light reflection. Maintain perfect facial consistency and professional photography style.`;
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {

@@ -296,33 +296,51 @@ export default function StylingStudio({
             </div>
 
             {/* Color Grid */}
-            <div className="flex flex-wrap gap-3">
-              {filteredColors.map(c => (
-                <button
-                  key={c.id}
-                  onClick={() => setSelectedColorId(c.id)}
-                  className={`flex items-center gap-3 p-2 pr-4 rounded-xl border-2 transition-all ${
-                    selectedColorId === c.id ? 'border-[#FF9EBE] bg-[#FF9EBE]/5' : 'border-black/5 bg-white'
-                  }`}
-                >
-                  <div 
-                    className="w-10 h-10 rounded-lg shadow-inner relative overflow-hidden group/color" 
-                    style={{ background: c.hex.includes('gradient') ? c.hex : (c.id === 'col-original' ? 'transparent' : c.hex) }}
-                  >
-                    {/* Subtle shine/texture overlay */}
-                    <div className="absolute inset-0 bg-linear-to-tr from-black/20 via-transparent to-white/30" />
-                    <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_transparent_0%,_black_100%)]" />
+            <div className="space-y-6">
+              {(() => {
+                const groups: Record<string, typeof filteredColors> = {};
+                filteredColors.forEach(c => {
+                  const t = c.tone || 'General';
+                  if (!groups[t]) groups[t] = [];
+                  groups[t].push(c);
+                });
+                
+                return Object.entries(groups).map(([tone, colors]) => (
+                  <div key={tone} className="space-y-3">
+                    {tone !== 'General' && tone !== 'undefined' && tone !== 'null' && (
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/30 px-1">{tone}</h4>
+                    )}
+                    <div className="flex flex-wrap gap-3">
+                      {colors.map(c => (
+                        <button
+                          key={c.id}
+                          onClick={() => setSelectedColorId(c.id)}
+                          className={`flex items-center gap-3 p-2 pr-4 rounded-xl border-2 transition-all ${
+                            selectedColorId === c.id ? 'border-[#FF9EBE] bg-[#FF9EBE]/5' : 'border-black/5 bg-white'
+                          }`}
+                        >
+                          <div 
+                            className="w-10 h-10 rounded-lg shadow-inner relative overflow-hidden group/color" 
+                            style={{ background: c.hex.includes('gradient') ? c.hex : (c.id === 'col-original' ? 'transparent' : c.hex) }}
+                          >
+                            {/* Subtle shine/texture overlay */}
+                            <div className="absolute inset-0 bg-linear-to-tr from-black/20 via-transparent to-white/30" />
+                            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_transparent_0%,_black_100%)]" />
+                          </div>
+                          <div className="flex flex-col items-start text-left">
+                            <span className={`text-[10px] font-black uppercase tracking-wider ${selectedColorId === c.id ? 'text-brand-primary' : 'text-brand-primary/40'}`}>
+                              {c.name}
+                            </span>
+                            <span className="text-[8px] opacity-30 max-w-[140px] leading-tight group-hover/color:opacity-60 transition-opacity">
+                              {c.description}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex flex-col items-start">
-                    <span className={`text-[10px] font-black uppercase tracking-wider ${selectedColorId === c.id ? 'text-brand-primary' : 'text-brand-primary/40'}`}>
-                      {c.name}
-                    </span>
-                    <span className="text-[8px] opacity-30 truncate max-w-[100px] leading-tight group-hover/color:opacity-60 transition-opacity">
-                      {c.description.split(' ')[0]}...
-                    </span>
-                  </div>
-                </button>
-              ))}
+                ));
+              })()}
             </div>
           </section>
         </div>
