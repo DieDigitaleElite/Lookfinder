@@ -115,6 +115,7 @@ export default function App() {
   const [selectedLibraryStyle, setSelectedLibraryStyle] = useState<typeof HAIRSTYLE_LIBRARY[0] | null>(null);
   const [selectedColor, setSelectedColor] = useState<typeof HAIR_COLORS[0] | null>(null);
   const [isGeneratingCustom, setIsGeneratingCustom] = useState(false);
+  const [lastGeneratedCustomResult, setLastGeneratedCustomResult] = useState<GeneratedResult | null>(null);
   const [customResults, setCustomResults] = useState<GeneratedResult[]>(() => {
     const saved = localStorage.getItem('frisurenai_pending_custom_results');
     if (saved) {
@@ -1311,6 +1312,8 @@ export default function App() {
         
         // Reset current generation state immediately
         setResults([]);
+        setCustomResults([]);
+        setLastGeneratedCustomResult(null);
         setError(null);
         setMimeType(file.type);
         
@@ -1741,6 +1744,16 @@ export default function App() {
     setIsGeneratingCustom(true);
     setError(null);
     
+    // Auto-scroll to result area for Pro users to see loading state
+    if (isPro) {
+      setTimeout(() => {
+        const element = document.getElementById('active-result-area');
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+    
     try {
       const base64Data = image.split(',')[1];
       const styleWithColor = `${selectedLibraryStyle.name} in der Farbe ${selectedColor.name}`;
@@ -1764,25 +1777,17 @@ export default function App() {
         };
         
         setCustomResults(prev => [newResult, ...prev]);
-        setSelectedResult(newResult);
+        setLastGeneratedCustomResult(newResult);
         
-        // Save to Firebase if user is logged in
+        // Skip popup for premium users to show result in-page
+        if (!isPro) {
+          setSelectedResult(newResult);
+        }
+        
+        // Save to Firebase and update gallery if user is logged in
         if (user) {
-          try {
-            // Compress image for Firestore (1MB limit)
-            const compressedImageUrl = await compressBase64Image(imageUrl, 'image/jpeg', 800000);
-            
-            const resultRef = doc(db, 'users', user.uid, 'results', newResult.id);
-            await setDoc(resultRef, {
-              ...newResult,
-              imageUrl: compressedImageUrl, // Use compressed version for storage
-              userId: user.uid,
-              createdAt: serverTimestamp()
-            });
-          } catch (fsErr) {
-            console.error("Failed to save to Firestore, image might still be too large", fsErr);
-            // Fallback: save without image if it's still too large, or just skip saving
-          }
+          // saveResult handles compression and Firestore saving
+          saveResult(newResult, true);
         }
         
         confetti({
@@ -3621,6 +3626,68 @@ export default function App() {
                           Die KI nutzt dein Originalfoto als Basis und wendet den gewählten Look sowie die Farbe realistisch an.
                         </p>
                       </div>
+
+                      {/* Display Latest Result or Loading State directly for Pro users */}
+                      {isPro && (isGeneratingCustom || lastGeneratedCustomResult) && (
+                        <motion.div 
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="bg-white p-6 rounded-[2rem] shadow-xl border-2 border-[#FF9EBE] space-y-4"
+                          id="active-result-area"
+                        >
+                          <div className="flex justify-between items-center">
+                            <h4 className="text-sm font-black uppercase tracking-widest text-[#FF9EBE]">
+                              {isGeneratingCustom ? 'Dein Styling wird erstellt...' : 'Dein neues Styling ✨'}
+                            </h4>
+                            {!isGeneratingCustom && lastGeneratedCustomResult && (
+                              <div className="flex gap-2">
+                                <button 
+                                  onClick={() => handleDownload(lastGeneratedCustomResult.imageUrl, lastGeneratedCustomResult.name)}
+                                  className="w-8 h-8 rounded-full bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center hover:bg-[#FF9EBE]/20 transition-colors"
+                                >
+                                  <Download size={14} />
+                                </button>
+                                <button 
+                                  onClick={() => setSelectedResult(lastGeneratedCustomResult)}
+                                  className="w-8 h-8 rounded-full bg-black/5 text-brand-primary flex items-center justify-center hover:bg-black/10 transition-colors"
+                                >
+                                  <Maximize2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="aspect-[3/4] rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group">
+                            {isGeneratingCustom ? (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-brand-primary/5 space-y-4">
+                                <div className="relative">
+                                  <Loader2 className="animate-spin text-[#FF9EBE]" size={48} />
+                                  <Sparkles className="absolute -top-1 -right-1 text-[#FF9EBE] animate-pulse" size={20} />
+                                </div>
+                                <div className="text-center px-6">
+                                  <p className="text-sm font-bold text-brand-primary">Gleich fertig!</p>
+                                  <p className="text-[10px] text-brand-primary/40 uppercase tracking-widest mt-1">Details werden berechnet...</p>
+                                </div>
+                              </div>
+                            ) : lastGeneratedCustomResult && (
+                              <>
+                                <img src={lastGeneratedCustomResult.imageUrl} alt="Result" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity p-4 flex flex-col justify-end">
+                                  <p className="text-white text-xs font-bold">{lastGeneratedCustomResult.name}</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          
+                          {!isGeneratingCustom && lastGeneratedCustomResult && (
+                            <div className="p-3 bg-black/5 rounded-xl border border-black/5">
+                              <p className="text-[11px] text-brand-primary/80 italic leading-relaxed">
+                                {lastGeneratedCustomResult.suitabilityReason}
+                              </p>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
 
                       {customResults.length > 0 && (
                         <div className="space-y-4">
