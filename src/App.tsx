@@ -1039,35 +1039,21 @@ export default function App() {
     }
   }, [user, image]);
 
-  // Sync local custom results to Firestore on login
+  // Sync local custom results to Firestore on login or when they change
   useEffect(() => {
     if (user && customResults.length > 0) {
       const syncLocalResults = async () => {
         for (const res of customResults) {
-          // Check if already in savedResults
+          // Check if already in savedResults to avoid duplicates
           if (!savedResults.some(sr => sr.id === res.id)) {
-            try {
-              let finalImageUrl = res.imageUrl;
-              if (finalImageUrl.startsWith('data:')) {
-                finalImageUrl = await compressBase64Image(finalImageUrl, 'image/jpeg', 800000);
-              }
-              
-              const resultRef = doc(db, 'users', user.uid, 'results', res.id);
-              await setDoc(resultRef, {
-                ...res,
-                imageUrl: finalImageUrl,
-                userId: user.uid,
-                createdAt: serverTimestamp()
-              });
-            } catch (e) {
-              console.warn("Failed to sync local result to firestore", e);
-            }
+            console.log(`Syncing custom result ${res.id} to Firestore...`);
+            saveResult(res, true);
           }
         }
       };
       syncLocalResults();
     }
-  }, [user]);
+  }, [user, customResults.length, savedResults.length]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -1799,28 +1785,10 @@ export default function App() {
         setCustomResults(prev => [newResult, ...prev]);
         setLastCustomResult(newResult);
         
-        // Save to Firebase immediately if user is logged in
-        if (user) {
-          try {
-            // Compress image for Firestore (1MB limit)
-            const compressedImageUrl = await compressBase64Image(imageUrl, 'image/jpeg', 800000);
-            
-            const resultRef = doc(db, 'users', user.uid, 'results', newResult.id);
-            await setDoc(resultRef, {
-              ...newResult,
-              imageUrl: compressedImageUrl, // Use compressed version for storage
-              userId: user.uid,
-              createdAt: serverTimestamp()
-            });
-            
-            // Also add to savedResults locally for immediate gallery feedback
-            setSavedResults(prev => [
-              { ...newResult, imageUrl: compressedImageUrl, createdAt: new Date() },
-              ...prev
-            ]);
-          } catch (fsErr) {
-            console.error("Failed to save to Firestore", fsErr);
-          }
+        // Let the auto-save effects handle the Firestore persistence
+        // We add it locally to savedResults ONLY if it's not already there for immediate feedback
+        if (user && !savedResults.some(sr => sr.id === newResult.id)) {
+          setSavedResults(prev => [newResult, ...prev]);
         }
         
         // Only open popup if NOT Pro, otherwise show inline
@@ -3717,6 +3685,16 @@ export default function App() {
                                  <Download size={18} />
                                </button>
                                <button 
+                                 onClick={() => {
+                                   setPollInitialSelectedIds([lastCustomResult.id]);
+                                   setShowPollCreator(true);
+                                 }}
+                                 className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
+                                 title="Umfrage erstellen"
+                               >
+                                 <MessageSquare size={18} />
+                               </button>
+                               <button 
                                  onClick={() => setSelectedResult(lastCustomResult)}
                                  className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                >
@@ -5292,7 +5270,7 @@ export default function App() {
 
         {showPollCreator && (
           <PollCreator 
-            userHistory={savedResults}
+            userHistory={[...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
             onClose={() => {
               setShowPollCreator(false);
               setPollInitialSelectedIds([]);
