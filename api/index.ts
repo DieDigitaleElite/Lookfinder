@@ -1,8 +1,22 @@
 import express from "express";
 import Stripe from "stripe";
+import { GoogleGenAI } from "@google/genai";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+
+// Gemini initialization (server-side only)
+let genAI: GoogleGenAI | null = null;
+function getGenAI() {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key || key.trim() === "") {
+    throw new Error("GEMINI_API_KEY is not configured in environment variables.");
+  }
+  if (!genAI) {
+    genAI = new GoogleGenAI(key);
+  }
+  return genAI;
+}
 
 // Stripe initialization
 let stripe: Stripe | null = null;
@@ -120,6 +134,41 @@ app.post("/api/create-checkout-session", async (req, res) => {
   } catch (error: any) {
     console.error("Vercel Stripe error:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Gemini Proxy Endpoint
+app.post("/api/gemini", async (req, res) => {
+  try {
+    const { model, contents, config } = req.body;
+    
+    if (!model || !contents) {
+      return res.status(400).json({ error: "Missing model or contents in request body" });
+    }
+
+    const ai = getGenAI();
+    const genModel = ai.getGenerativeModel({ model });
+    
+    // Support both generateContent and image generation
+    const result = await genModel.generateContent({
+      contents,
+      generationConfig: config
+    });
+    
+    const response = await result.response;
+    
+    // We return the raw text or the parts to the frontend
+    const candidates = result.response.candidates;
+    res.json({
+      text: response.text(),
+      candidates: candidates
+    });
+  } catch (error: any) {
+    console.error("Gemini API Error (Server):", error);
+    res.status(500).json({ 
+      error: error.message,
+      details: error.status || "Unknown error"
+    });
   }
 });
 

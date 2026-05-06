@@ -1,39 +1,22 @@
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-const getAI = () => {
-  // Use a helper to get the key safely from multiple sources
-  const getApiKey = () => {
-    // 1. Try direct Vite env access (primary)
-    try {
-      const env = (import.meta as any).env;
-      if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
-      if (env?.VITE_API_KEY) return env.VITE_API_KEY;
-      if (env?.GEMINI_API_KEY) return env.GEMINI_API_KEY;
-    } catch {}
+// Helper to call our secure backend proxy
+const callGeminiProxy = async (params: { model: string; contents: any; config?: any }) => {
+  const response = await fetch("/api/gemini", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params),
+  });
 
-    // 2. Try global variables (fallback)
-    const win = window as any;
-    if (win.GEMINI_API_KEY) return win.GEMINI_API_KEY;
-    if (win.API_KEY) return win.API_KEY;
-    
-    // 3. Try process.env if available (legacy/node)
-    try {
-      const proc = (window as any).process || {};
-      if (proc.env?.GEMINI_API_KEY) return proc.env.GEMINI_API_KEY;
-      if (proc.env?.VITE_GEMINI_API_KEY) return proc.env.VITE_GEMINI_API_KEY;
-    } catch {}
-    
-    return null;
-  };
-  
-  const apiKey = getApiKey();
-  
-  if (!apiKey) {
-    console.error("Gemini API key is missing from all expected sources.");
-    throw new Error("API key is missing. Please provide a valid API key.");
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    const message = errorData.error || `Server error: ${response.status}`;
+    throw new Error(message);
   }
-  
-  return new GoogleGenAI({ apiKey });
+
+  return await response.json();
 };
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -122,7 +105,7 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   Antworte ausschließlich in deutscher Sprache.
   Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
-  const response = await withRetry(() => getAI().models.generateContent({
+  const response = await withRetry(() => callGeminiProxy({
     model,
     contents: {
       parts: [
@@ -178,7 +161,7 @@ export const getAIPoweredStylingMetadata = async (
     
     Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
-    const response = await withRetry(() => getAI().models.generateContent({
+    const response = await withRetry(() => callGeminiProxy({
       model,
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
@@ -222,7 +205,7 @@ export const generateBaseAvatarSketch = async (
   - Close-up portrait only (head and neck).
   - NO background details.`;
 
-  const response = await withRetry(() => getAI().models.generateContent({
+  const response = await withRetry(() => callGeminiProxy({
     model,
     contents: {
       parts: [
@@ -267,7 +250,7 @@ export const generateFashionSketch = async (
 
   parts.push({ text: prompt });
 
-  const response = await withRetry(() => getAI().models.generateContent({
+  const response = await withRetry(() => callGeminiProxy({
     model,
     contents: { parts }
   }));
@@ -296,7 +279,7 @@ export const generateHairstyleImage = async (
   3. PHOTOREALISM: The hair must look real, not like a wig. Use natural lighting that matches the original photo's environment.
   4. CONSISTENCY: Ensure that the forehead and face are not covered more than the chosen style strictly requires.`;
 
-  const response = await withRetry(() => getAI().models.generateContent({
+  const response = await withRetry(() => callGeminiProxy({
     model,
     contents: {
       parts: [
