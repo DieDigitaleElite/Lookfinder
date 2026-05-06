@@ -867,21 +867,10 @@ export default function App() {
     };
   }, []);
 
-  // Check for API key on mount
+  // Check for API key on mount - Disabled as we use server-side proxy with secure environment variables
   useEffect(() => {
-    const checkKey = async () => {
-      if (window.aistudio) {
-        try {
-          const hasKey = await window.aistudio.hasSelectedApiKey();
-          if (!hasKey) {
-            setNeedsApiKey(true);
-          }
-        } catch (err) {
-          console.error("Failed to check API key status", err);
-        }
-      }
-    };
-    checkKey();
+    // We assume the server has the key configured via environment variables
+    setNeedsApiKey(false);
   }, []);
 
   // Separate effect to handle pending payment once user is logged in
@@ -1538,15 +1527,7 @@ export default function App() {
   const processImage = async () => {
     if (!image) return;
 
-    // Check for API key if needed
-    if (window.aistudio) {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (!hasKey) {
-        setNeedsApiKey(true);
-        setError("Bitte wähle zuerst einen API-Key aus, um die KI-Funktionen zu nutzen.");
-        return;
-      }
-    }
+    // API key check removed as we use server-side proxy
 
     // Usage check
     const limit = isPremium ? Infinity : 100; // Increased to 100 for testing
@@ -1677,9 +1658,8 @@ export default function App() {
       
       // Check for API key error
       const errorMsg = err.message || String(err);
-      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT")) {
-        setNeedsApiKey(true);
-        setError("API-Key ungültig oder nicht ausgewählt. Bitte wähle einen gültigen API-Key aus, um die KI-Funktionen zu nutzen.");
+      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT") || errorMsg.includes("GEMINI_API_KEY is not configured")) {
+        setError("KI-Dienst ist derzeit nicht verfügbar oder falsch konfiguriert. Bitte kontaktiere den Support.");
       } else {
         setError(errorMsg || "Ein Fehler ist aufgetreten. Bitte versuche es erneut.");
       }
@@ -1951,9 +1931,8 @@ export default function App() {
     } catch (err: any) {
       console.error("Custom generation failed", err);
       const errorMsg = err.message || String(err);
-      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT")) {
-        setNeedsApiKey(true);
-        setError("API-Key ungültig oder nicht ausgewählt. Bitte wähle einen gültigen API-Key aus.");
+      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT") || errorMsg.includes("GEMINI_API_KEY is not configured")) {
+        setError("KI-Dienst ist derzeit nicht verfügbar oder falsch konfiguriert.");
       } else {
         setError("Fehler bei der individuellen Generierung.");
       }

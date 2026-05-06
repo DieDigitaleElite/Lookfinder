@@ -6,14 +6,14 @@ const app = express();
 app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
 
 // Gemini initialization (server-side only)
-let genAI: GoogleGenAI | null = null;
+let genAI: any = null;
 function getGenAI() {
   const key = process.env.GEMINI_API_KEY;
   if (!key || key.trim() === "") {
     throw new Error("GEMINI_API_KEY is not configured in environment variables.");
   }
   if (!genAI) {
-    genAI = new GoogleGenAI(key);
+    genAI = new GoogleGenAI({ apiKey: key });
   }
   return genAI;
 }
@@ -147,21 +147,20 @@ app.post("/api/gemini", async (req, res) => {
     }
 
     const ai = getGenAI();
-    const genModel = ai.getGenerativeModel({ model });
     
-    // Support both generateContent and image generation
-    const result = await genModel.generateContent({
+    // Use the correct pattern: ai.models.generateContent({ model, contents, config })
+    const response = await ai.models.generateContent({
+      model,
       contents,
-      generationConfig: config
+      config
     });
     
-    const response = await result.response;
-    
     // We return the raw text or the parts to the frontend
-    const candidates = result.response.candidates;
+    // Generating response using result.response is for legacy SDK.
+    // In @google/genai, it directly returns the response or candidate parts.
     res.json({
-      text: response.text(),
-      candidates: candidates
+      text: response.text,
+      candidates: response.candidates
     });
   } catch (error: any) {
     console.error("Gemini API Error (Server):", error);
