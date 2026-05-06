@@ -3,24 +3,25 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 const getAI = () => {
   // Use a helper to get the key safely from multiple sources
   const getApiKey = () => {
-    // 1. Try process.env (primary source for AI Studio)
-    try {
-      if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-      if (process.env.VITE_GEMINI_API_KEY) return process.env.VITE_GEMINI_API_KEY;
-    } catch {}
-
-    const win = window as any;
-    
-    // 2. Try direct Vite env access (fallback)
+    // 1. Try direct Vite env access (primary)
     try {
       const env = (import.meta as any).env;
       if (env?.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
       if (env?.VITE_API_KEY) return env.VITE_API_KEY;
+      if (env?.GEMINI_API_KEY) return env.GEMINI_API_KEY;
     } catch {}
 
-    // 3. Try global variables
+    // 2. Try global variables (fallback)
+    const win = window as any;
     if (win.GEMINI_API_KEY) return win.GEMINI_API_KEY;
     if (win.API_KEY) return win.API_KEY;
+    
+    // 3. Try process.env if available (legacy/node)
+    try {
+      const proc = (window as any).process || {};
+      if (proc.env?.GEMINI_API_KEY) return proc.env.GEMINI_API_KEY;
+      if (proc.env?.VITE_GEMINI_API_KEY) return proc.env.VITE_GEMINI_API_KEY;
+    } catch {}
     
     return null;
   };

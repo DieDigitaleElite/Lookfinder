@@ -18,8 +18,11 @@ import {
 } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, increment, collection, addDoc, query, where, orderBy, onSnapshot, Timestamp, serverTimestamp, deleteDoc, getDocFromServer } from 'firebase/firestore';
 
-// Import the Firebase configuration
-import firebaseConfigJson from '../firebase-applet-config.json';
+// Try to import the Firebase configuration optionally
+// @ts-ignore
+const configFiles = import.meta.glob('../firebase-applet-config.json', { eager: true });
+const firebaseConfigJson = (configFiles['../firebase-applet-config.json'] as any)?.default || 
+                           configFiles['../firebase-applet-config.json'] || {};
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
@@ -33,7 +36,14 @@ const firebaseConfig = {
 };
 
 if (!firebaseConfig.apiKey) {
-  console.error("Firebase API Key is missing! Auth will not work. Please check your .env or firebase-applet-config.json");
+  console.warn("Firebase configuration (specifically apiKey) is missing. Trying to load from window.FIREBASE_CONFIG fallback if available...");
+  if ((window as any).FIREBASE_CONFIG) {
+    Object.assign(firebaseConfig, (window as any).FIREBASE_CONFIG);
+  }
+}
+
+if (!firebaseConfig.apiKey) {
+  console.error("Firebase API Key is missing! Auth will not work. Please check your .env or firebase-applet-config.json. Current keys in glob: ", Object.keys(configFiles));
 }
 
 // Initialize Firebase SDK
