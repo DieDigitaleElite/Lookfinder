@@ -170,7 +170,6 @@ export default function App() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showStylingStudio, setShowStylingStudio] = useState(false);
   const [faceAnalysis, setFaceAnalysis] = useState<any>(null);
-  const [userSketch, setUserSketch] = useState<string | null>(null);
   const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [clientIp, setClientIp] = useState<string | null>(null);
@@ -1786,6 +1785,7 @@ export default function App() {
   const handleAnalyzeFace = async () => {
     if (!image) return;
     setIsGenerating(true);
+    setError(null);
     try {
       const base64Data = image.split(',')[1];
       const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
@@ -1799,11 +1799,18 @@ export default function App() {
       });
 
       // Also generate the base sketch for the studio if not already done
-      if (!userSketch) {
+      if (!avatarSketch) {
         setIsGeneratingSketch(true);
         try {
           const sketch = await generateBaseAvatarSketch(base64Data, mimeType);
-          if (sketch) setUserSketch(sketch);
+          if (sketch) {
+            setAvatarSketch(sketch);
+            // Also persist to DB if user logged in
+            if (auth.currentUser) {
+              const userRef = doc(db, 'users', auth.currentUser.uid);
+              updateDoc(userRef, { avatarSketch: sketch }).catch(e => console.warn("Failed to persist sketch in analysis", e));
+            }
+          }
         } catch (sketchErr) {
           console.error("Sketch generation failed", sketchErr);
         } finally {
