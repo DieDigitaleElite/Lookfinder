@@ -236,7 +236,7 @@ export default function App() {
                 id: style.id, 
                 data: compressed,
                 updatedAt: serverTimestamp() 
-              }).catch(e => console.warn(`Failed to save sketch ${style.id}`, e));
+              }, { merge: true }).catch(e => console.warn(`Failed to save sketch ${style.id}`, e));
             }
           }
         } catch (err) {
@@ -788,16 +788,19 @@ export default function App() {
         });
 
         // Load saved results
-        const q = query(
-          collection(db, 'users', currentUser.uid, 'results'),
-          orderBy('createdAt', 'desc')
-        );
-        const unsubscribeResults = onSnapshot(q, (snapshot) => {
-          const docs = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...(doc.data() as GeneratedResult)
+        const resultsRef = collection(db, 'users', currentUser.uid, 'results');
+        const unsubscribeResults = onSnapshot(resultsRef, (snapshot) => {
+          const docs = snapshot.docs.map(docSnap => ({
+            id: docSnap.id,
+            ...(docSnap.data() as GeneratedResult)
           }));
-          setSavedResults(docs as GeneratedResult[]);
+          // Sort in memory to be resilient against missing createdAt fields
+          const sorted = docs.sort((a, b) => {
+            const timeA = (a as any).createdAt?.seconds || 0;
+            const timeB = (b as any).createdAt?.seconds || 0;
+            return timeB - timeA;
+          });
+          setSavedResults(sorted as GeneratedResult[]);
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.LIST, `users/${currentUser.uid}/results`);
           if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
@@ -965,7 +968,7 @@ export default function App() {
     const resumeGeneration = async () => {
       if (isPremium && results.length > 0 && !isGenerating && image) {
         const missingIndices = results
-          .map((r, i) => (r.imageUrl === "" && !r.failed ? i : -1))
+          .map((r, i) => (!r.imageUrl && !r.failed ? i : -1))
           .filter(i => i !== -1);
         
         if (missingIndices.length > 0) {
@@ -1002,7 +1005,7 @@ export default function App() {
               }
               
               // Update progress
-              const currentCompleted = results.filter(r => r.imageUrl !== "" || r.failed).length + (idx + 1);
+              const currentCompleted = results.filter(r => !!r.imageUrl || r.failed).length + (idx + 1);
               setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
             } catch (err) {
               console.error(`Failed to resume generation for style ${i}`, err);
@@ -1380,15 +1383,16 @@ export default function App() {
       }
 
       const resultRef = doc(db, 'users', user.uid, 'results', result.id);
-      console.log(`Saving result ${result.id} to Firestore path: users/${user.uid}/results/${result.id}`);
+      console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
       
       const saveData = {
         ...finalResult,
         userId: user.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        id: result.id // Explicitly ensure id is present
       };
 
-      await setDoc(resultRef, saveData);
+      await setDoc(resultRef, saveData, { merge: true });
       console.log(`Successfully saved result ${result.id} to Firestore.`);
 
       // Clear from failed saves if it was there
@@ -1589,7 +1593,7 @@ export default function App() {
       setGenerationProgress(0);
 
       // Initialize results with suggestions but no images yet to show placeholders
-      setResults(suggestions.map(s => ({ ...s, imageUrl: "", sourceImageUrl: image })));
+      setResults(suggestions.map(s => ({ ...s, imageUrl: null, sourceImageUrl: image })));
 
       const maxToGenerate = isPremium ? suggestions.length : 3;
       
@@ -1602,7 +1606,12 @@ export default function App() {
             setAvatarSketch(sketch);
             if (auth.currentUser) {
               const userRef = doc(db, 'users', auth.currentUser.uid);
-              await updateDoc(userRef, { avatarSketch: sketch });
+              // Use setDoc with merge: true instead of updateDoc
+              await setDoc(userRef, { 
+                avatarSketch: sketch,
+                lastActive: serverTimestamp()
+              }, { merge: true });
+              console.log("Avatar sketch successfully persisted to user profile.");
             }
           }
         } catch (err) {
@@ -1808,7 +1817,9 @@ export default function App() {
             // Also persist to DB if user logged in
             if (auth.currentUser) {
               const userRef = doc(db, 'users', auth.currentUser.uid);
-              updateDoc(userRef, { avatarSketch: sketch }).catch(e => console.warn("Failed to persist sketch in analysis", e));
+              // Use setDoc with merge: true instead of updateDoc to ensure it works even if doc doesn't exist yet
+              setDoc(userRef, { avatarSketch: sketch, lastActive: serverTimestamp() }, { merge: true })
+                .catch(e => console.warn("Failed to persist avatar sketch to Firestore", e));
             }
           }
         } catch (sketchErr) {
@@ -2301,7 +2312,7 @@ export default function App() {
                   className="flex items-center gap-3 p-1 pr-3 hover:bg-black/5 rounded-full transition-all group"
                 >
                   {user.photoURL ? (
-                    <img src={user.photoURL} alt={user.displayName || ''} className="w-8 h-8 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />
+                    <img src={user.photoURL || undefined} alt={user.displayName || ''} className="w-8 h-8 rounded-full object-cover shadow-sm" referrerPolicy="no-referrer" />
                   ) : (
                     <div className="w-8 h-8 rounded-full bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center">
                       <User size={16} />
@@ -2368,7 +2379,7 @@ export default function App() {
               {activePoll.originalImage && (
                 <div className="flex flex-col items-center gap-4 py-8">
                   <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-white shadow-2xl">
-                    <img src={activePoll.originalImage} alt="Original" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    <img src={activePoll.originalImage || undefined} alt="Original" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   </div>
                   <span className="text-xs font-bold text-brand-primary/40 uppercase tracking-[0.2em]">Ausgangsfoto</span>
                 </div>
@@ -2391,7 +2402,7 @@ export default function App() {
                     >
                       <div className="aspect-[3/4] relative">
                         <img 
-                          src={option.imageUrl} 
+                          src={option.imageUrl || undefined} 
                           alt={option.name} 
                           className="w-full h-full object-cover" 
                           referrerPolicy="no-referrer" 
@@ -2882,7 +2893,7 @@ export default function App() {
                                 className="group cursor-pointer bg-white p-3 rounded-[2rem] border border-black/5 shadow-sm"
                              >
                                 <div className="aspect-[3/4] rounded-[1.4rem] overflow-hidden shadow-md bg-black/5">
-                                   <img src={res.imageUrl} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                                   <img src={res.imageUrl || undefined} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
                                 </div>
                                 <div className="p-3">
                                    <h4 className="font-black italic text-brand-primary truncate">{res.name}</h4>
@@ -2938,7 +2949,7 @@ export default function App() {
                               >
                                 <div className="aspect-[3/4] rounded-[1.8rem] overflow-hidden shadow-lg relative bg-black/5">
                                   <img 
-                                    src={result.imageUrl} 
+                                    src={result.imageUrl || undefined} 
                                     alt={result.name} 
                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                                     referrerPolicy="no-referrer"
@@ -3007,7 +3018,7 @@ export default function App() {
                                  <div className="flex gap-6">
                                     <div className="relative w-24 h-32 rounded-2xl overflow-hidden bg-black/5 shrink-0 shadow-lg ring-4 ring-white">
                                        {winner?.imageUrl ? (
-                                         <img src={winner.imageUrl} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                         <img src={winner.imageUrl || undefined} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                        ) : (
                                          <div className="w-full h-full bg-black/5 flex items-center justify-center">
                                            <Users size={24} className="text-brand-primary/20" />
@@ -3027,7 +3038,7 @@ export default function App() {
                                           <div className="flex -space-x-2">
                                              {poll.options.map((opt: any, i: number) => (
                                                <div key={i} className="w-8 h-8 rounded-full border-2 border-white overflow-hidden bg-white shadow-sm">
-                                                  <img src={opt.imageUrl} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                                                  <img src={opt.imageUrl || undefined} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
                                                </div>
                                              ))}
                                           </div>
@@ -3144,7 +3155,7 @@ export default function App() {
                     >
                       <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-lg relative bg-black/5">
                         <img 
-                          src={result.imageUrl} 
+                          src={result.imageUrl || undefined} 
                           alt={result.name} 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           referrerPolicy="no-referrer"
@@ -3438,7 +3449,7 @@ export default function App() {
             >
               <div className="grid md:grid-cols-2 gap-12 items-center">
                 <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl relative">
-                  <img src={image} alt="Original" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={image || undefined} alt="Original" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-black/20" />
                 </div>
 
@@ -3541,7 +3552,7 @@ export default function App() {
                   {isGenerating && (
                     <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full">
                       <Loader2 className="animate-spin" size={18} />
-                      <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => r.imageUrl).length}/{isPremium ? 9 : 3})</span>
+                      <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => !!r.imageUrl).length}/{isPremium ? 9 : 3})</span>
                     </div>
                   )}
                 </div>
@@ -3584,7 +3595,7 @@ export default function App() {
                                key={Object.keys(hairstyleSketches)[0] || 'bald'}
                                initial={{ opacity: 0 }}
                                animate={{ opacity: 0.6 }}
-                               src={Object.values(hairstyleSketches)[0] || avatarSketch} 
+                               src={(Object.values(hairstyleSketches)[0] || avatarSketch) || undefined} 
                                className="w-full h-full object-cover grayscale" 
                                referrerPolicy="no-referrer" 
                              />
@@ -4059,7 +4070,7 @@ export default function App() {
                           
                           <div className="relative group aspect-[3/4] rounded-2xl overflow-hidden shadow-inner bg-black/5">
                             <img 
-                              src={lastCustomResult.imageUrl} 
+                              src={lastCustomResult.imageUrl || undefined} 
                               alt="Result" 
                               className="w-full h-full object-cover" 
                               referrerPolicy="no-referrer"
@@ -4124,7 +4135,7 @@ export default function App() {
                                 onClick={() => setSelectedResult(res)}
                                 className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 border-white shadow-sm hover:scale-105 transition-transform"
                               >
-                                <img src={res.imageUrl} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                <img src={res.imageUrl || undefined} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                               </button>
                             ))}
                           </div>
@@ -4438,7 +4449,7 @@ export default function App() {
             >
               <div className="w-full md:w-1/2 h-64 md:h-auto relative">
                 <img 
-                  src={selectedResult.imageUrl} 
+                  src={selectedResult.imageUrl || undefined} 
                   alt={selectedResult.name} 
                   className="w-full h-full object-cover" 
                   referrerPolicy="no-referrer"

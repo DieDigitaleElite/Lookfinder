@@ -153,7 +153,7 @@ export default function StylingStudio({
               
               {image ? (
                 <div className="w-full h-full relative cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                  <img src={image} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <img src={image || undefined} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <Camera className="text-white" size={48} />
                   </div>
@@ -213,7 +213,7 @@ export default function StylingStudio({
                         <motion.img 
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          src={sketchUrl}
+                          src={sketchUrl || undefined}
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                           referrerPolicy="no-referrer"
                         />
@@ -221,7 +221,7 @@ export default function StylingStudio({
                         <div className="w-full h-full relative">
                           {avatarSketch ? (
                             <img 
-                              src={avatarSketch}
+                              src={avatarSketch || undefined}
                               className="w-full h-full object-cover opacity-30 grayscale"
                               referrerPolicy="no-referrer"
                             />
@@ -460,7 +460,7 @@ export default function StylingStudio({
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="aspect-video rounded-2xl bg-black/5 flex items-center justify-center overflow-hidden border border-black/5 opacity-50 relative">
-                       <img src={activeSketch || ""} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
+                       <img src={activeSketch || undefined} className="w-full h-full object-cover grayscale" referrerPolicy="no-referrer" />
                        <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/20 rounded-md text-[8px] font-bold text-white uppercase tracking-widest">Skizze</div>
                     </div>
                   </div>

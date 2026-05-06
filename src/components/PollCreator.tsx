@@ -218,7 +218,7 @@ export default function PollCreator({ userHistory, onClose, onCreatePoll, isCrea
                           }`}
                         >
                           {item.imageUrl ? (
-                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            <img src={item.imageUrl || undefined} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           ) : (
                             <div className="w-full h-full bg-black/5 flex items-center justify-center">
                                <ImageIcon size={24} className="text-brand-primary/10" />
@@ -295,7 +295,7 @@ export default function PollCreator({ userHistory, onClose, onCreatePoll, isCrea
                        {selectedItems.map((item, i) => (
                           <div key={item.id} className="relative w-32 aspect-[3/4] rounded-2xl overflow-hidden shadow-lg border-2 border-white ring-1 ring-black/5">
                              {item.imageUrl ? (
-                               <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                               <img src={item.imageUrl || undefined} alt={item.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                              ) : (
                                <div className="w-full h-full bg-black/5 flex items-center justify-center">
                                  <ImageIcon size={16} className="text-brand-primary/10" />

@@ -47,7 +47,7 @@ export default function UserDashboard({
         <div className="bg-white rounded-3xl p-6 border border-black/5 shadow-sm space-y-6">
           <div className="flex items-center gap-4 px-2">
             {user.photoURL ? (
-              <img src={user.photoURL} className="w-12 h-12 rounded-full object-cover border-2 border-[#FF9EBE]" referrerPolicy="no-referrer" />
+              <img src={user.photoURL || undefined} className="w-12 h-12 rounded-full object-cover border-2 border-[#FF9EBE]" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-12 h-12 rounded-full bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center font-bold text-lg">
                 {user.displayName?.[0] || 'U'}
@@ -95,7 +95,7 @@ export default function UserDashboard({
            <div className="absolute top-0 right-0 w-24 h-24 bg-white/20 rounded-full blur-2xl -mr-12 -mt-12" />
            {avatarSketch ? (
              <div className="relative w-full aspect-square rounded-2xl overflow-hidden border border-white/20 bg-white/10 mb-2">
-                <img src={avatarSketch} className="w-full h-full object-cover mix-blend-overlay opacity-80" referrerPolicy="no-referrer" />
+                <img src={avatarSketch || undefined} className="w-full h-full object-cover mix-blend-overlay opacity-80" referrerPolicy="no-referrer" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#FF9EBE] via-transparent to-transparent" />
              </div>
            ) : (
