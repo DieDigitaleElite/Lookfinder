@@ -57,7 +57,7 @@ service cloud.firestore {
     }
 
     function isValidUrl(url) {
-      return url is string && (url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
+      return url is string && (url == "" || url.matches("^https://.*") || url.matches("^http://.*") || url.matches("^data:image/.*"));
     }
 
     // ===============================================================
@@ -71,7 +71,8 @@ service cloud.firestore {
              data.createdAt is timestamp &&
              (!('isPremium' in data) || data.isPremium is bool) &&
              (!('plan' in data) || data.plan is string) &&
-             (!('premiumSince' in data) || data.premiumSince is timestamp);
+             (!('premiumSince' in data) || data.premiumSince is timestamp) &&
+             (!('avatarSketch' in data) || data.avatarSketch is string);
     }
 
     function isValidResult(data) {
@@ -103,12 +104,14 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUser(request.resource.data);
       allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
                     request.resource.data.uid == resource.data.uid;
+      allow delete: if isOwner(userId);
     }
 
     // Hairstyle Sketches
     match /users/{userId}/sketches/{sketchId} {
       allow read: if isOwner(userId);
-      allow write: if isOwner(userId) && isValidSketch(request.resource.data);
+      allow create, update: if isOwner(userId) && isValidSketch(request.resource.data);
+      allow delete: if isOwner(userId);
     }
 
     // Saved Results
@@ -131,6 +134,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid;
       // Allow incrementing votes
       allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options']);
+      allow delete: if isAuthenticated() && resource.data.creatorId == request.auth.uid;
     }
 
     // Usage Tracking
@@ -140,6 +144,7 @@ service cloud.firestore {
       
       // Allow create/update with basic validation
       allow create, update: if (isAuthenticated() && id == request.auth.uid) || !id.matches("^[a-zA-Z0-9]{20,}$");
+      allow delete: if isAuthenticated() && id == request.auth.uid;
     }
 
     // Default deny

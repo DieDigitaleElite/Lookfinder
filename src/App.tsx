@@ -810,6 +810,10 @@ export default function App() {
       } else {
         setSavedResults([]);
         setUserPolls([]);
+        setIsPremium(false);
+        setUserPlan(null);
+        setUserData(null);
+        setShowStylingStudio(false);
       }
     });
 
@@ -945,7 +949,7 @@ export default function App() {
 
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
-    if (user && results.length > 0 && results.every(r => r.imageUrl && isResultSaved(r.id))) {
+    if (user && results.length > 0 && results.every(r => (r.imageUrl || r.failed) && isResultSaved(r.id))) {
       console.log("All results saved to Firestore. Clearing localStorage backup.");
       localStorage.removeItem('frisurenai_pending_results');
       localStorage.removeItem('frisurenai_pending_selected_result');
@@ -978,24 +982,29 @@ export default function App() {
             const suggestion = results[i];
             
             try {
-              // Small delay between requests
-              if (idx > 0) await new Promise(resolve => setTimeout(resolve, 800));
+              // Moderate delay between requests to be resource friendly and avoid rate limits
+              if (idx > 0) await new Promise(resolve => setTimeout(resolve, 3000));
               
               const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
               
+              const updatedResult = imageUrl 
+                ? { ...suggestion, imageUrl, failed: false }
+                : { ...suggestion, failed: true };
+
               setResults(prev => {
                 const newResults = [...prev];
-                if (imageUrl) {
-                  newResults[i] = { ...newResults[i], imageUrl, failed: false };
-                } else {
-                  newResults[i] = { ...newResults[i], failed: true };
-                }
+                newResults[i] = updatedResult;
                 return newResults;
               });
+
+              // Auto-save to history for premium users
+              if (user && updatedResult.imageUrl) {
+                saveResultToHistory(updatedResult);
+              }
               
               // Update progress
-              const completedCount = results.filter(r => r.imageUrl || r.failed).length + 1;
-              setGenerationProgress(Math.round((completedCount / results.length) * 100));
+              const currentCompleted = results.filter(r => r.imageUrl !== "" || r.failed).length + (idx + 1);
+              setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
             } catch (err) {
               console.error(`Failed to resume generation for style ${i}`, err);
               setResults(prev => {
@@ -1069,21 +1078,28 @@ export default function App() {
     }
   }, [user, image]);
 
-  // Sync local custom results to Firestore on login or when they change
+  // Sync local results and custom results to Firestore on login or when they change
   useEffect(() => {
-    if (user && customResults.length > 0) {
+    if (user && (results.length > 0 || customResults.length > 0)) {
       const syncLocalResults = async () => {
-        for (const res of customResults) {
+        // Combined list of all results to check
+        const allResults = [...results, ...customResults];
+        
+        for (const res of allResults) {
           // Check if already in savedResults to avoid duplicates
           if (!savedResults.some(sr => sr.id === res.id)) {
-            console.log(`Syncing custom result ${res.id} to Firestore...`);
-            saveResult(res, true);
+            // Only sync if it has an image or if it's part of the main results set
+            // (We want to back up suggested placeholders for premium users too)
+            if (res.imageUrl || results.some(r => r.id === res.id)) {
+              console.log(`Syncing result ${res.id} to Firestore...`);
+              await saveResult(res, true);
+            }
           }
         }
       };
       syncLocalResults();
     }
-  }, [user, customResults.length, savedResults.length]);
+  }, [user, results.length, customResults.length, savedResults.length]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -1282,7 +1298,21 @@ export default function App() {
     try {
       await signOut(auth);
       setShowGallery(false);
+      setShowStylingStudio(false);
       setDashboardTab('overview');
+      setIsPremium(false);
+      setUserPlan(null);
+      setUserData(null);
+      
+      // Clear localStorage of any potentially stale Pro data
+      localStorage.removeItem('frisurenai_pending_plan');
+      localStorage.removeItem('frisurenai_pending_results');
+      localStorage.removeItem('frisurenai_pending_selected_result');
+      localStorage.removeItem('frisurenai_pending_custom_results');
+      localStorage.removeItem('frisurenai_pending_image');
+      localStorage.removeItem('frisurenai_pending_mime_type');
+      localStorage.removeItem('frisurenai_pending_uid');
+      
       reset();
     } catch (err) {
       console.error("Logout failed", err);
@@ -1352,11 +1382,14 @@ export default function App() {
 
       const resultRef = doc(db, 'users', user.uid, 'results', result.id);
       console.log(`Saving result ${result.id} to Firestore path: users/${user.uid}/results/${result.id}`);
-      await setDoc(resultRef, {
+      
+      const saveData = {
         ...finalResult,
         userId: user.uid,
         createdAt: serverTimestamp()
-      });
+      };
+
+      await setDoc(resultRef, saveData);
       console.log(`Successfully saved result ${result.id} to Firestore.`);
 
       // Clear from failed saves if it was there
@@ -1385,12 +1418,17 @@ export default function App() {
       }
     } catch (err: any) {
       console.error("Save failed", err);
+      // Log detailed error info for debugging
+      handleFirestoreError(err, OperationType.WRITE, `users/${user?.uid}/results/${result.id}`);
+      
       const msg = err.message || String(err);
       if (msg.includes('Quota') || msg.includes('exhausted')) {
         if (!silent) setError("Datenbank-Limit erreicht. Speichern momentan nicht möglich.");
       } else if (msg.includes('exceeds the maximum allowed size')) {
         setFailedSaves(prev => new Set(prev).add(result.id));
         if (!silent) setError("Bild zu groß zum Speichern.");
+      } else if (msg.includes('permission') || msg.includes('Permission')) {
+        if (!silent) setError("Berechtigung verweigert beim Speichern.");
       } else {
         if (!silent) setError("Speichern fehlgeschlagen.");
       }
@@ -1830,6 +1868,8 @@ export default function App() {
     setAvatarSketch(null);
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
+    setShowStylingStudio(false);
+    setShowGallery(false);
   };
 
   const handleCustomTryOn = async () => {
@@ -1975,20 +2015,7 @@ export default function App() {
       } else {
         const text = await response.text();
         console.error("Received non-JSON response:", text);
-        let errorMsg = `Der Server hat eine ungültige Antwort gesendet (${response.status}). Inhalt: ${text.substring(0, 100)}...`;
-        
-        // Try to check if the API prefix is even working
-        try {
-          const testRes = await fetch('/api/test');
-          if (!testRes.ok) {
-            errorMsg += ` (API-Test fehlgeschlagen: ${testRes.status})`;
-          } else {
-            const testData = await testRes.json();
-            errorMsg += ` (API-Test OK: ${testData.env})`;
-          }
-        } catch (e) {
-          errorMsg += ` (API-Test Netzwerkfehler)`;
-        }
+        let errorMsg = `Der Server hat eine ungültige Antwort gesendet (${response.status}).`;
         throw new Error(errorMsg);
       }
       
@@ -1999,24 +2026,8 @@ export default function App() {
       if (data.url) {
         console.log("Redirecting to Stripe:", data.url);
         
-        // Explicitly save results to Firestore if logged in
-        if (user && (results.length > 0 || customResults.length > 0)) {
-          console.log("Saving results to Firestore before redirecting to Stripe...");
-          try {
-            // Filter out results that are already saved to avoid redundant writes
-            const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id));
-            if (unsavedResults.length > 0) {
-              await Promise.all(unsavedResults.map(r => saveResult(r, true)));
-              console.log("All unsaved results saved to Firestore successfully.");
-            } else {
-              console.log("All results already saved to Firestore.");
-            }
-          } catch (saveErr) {
-            console.error("Failed to save some results to Firestore before checkout", saveErr);
-          }
-        }
-
         // Save current results to localStorage before redirecting (as backup)
+        // This is fast and local, so we keep it blocking to ensure consistency
         try {
           if (results && results.length > 0) {
             console.log("Saving results to localStorage for post-payment restoration");
@@ -2035,44 +2046,41 @@ export default function App() {
             }
           }
         } catch (storageError) {
-          console.warn("Could not save all results to localStorage (quota exceeded). Continuing checkout anyway.", storageError);
-          // Try to save at least the selected result if possible
-          try {
-            if (selectedResult) {
-              localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
-            }
-          } catch (e) {
-            console.warn("Even selected result was too large for localStorage.");
+          console.warn("Could not save all results to localStorage (quota exceeded).", storageError);
+        }
+
+        // Fire and forget Firestore save - don't wait for it to avoid popup blocking/delays
+        if (user && (results.length > 0 || customResults.length > 0)) {
+          const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id));
+          if (unsavedResults.length > 0) {
+            console.log("Starting background Firestore sync before redirect...");
+            unsavedResults.forEach(r => saveResult(r, true).catch(err => console.warn("Background save failed", err)));
           }
         }
 
-        // For mobile, direct redirect is often more reliable than window.open
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const stripeUrl = data.url;
         
-        if (isMobile) {
-          console.log("Mobile detected, using direct redirect");
-          window.location.href = data.url;
-        } else {
-          // Try to open in a new tab first for better iframe compatibility on desktop
-          const stripeWindow = window.open(data.url, '_blank');
-          
-          if (!stripeWindow || stripeWindow.closed || typeof stripeWindow.closed === 'undefined') {
-            console.log("Popup blocked or not supported, falling back to direct redirect");
-            window.location.href = data.url;
-          }
-        }
+        // For mobile and desktop, same-tab redirect is often more reliable than popups
+        // especially after an await which can trigger popup blockers.
+        console.log("Redirecting to Stripe URL:", stripeUrl);
+        window.location.href = stripeUrl;
       } else {
-        throw new Error("Keine Checkout-URL erhalten.");
+        throw new Error("Sitzung konnte nicht erstellt werden (keine URL).");
       }
     } catch (err: any) {
-      console.error("Checkout failed", err);
-      if (err.message.includes("STRIPE_SECRET_KEY")) {
-        setError("Zahlungssystem nicht konfiguriert: Bitte hinterlege den Stripe Secret Key (sk_...) in den 'Secrets' (Schlüsselsymbol oben rechts in AI Studio).");
+      console.error("Checkout failed details:", err);
+      setIsCheckingOut(false); // Ensure loader is cleared immediately on error
+      
+      const errorMessage = err.message || "Unbekannter Fehler beim Checkout.";
+      if (errorMessage.includes("STRIPE_SECRET_KEY")) {
+        setError("Zahlungssystem nicht konfiguriert: Bitte hinterlege den Stripe Secret Key.");
       } else {
-        setError(err.message || "Ein unbekannter Fehler ist aufgetreten.");
+        setError(errorMessage);
       }
     } finally {
-      setIsCheckingOut(false);
+      // In success case, we are redirecting away, so current state will be lost anyway
+      // But we clear it just in case redirect is delayed
+      setTimeout(() => setIsCheckingOut(false), 3000);
     }
   };
 
