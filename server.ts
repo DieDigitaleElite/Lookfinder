@@ -34,7 +34,12 @@ function getStripe() {
 const app = express();
 const PORT = 3000;
 
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '20mb' }));
 
 // Logging middleware
@@ -80,22 +85,26 @@ apiRouter.get("/get-client-ip", (req, res) => {
 });
 
 // GET handler for debugging
-apiRouter.get("/create-checkout-session", (req, res) => {
-  console.warn(`[Stripe Checkout] Received GET request at /api/create-checkout-session. This should be a POST.`);
-  res.status(405).json({ 
-    error: "Method Not Allowed", 
-    message: "Bitte nutze einen POST Request. Falls du dies gerade getan hast, wurde dein Request eventuell vom Browser oder einem Proxy in einen GET umgewandelt.",
-    method: req.method
-  });
-});
-
-apiRouter.post("/create-checkout-session", async (req, res) => {
-  console.log(`[Stripe Checkout] POST request at /api/create-checkout-session from ${req.ip}`);
+apiRouter.all(["/create-checkout-session", "/create-checkout-session/"], async (req, res) => {
+  console.log(`[Stripe Checkout] Request: ${req.method} ${req.url} (Original: ${req.originalUrl})`);
+  console.log(`[Stripe Checkout] Body Keys:`, Object.keys(req.body || {}));
   
+  if (req.method !== 'POST') {
+    return res.status(405).json({ 
+      error: "Method Not Allowed", 
+      message: `Du hast einen ${req.method} Request gesendet, aber wir benötigen einen POST Request.`,
+      debug: { method: req.method, url: req.url, originalUrl: req.originalUrl }
+    });
+  }
+
   try {
     const { plan, userId } = req.body;
     console.log(`[Stripe Checkout] Creating session for plan: ${plan}, UserID: ${userId}`);
+    
     const stripeClient = getStripe();
+    if (!stripeClient) {
+      throw new Error("Stripe is not configured (missing API key)");
+    }
     
     let lineItems: any[] = [];
     let mode: "payment" | "subscription" = "payment";

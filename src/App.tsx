@@ -2170,7 +2170,8 @@ export default function App() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
-      const response = await fetch('/api/create-checkout-session', {
+      const apiBase = window.location.origin;
+      const response = await fetch(`${apiBase}/api/create-checkout-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ plan, userId: auth.currentUser?.uid }),
@@ -2189,12 +2190,19 @@ export default function App() {
       } else {
         const text = await response.text();
         console.error("Received non-JSON response:", text);
+        
+        // Check if it's a known Vercel/Router error
+        if (response.status === 405) {
+          throw new Error(`Methode nicht erlaubt (405). Der Server hat den POST Request nicht akzeptiert. Bitte prüfe, ob die Seite per HTTPS geladen wurde.`);
+        }
+        
         let errorMsg = `Der Server hat eine ungültige Antwort gesendet (${response.status}).`;
         throw new Error(errorMsg);
       }
       
       if (!response.ok) {
-        throw new Error(data.error || "Zahlungsvorgang konnte nicht gestartet werden.");
+        const errorDetail = data.debug ? ` (Method: ${data.debug.method})` : "";
+        throw new Error((data.message || data.error || "Zahlungsvorgang konnte nicht gestartet werden.") + errorDetail);
       }
 
       if (data.url) {
