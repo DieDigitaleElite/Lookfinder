@@ -1,5 +1,9 @@
-// geminiService.ts - Refactored to use backend proxy for security
-// This ensures GEMINI_API_KEY is never exposed to the client.
+// geminiService.ts
+import { GoogleGenAI } from "@google/genai";
+
+// Initialize AI directly in frontend as per AI Studio best practices (SKILL.md)
+// process.env.GEMINI_API_KEY is safely injected by the AI Studio environment.
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -76,13 +80,19 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
   const response = await withRetry(async () => {
-    const res = await fetch("/api/ai/analyze-face", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ base64Image, mimeType, prompt })
+    return await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { data: base64Image, mimeType } },
+          { text: prompt }
+        ]
+      }],
+      config: {
+        responseMimeType: "application/json",
+      }
     });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    return res.json();
   });
 
   try {
@@ -127,13 +137,14 @@ export const getAIPoweredStylingMetadata = async (
     Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
     const response = await withRetry(async () => {
-      const res = await fetch("/api/ai/styling-metadata", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt })
+      return await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.7,
+        }
       });
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      return res.json();
     });
 
     let text = response.text || "{}";
@@ -171,23 +182,29 @@ export const generateBaseAvatarSketch = async (
   - NO background details.`;
 
   const response = await withRetry(async () => {
-    const res = await fetch("/api/ai/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash-image",
+    return await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: [{
+        role: "user",
         parts: [
           { inlineData: { data: originalBase64, mimeType } },
           { text: prompt }
         ]
-      })
+      }]
     });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    return res.json();
   });
 
-  if (response.imageData) {
-    return `data:image/png;base64,${response.imageData}`;
+  const responseParts = response.candidates?.[0]?.content?.parts || [];
+  let imageData = null;
+  for (const part of responseParts) {
+    if (part.inlineData) {
+      imageData = part.inlineData.data;
+      break;
+    }
+  }
+
+  if (imageData) {
+    return `data:image/png;base64,${imageData}`;
   }
 
   return null;
@@ -219,20 +236,23 @@ export const generateFashionSketch = async (
   parts.push({ text: prompt });
 
   const response = await withRetry(async () => {
-    const res = await fetch("/api/ai/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash-image",
-        parts
-      })
+    return await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: [{ role: "user", parts }]
     });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    return res.json();
   });
 
-  if (response.imageData) {
-    return `data:image/png;base64,${response.imageData}`;
+  const responseParts = response.candidates?.[0]?.content?.parts || [];
+  let imageData = null;
+  for (const part of responseParts) {
+    if (part.inlineData) {
+      imageData = part.inlineData.data;
+      break;
+    }
+  }
+
+  if (imageData) {
+    return `data:image/png;base64,${imageData}`;
   }
 
   return null;
@@ -253,23 +273,29 @@ export const generateHairstyleImage = async (
   4. CONSISTENCY: Ensure that the forehead and face are not covered more than the chosen style strictly requires.`;
 
   const response = await withRetry(async () => {
-    const res = await fetch("/api/ai/generate-image", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gemini-2.5-flash-image",
+    return await ai.models.generateContent({
+      model: "gemini-2.5-flash-image",
+      contents: [{
+        role: "user",
         parts: [
           { inlineData: { data: originalBase64, mimeType } },
           { text: prompt }
         ]
-      })
+      }]
     });
-    if (!res.ok) throw new Error(`Server error: ${res.status}`);
-    return res.json();
   });
 
-  if (response.imageData) {
-    return `data:image/png;base64,${response.imageData}`;
+  const responseParts = response.candidates?.[0]?.content?.parts || [];
+  let imageData = null;
+  for (const part of responseParts) {
+    if (part.inlineData) {
+      imageData = part.inlineData.data;
+      break;
+    }
+  }
+
+  if (imageData) {
+    return `data:image/png;base64,${imageData}`;
   }
 
   return null;

@@ -36,46 +36,18 @@ const firebaseConfig = {
   firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId
 };
 
-// Initialize app - with a safety check to prevent crash on missing config
-const initializeFirebase = () => {
-  if (!firebaseConfig.apiKey) {
-    console.warn("Firebase API Key is missing. The app might not function correctly until configuration is provided.");
-    // Return a dummy app if config is missing to prevent top-level crash
-    return initializeApp({
-      apiKey: "placeholder-please-set-env-vars",
-      authDomain: "placeholder.firebaseapp.com",
-      projectId: "placeholder-project"
-    });
-  }
-  return initializeApp(firebaseConfig);
-};
+// Initialize app - simple and stable
+const app = initializeApp(firebaseConfig.apiKey ? firebaseConfig : {
+  apiKey: "PLACEHOLDER",
+  authDomain: "PLACEHOLDER",
+  projectId: "PLACEHOLDER"
+});
 
-const app = initializeFirebase();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// IMPORTANT: Hidden Runtime Config Fetch
-// This ensures that even if keys are missing from the build-time ENV (so they don't leak into the JS bundle),
-// we can still grab them from the server at runtime. This is the ultimate "Anti-Scanning" protection.
-const refreshFirebaseConfig = async () => {
-  try {
-    const response = await fetch('/api/firebase-config');
-    if (response.ok) {
-      const liveConfig = await response.json();
-      if (liveConfig.apiKey && liveConfig.apiKey !== firebaseConfig.apiKey) {
-        console.log("Re-initializing Firebase with live config from server...");
-        // Re-init logic if needed, but usually once initialized it's fine 
-        // if the build-time ones were just placeholders.
-        // For standard Firebase usage, we can just use the server-provided ones
-        // as the single source of truth for dynamic parts if we want.
-      }
-    }
-  } catch (e) {
-    console.debug("Optional live config fetch skipped (using build-time config)");
-  }
-};
-refreshFirebaseConfig();
+// TESTED: No top-level async fetch to avoid blocking the main bundle load.
 
 // Firestore Error Handling
 export enum OperationType {
