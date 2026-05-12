@@ -5,6 +5,8 @@ import path from "path";
 import Stripe from "stripe";
 import dotenv from "dotenv";
 
+import cors from "cors";
+
 dotenv.config();
 
 let stripe: Stripe | null = null;
@@ -32,11 +34,12 @@ function getStripe() {
 const app = express();
 const PORT = 3000;
 
+app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
 // Logging middleware
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
@@ -65,21 +68,31 @@ apiRouter.get("/firebase-config", (req, res) => {
   });
 });
 
-  apiRouter.get("/get-client-ip", (req, res) => {
-    let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
-    if (typeof ip === "string" && ip.includes(",")) {
-      ip = ip.split(",")[0].trim();
-    }
-    res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
-  });
+apiRouter.get("/get-client-ip", (req, res) => {
+  let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  if (typeof ip === "string" && ip.includes(",")) {
+    ip = ip.split(",")[0].trim();
+  }
+  res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
+});
 
-apiRouter.post("/create-checkout-session", async (req, res) => {
-  console.log("Checkout request received at /api/create-checkout-session:", req.body);
+apiRouter.all("/create-checkout-session", async (req, res) => {
+  console.log(`[Stripe Checkout] Request at /api/create-checkout-session: ${req.method} from ${req.ip}`);
+  
+  if (req.method !== 'POST') {
+    console.warn(`[Stripe Checkout] Rejected ${req.method} request (not POST)`);
+    return res.status(405).json({ 
+      error: `Method ${req.method} Not Allowed`, 
+      message: "Please use POST to create a checkout session",
+      receivedMethod: req.method,
+      receivedPath: req.originalUrl
+    });
+  }
+
   try {
     const { plan, userId } = req.body;
-    console.log(`Plan: ${plan}, UserID: ${userId}`);
+    console.log(`[Stripe Checkout] Creating session for plan: ${plan}, UserID: ${userId}`);
     const stripeClient = getStripe();
-    console.log("Stripe client initialized");
     
     let lineItems: any[] = [];
     let mode: "payment" | "subscription" = "payment";
@@ -127,7 +140,6 @@ apiRouter.post("/create-checkout-session", async (req, res) => {
         quantity: 1,
       }];
     } else {
-      // Default to single unlock
       mode = "payment";
       lineItems = [{
         price_data: {
@@ -145,7 +157,6 @@ apiRouter.post("/create-checkout-session", async (req, res) => {
     const protocol = req.headers["x-forwarded-proto"] || (req.headers.host?.includes('localhost') ? 'http' : 'https');
     const host = req.headers["host"] || "localhost:3000";
     const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
-    console.log(`Creating checkout session with baseUrl: ${baseUrl} (Protocol: ${protocol}, Host: ${host}) for user: ${userId}`);
 
     const session = await stripeClient.checkout.sessions.create({
       line_items: lineItems,
@@ -164,10 +175,10 @@ apiRouter.post("/create-checkout-session", async (req, res) => {
       cancel_url: `${baseUrl}?payment=cancel`,
     });
 
-    console.log("Stripe session created:", session.id);
+    console.log(`[Stripe Checkout] Session created: ${session.id}`);
     res.json({ id: session.id, url: session.url });
   } catch (error: any) {
-    console.error("Stripe error details:", error);
+    console.error("[Stripe Checkout] Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -176,18 +187,6 @@ apiRouter.get("/subscription-status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const stripeClient = getStripe();
-    
-    // Search for active subscriptions for this user
-    // Note: This matches the metadata we added above
-    const subscriptions = await stripeClient.subscriptions.list({
-      limit: 1,
-      status: 'active',
-      expand: ['data.default_payment_method'],
-    });
-    
-    // Stripe list doesn't support direct filtering by metadata in the list() call for subscriptions easily without search
-    // So we'll filter manually or use search if available
-    // Better: use search
     const searchResult = await stripeClient.subscriptions.search({
       query: `metadata['userId']:'${userId}' AND status:'active'`,
     });
@@ -205,7 +204,7 @@ apiRouter.get("/subscription-status/:userId", async (req, res) => {
       plan: sub.metadata.plan || 'unknown'
     });
   } catch (error: any) {
-    console.error("Error fetching subscription status:", error);
+    console.error("[Subscription Status] Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -213,13 +212,9 @@ apiRouter.get("/subscription-status/:userId", async (req, res) => {
 apiRouter.post("/cancel-subscription", async (req, res) => {
   try {
     const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: "UserId is required" });
-    }
+    if (!userId) return res.status(400).json({ error: "UserId is required" });
 
     const stripeClient = getStripe();
-    
-    // Find active subscription
     const searchResult = await stripeClient.subscriptions.search({
       query: `metadata['userId']:'${userId}' AND status:'active'`,
     });
@@ -229,8 +224,6 @@ apiRouter.post("/cancel-subscription", async (req, res) => {
     }
 
     const sub = searchResult.data[0];
-    
-    // Update to cancel at period end
     const updatedSub = await stripeClient.subscriptions.update(sub.id, {
       cancel_at_period_end: true,
     });
@@ -242,27 +235,22 @@ apiRouter.post("/cancel-subscription", async (req, res) => {
       current_period_end: updatedSub.current_period_end
     });
   } catch (error: any) {
-    console.error("Error cancelling subscription:", error);
+    console.error("[Cancel Subscription] Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 apiRouter.all("*", (req, res) => {
-  console.warn(`[API] 404 - Not Found: ${req.method} ${req.originalUrl || req.url} (Mapped path: ${req.url})`);
-  res.status(404).json({ 
-    error: "API Route not found", 
-    method: req.method, 
-    path: req.originalUrl || req.url,
-    suggestedPath: "/api/test"
-  });
+  console.warn(`[API] 404 - Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({ error: "API Route not found" });
 });
 
-app.use("/api", apiRouter);
-
 async function startServer() {
-  console.log("Starting server with NODE_ENV:", process.env.NODE_ENV);
+  console.log(`Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
   
-  // Vite middleware for development
+  // API Router must be mounted BEFORE static files and Vite
+  app.use("/api", apiRouter);
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -277,10 +265,9 @@ async function startServer() {
     });
   }
 
-  // Only listen if not on Vercel
   if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`Server running at http://localhost:${PORT}`);
     });
   }
 }
