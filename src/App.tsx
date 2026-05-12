@@ -4,11 +4,11 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink, AlertTriangle, Save } from 'lucide-react';
+import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, XCircle, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink, AlertTriangle, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
-import { HAIRSTYLE_LIBRARY, HAIR_COLORS } from './constants';
+import { HAIRSTYLE_LIBRARY, HAIR_COLORS, HAIR_TECHNOLOGIES, LIGHTING_SIMULATIONS } from './constants';
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
 import { CookieBanner } from './components/CookieBanner';
 import StylingStudio from './components/StylingStudio';
@@ -104,6 +104,7 @@ export default function App() {
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [showPricingModal, setShowPricingModal] = useState(false);
@@ -184,6 +185,61 @@ export default function App() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
+
+  const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<{
+    active: boolean;
+    cancel_at_period_end: boolean;
+    current_period_end: number;
+    plan: string;
+  } | null>(null);
+
+  const fetchSubscriptionStatus = async () => {
+    if (!user) return;
+    try {
+      const response = await fetch(`/api/subscription-status/${user.uid}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSubscriptionStatus(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch subscription status:", err);
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!user) return;
+    if (!window.confirm("Bist du sicher, dass du dein Abo kündigen möchtest? Du behältst den Pro-Zugang bis zum Ende deines aktuellen Abrechnungszeitraums.")) return;
+
+    setIsCancellingSubscription(true);
+    try {
+      const response = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setAuthMessage({ type: 'success', text: "Dein Abo wurde erfolgreich zum Ende der Laufzeit gekündigt." });
+        // Refresh status
+        fetchSubscriptionStatus();
+      } else {
+        setError(data.error || "Kündigung fehlgeschlagen.");
+      }
+    } catch (err) {
+      console.error("Cancellation error:", err);
+      setError("Ein technischer Fehler ist aufgetreten.");
+    } finally {
+      setIsCancellingSubscription(false);
+    }
+  };
+
+  useEffect(() => {
+    if (dashboardTab === 'account' && isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) {
+      fetchSubscriptionStatus();
+    }
+  }, [dashboardTab, isPremium, userPlan]);
 
   // Handle post-login redirects
   useEffect(() => {
@@ -308,7 +364,7 @@ export default function App() {
     let unsubscribe: (() => void) | undefined;
     
     if (clientIp || user) {
-      const usageId = user ? user.uid : clientIp;
+      const usageId = user ? user.uid : (clientIp ? clientIp.split(',')[0].trim() : null);
       if (usageId && usageId !== "unknown") {
         const usageDocRef = doc(db, 'usage', usageId);
         unsubscribe = onSnapshot(usageDocRef, (docSnap) => {
@@ -681,6 +737,17 @@ export default function App() {
   };
 
   const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null} | null>(null);
+  const [pendingStudioSelection, setPendingStudioSelection] = useState<{styleId: string, colorId: string, techId: string} | null>(() => {
+    const saved = localStorage.getItem('frisurenai_pending_studio_selection');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
 
   const unsubsRef = useRef<(() => void)[]>([]);
@@ -766,6 +833,8 @@ export default function App() {
             sketches[data.id] = data.data;
           });
           setHairstyleSketches(prev => ({ ...prev, ...sketches }));
+        }, (error) => {
+          handleFirestoreError(error, OperationType.LIST, `users/${currentUser.uid}/sketches`);
         });
 
         // Load user polls
@@ -911,6 +980,22 @@ export default function App() {
 
           // Trigger Upsell Modal if it was a single unlock
           if (pendingPayment.plan === 'single') {
+            // Auto-trigger studio generation if pending
+            if (pendingStudioSelection) {
+              console.log("Auto-triggering studio generation after payment success");
+              const { styleId, colorId, techId } = pendingStudioSelection;
+              const style = HAIRSTYLE_LIBRARY.find(s => s.id === styleId);
+              const color = HAIR_COLORS.find(c => c.id === colorId);
+              const tech = HAIR_TECHNOLOGIES.find(t => t.id === techId);
+              
+              if (style && color) {
+                handleStudioTryOn(style, color, tech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0]);
+                // Clear selection state and storage
+                setPendingStudioSelection(null);
+                localStorage.removeItem('frisurenai_pending_studio_selection');
+              }
+            }
+
             setTimeout(() => {
               setShowUpsellModal(true);
             }, 90000);
@@ -1238,28 +1323,58 @@ export default function App() {
     try {
       // 1. Delete all results from subcollection
       const resultsRef = collection(db, 'users', user.uid, 'results');
-      const resultsSnap = await getDocs(resultsRef);
-      const deleteResultsPromises = resultsSnap.docs.map(doc => deleteDoc(doc.ref));
+      const resultsSnap = await getDocs(resultsRef).catch(err => {
+        handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/results`);
+        throw err;
+      });
+      const deleteResultsPromises = resultsSnap.docs.map(d => 
+        deleteDoc(d.ref).catch(err => {
+          handleFirestoreError(err, OperationType.DELETE, d.ref.path);
+          throw err;
+        })
+      );
       await Promise.all(deleteResultsPromises);
 
       // 2. Delete all sketches from subcollection
       const sketchesRef = collection(db, 'users', user.uid, 'sketches');
-      const sketchesSnap = await getDocs(sketchesRef);
-      const deleteSketchesPromises = sketchesSnap.docs.map(doc => deleteDoc(doc.ref));
+      const sketchesSnap = await getDocs(sketchesRef).catch(err => {
+        handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/sketches`);
+        throw err;
+      });
+      const deleteSketchesPromises = sketchesSnap.docs.map(d => 
+        deleteDoc(d.ref).catch(err => {
+          handleFirestoreError(err, OperationType.DELETE, d.ref.path);
+          throw err;
+        })
+      );
       await Promise.all(deleteSketchesPromises);
       
       // 3. Delete all polls created by this user
       const pollsRef = collection(db, 'polls');
       const pollsQ = query(pollsRef, where('creatorId', '==', user.uid));
-      const pollsSnap = await getDocs(pollsQ);
-      const deletePollsPromises = pollsSnap.docs.map(doc => deleteDoc(doc.ref));
+      const pollsSnap = await getDocs(pollsQ).catch(err => {
+        handleFirestoreError(err, OperationType.LIST, 'polls');
+        throw err;
+      });
+      const deletePollsPromises = pollsSnap.docs.map(d => 
+        deleteDoc(d.ref).catch(err => {
+          handleFirestoreError(err, OperationType.DELETE, d.ref.path);
+          throw err;
+        })
+      );
       await Promise.all(deletePollsPromises);
 
       // 4. Delete user usage tracking
-      await deleteDoc(doc(db, 'usage', user.uid));
+      await deleteDoc(doc(db, 'usage', user.uid)).catch(err => {
+        handleFirestoreError(err, OperationType.DELETE, `usage/${user.uid}`);
+        throw err;
+      });
 
       // 5. Delete the main user document
-      await deleteDoc(doc(db, 'users', user.uid));
+      await deleteDoc(doc(db, 'users', user.uid)).catch(err => {
+        handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}`);
+        throw err;
+      });
       
       // 6. Delete the Auth user
       await deleteUser(user);
@@ -1477,7 +1592,7 @@ export default function App() {
   };
 
   const incrementUsage = async () => {
-    const usageId = user ? user.uid : clientIp;
+    const usageId = user ? user.uid : (clientIp ? clientIp.split(',')[0].trim() : null);
     if (!usageId || usageId === "unknown") return;
 
     const usageDocRef = doc(db, 'usage', usageId);
@@ -1701,6 +1816,64 @@ export default function App() {
         newResults[index] = { ...newResults[index], failed: true };
         return newResults;
       });
+    }
+  };
+
+  const handleGenerateLockedResult = async (result: GeneratedResult) => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    if (!isPremium && userPlan !== 'single') {
+       setShowPricingModal(true);
+       return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      const sourceImage = result.sourceImageUrl || image;
+      if (!sourceImage) {
+        throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
+      }
+      
+      const base64Data = sourceImage.split(',')[1];
+      const resMimeType = sourceImage.split(';')[0].split(':')[1] || 'image/jpeg';
+      
+      // Use the description or suitabilityReason as prompt supplement
+      const promptSupplement = result.description || result.suitabilityReason;
+      
+      const imageUrl = await generateHairstyleImage(
+        base64Data, 
+        resMimeType,
+        result.name,
+        promptSupplement
+      );
+
+      if (!imageUrl) throw new Error("KI konnte kein Bild generieren.");
+
+      const updatedResult = { ...result, imageUrl };
+      
+      // Update local state
+      setSavedResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
+      setCustomResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
+      if (selectedResult?.id === result.id) setSelectedResult(updatedResult);
+      
+      // Save to Firestore
+      await saveResult(updatedResult, true);
+      
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+    } catch (err: any) {
+      console.error("Failed to generate locked result image", err);
+      setError("Bild konnte nicht nachträglich generiert werden: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -1958,12 +2131,16 @@ export default function App() {
     }
   };
 
-  const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' = 'single') => {
-    console.log("Initiating checkout for plan:", plan);
+  const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' = 'single', metadata?: any) => {
+    console.log("Initiating checkout for plan:", plan, "metadata:", metadata);
     
     if (!user) {
       console.log("User not logged in, prompting for login before checkout");
       setPendingCheckoutPlan(plan);
+      if (metadata) {
+        localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(metadata));
+        setPendingStudioSelection(metadata);
+      }
       setAuthMessage({ type: 'info', text: "Bitte erstelle ein kostenloses Konto oder logge dich ein, um mit der Zahlung fortzufahren." });
       
       // Automatically close any open paywall/pricing modals
@@ -2040,6 +2217,10 @@ export default function App() {
             }
             if (mimeType) {
               localStorage.setItem('frisurenai_pending_mime_type', mimeType);
+            }
+            if (metadata) {
+              localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(metadata));
+              setPendingStudioSelection(metadata);
             }
           }
         } catch (storageError) {
@@ -2650,15 +2831,38 @@ export default function App() {
                         </div>
 
                         {isPremium && premiumExpiresAt ? (
-                          <p className="text-xs font-bold opacity-60 flex items-center gap-2">
-                            <Clock size={14} />
-                            {(() => {
-                              const expiryDate = premiumExpiresAt.toDate();
-                              const now = new Date();
-                              const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-                              return `Läuft in ${diffDays} Tagen ab (${expiryDate.toLocaleDateString('de-DE')})`;
-                            })()}
-                          </p>
+                          <div className="space-y-4">
+                            <p className="text-xs font-bold opacity-60 flex items-center gap-2">
+                              <Clock size={14} />
+                              {(() => {
+                                const expiryDate = premiumExpiresAt.toDate();
+                                const now = new Date();
+                                const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                return subscriptionStatus?.cancel_at_period_end 
+                                  ? `Abo endet am ${expiryDate.toLocaleDateString('de-DE')}`
+                                  : `Nächste Abrechnung am ${expiryDate.toLocaleDateString('de-DE')} (in ${diffDays} Tagen)`;
+                              })()}
+                            </p>
+                            
+                            {isPro && !subscriptionStatus?.cancel_at_period_end && (
+                              <button 
+                                onClick={handleCancelSubscription}
+                                disabled={isCancellingSubscription}
+                                className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/80 transition-colors flex items-center gap-2"
+                              >
+                                {isCancellingSubscription ? <Loader2 className="animate-spin" size={12} /> : <XCircle size={12} />}
+                                Abo zum Laufzeitende kündigen
+                              </button>
+                            )}
+
+                            {subscriptionStatus?.cancel_at_period_end && (
+                              <div className="p-3 bg-white/10 rounded-xl border border-white/10">
+                                <p className="text-[10px] text-white/80 font-medium">
+                                  Dein Abo wurde gekündigt und läuft zum Ende des Abrechnungszeitraums aus. Du kannst Pro bis dahin uneingeschränkt weiternutzen.
+                                </p>
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <div className="space-y-4">
                             <ul className="space-y-2">
@@ -2923,20 +3127,63 @@ export default function App() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: index * 0.1 }}
-                                onClick={() => setSelectedResult(result)}
-                                className="group space-y-4 cursor-pointer bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-black/5 transition-all shadow-sm hover:shadow-xl"
+                                onClick={() => {
+                                  if (result.imageUrl) {
+                                    setSelectedResult(result);
+                                  }
+                                }}
+                                className={`group space-y-4 cursor-pointer bg-white p-4 rounded-[2.5rem] border border-transparent hover:border-black/5 transition-all shadow-sm hover:shadow-xl ${!result.imageUrl ? 'cursor-default' : ''}`}
                               >
                                 <div className="aspect-[3/4] rounded-[1.8rem] overflow-hidden shadow-lg relative bg-black/5">
-                                  <img 
-                                    src={result.imageUrl || undefined} 
-                                    alt={result.name} 
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                                    referrerPolicy="no-referrer"
-                                  />
-                                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                                    <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
-                                    <span className="text-sm font-bold">{result.rating || 9}/10</span>
-                                  </div>
+                                  {result.imageUrl ? (
+                                    <img 
+                                      src={result.imageUrl || undefined} 
+                                      alt={result.name} 
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full bg-brand-primary/5 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                                      <div className="w-16 h-16 rounded-full bg-white/50 flex items-center justify-center text-brand-primary/20">
+                                        <Sparkles size={32} />
+                                      </div>
+                                      <div className="space-y-1 px-4">
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-brand-primary/40">Zusätzlicher Style</p>
+                                        <p className="text-sm font-bold text-brand-primary leading-tight line-clamp-2">{result.name}</p>
+                                      </div>
+                                      
+                                      {(isPremium || userPlan === 'single') ? (
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleGenerateLockedResult(result);
+                                          }}
+                                          disabled={isGenerating}
+                                          className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
+                                        >
+                                          {isGenerating ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
+                                          Bild erstellen
+                                        </button>
+                                      ) : (
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowPricingModal(true);
+                                          }}
+                                          className="px-6 py-2.5 bg-[#FF9EBE] text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
+                                        >
+                                          <Lock size={12} />
+                                          Freischalten
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                  {result.imageUrl && (
+                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                                      <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
+                                      <span className="text-sm font-bold">{result.rating || 9}/10</span>
+                                    </div>
+                                  )}
                                 </div>
                                 <div className="px-4 pb-2">
                                   <h3 className="text-xl font-black italic tracking-tight truncate text-brand-primary">{result.name}</h3>

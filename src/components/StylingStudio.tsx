@@ -36,7 +36,7 @@ interface StylingStudioProps {
   preGeneratedSketches?: Record<string, string>;
   isPremiumFetching?: boolean;
   isGeneratingBackground?: boolean;
-  onCheckout?: (plan: 'single' | 'monthly' | 'yearly') => void;
+  onCheckout?: (plan: 'single' | 'monthly' | 'yearly', metadata?: any) => void;
   onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
 }
 
@@ -599,7 +599,11 @@ export default function StylingStudio({
                           setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                           return;
                         }
-                        onCheckout?.('single');
+                        onCheckout?.('single', {
+                          styleId: selectedStyleId,
+                          colorId: selectedColorId,
+                          techId: selectedTechId
+                        });
                       }}
                       className="bg-white/50 p-6 rounded-[2rem] border-2 border-black/5 text-left flex flex-col justify-between hover:border-black/10 transition-all hover:scale-[1.02]"
                     >

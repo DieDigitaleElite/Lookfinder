@@ -77,9 +77,23 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "data"]
+    },
+    "Usage": {
+      "title": "API Usage Tracking",
+      "description": "Tracks the number of AI requests made by a user or IP address to enforce limits.",
+      "type": "object",
+      "properties": {
+        "count": { "type": "number", "description": "Number of requests made" },
+        "lastUsed": { "type": "string", "format": "date-time" }
+      },
+      "required": ["count", "lastUsed"]
     }
   },
   "firestore": {
+    "/usage/{usageId}": {
+      "schema": "Usage",
+      "description": "Tracks usage limits per UID or IP address"
+    },
     "/users/{userId}": {
       "schema": "User",
       "description": "User profile document"

@@ -1,23 +1,5 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-
-// Helper to call our secure backend proxy
-const callGeminiProxy = async (params: { model: string; contents: any; config?: any }) => {
-  const response = await fetch("/api/gemini", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(params),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message = errorData.error || `Server error: ${response.status}`;
-    throw new Error(message);
-  }
-
-  return await response.json();
-};
+// geminiService.ts - Refactored to use backend proxy for security
+// This ensures GEMINI_API_KEY is never exposed to the client.
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -29,21 +11,10 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> =>
     } catch (error: any) {
       lastError = error;
       const errorMsg = (error.message || "").toUpperCase();
-      const status = error.status || error.code || 0;
       
-      const isRetryable = errorMsg.includes("429") || 
-                          errorMsg.includes("503") ||
-                          errorMsg.includes("504") ||
-                          errorMsg.includes("500") ||
-                          errorMsg.includes("RESOURCE_EXHAUSTED") || 
-                          errorMsg.includes("UNAVAILABLE") ||
-                          errorMsg.includes("DEADLINE_EXCEEDED") ||
-                          [429, 500, 503, 504].includes(status);
-
-      if (isRetryable && i < maxRetries - 1) {
-        const baseDelay = errorMsg.includes("429") || errorMsg.includes("RESOURCE_EXHAUSTED") ? 5000 : 2000;
-        const waitTime = Math.pow(2, i) * baseDelay + Math.random() * 2000;
-        console.warn(`Transient error hit (Attempt ${i + 1}/${maxRetries}), retrying in ${Math.round(waitTime)}ms...`);
+      if (i < maxRetries - 1) {
+        const waitTime = Math.pow(2, i) * 2000 + Math.random() * 1000;
+        console.warn(`Retryable error hit (${errorMsg}), retrying in ${Math.round(waitTime)}ms...`);
         await sleep(waitTime);
         continue;
       }
@@ -75,7 +46,6 @@ export interface GeneratedResult extends HairstyleSuggestion {
 }
 
 export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
-  const model = "gemini-3-flash-preview";
   const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr hervorragend stehen würden.
 
   WICHTIG FÜR DIE AUSWAHL (ERSTEN 3 VORSCHLÄGE):
@@ -105,22 +75,18 @@ export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType:
   Antworte ausschließlich in deutscher Sprache.
   Gib die Antwort als JSON-Array von Objekten mit den folgenden Schlüsseln zurück: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
-  const response = await withRetry(() => callGeminiProxy({
-    model,
-    contents: {
-      parts: [
-        { inlineData: { data: base64Image, mimeType } },
-        { text: prompt }
-      ]
-    },
-    config: {
-      responseMimeType: "application/json",
-    }
-  }));
+  const response = await withRetry(async () => {
+    const res = await fetch("/api/ai/analyze-face", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ base64Image, mimeType, prompt })
+    });
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+    return res.json();
+  });
 
   try {
     let text = response.text || "[]";
-    // Remove markdown code blocks if present
     text = text.replace(/```json\n?|```/g, "").trim();
     const suggestions = JSON.parse(text);
     return suggestions.map((s: any, index: number) => ({
@@ -147,9 +113,8 @@ export const getAIPoweredStylingMetadata = async (
   styleDescription: string
 ): Promise<StylingMetadata> => {
   try {
-    const model = "gemini-3-flash-preview";
     const prompt = `Du bist ein professioneller Star-Friseur und Image-Berater. 
-    Analysiere die Kombination aus der Frisur "${styleName}" in der Farbe "${colorName}" für eine Person mit einer ${faceShape}en Gesichtsform.
+    Analysiere die Kombination aus der Frisur "${styleName}" in der Farbe "${colorName}" für eine person mit einer ${faceShape}en Gesichtsform.
     
     Kontext zum gewählten Style: ${styleDescription}
     
@@ -161,14 +126,15 @@ export const getAIPoweredStylingMetadata = async (
     
     Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
-    const response = await withRetry(() => callGeminiProxy({
-      model,
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.7,
-      }
-    }));
+    const response = await withRetry(async () => {
+      const res = await fetch("/api/ai/styling-metadata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      return res.json();
+    });
 
     let text = response.text || "{}";
     text = text.replace(/```json\n?|```/g, "").trim();
@@ -195,7 +161,6 @@ export const generateBaseAvatarSketch = async (
   originalBase64: string, 
   mimeType: string
 ): Promise<string | null> => {
-  const model = "gemini-2.5-flash-image";
   const prompt = `Create a high-end, minimalist charcoal fashion sketch of the person's face and head.
 
   CRITICAL IDENTITY REQUIREMENT:
@@ -205,20 +170,24 @@ export const generateBaseAvatarSketch = async (
   - Close-up portrait only (head and neck).
   - NO background details.`;
 
-  const response = await withRetry(() => callGeminiProxy({
-    model,
-    contents: {
-      parts: [
-        { inlineData: { data: originalBase64, mimeType } },
-        { text: prompt }
-      ]
-    }
-  }));
+  const response = await withRetry(async () => {
+    const res = await fetch("/api/ai/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash-image",
+        parts: [
+          { inlineData: { data: originalBase64, mimeType } },
+          { text: prompt }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+    return res.json();
+  });
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
+  if (response.imageData) {
+    return `data:image/png;base64,${response.imageData}`;
   }
 
   return null;
@@ -230,7 +199,6 @@ export const generateFashionSketch = async (
   styleName: string,
   baseSketch?: string | null
 ): Promise<string | null> => {
-  const model = "gemini-2.5-flash-image";
   const prompt = `Create a high-end fashion illustration of the person with the hairstyle: ${styleName}.
   
   ABSOLUTE IDENTITY PERSERVATION:
@@ -250,15 +218,21 @@ export const generateFashionSketch = async (
 
   parts.push({ text: prompt });
 
-  const response = await withRetry(() => callGeminiProxy({
-    model,
-    contents: { parts }
-  }));
+  const response = await withRetry(async () => {
+    const res = await fetch("/api/ai/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash-image",
+        parts
+      })
+    });
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+    return res.json();
+  });
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
+  if (response.imageData) {
+    return `data:image/png;base64,${response.imageData}`;
   }
 
   return null;
@@ -270,7 +244,6 @@ export const generateHairstyleImage = async (
   styleName: string, 
   description: string
 ): Promise<string | null> => {
-  const model = "gemini-2.5-flash-image";
   const prompt = `Perform a pixel-perfect hairstyle swap. Render a photograph of the person in the image wearing this hairstyle: ${styleName}. ${description}. 
   
   STRICT MANDATORY RULES (ZERO TOLERANCE FOR DEVIATION):
@@ -279,21 +252,27 @@ export const generateHairstyleImage = async (
   3. PHOTOREALISM: The hair must look real, not like a wig. Use natural lighting that matches the original photo's environment.
   4. CONSISTENCY: Ensure that the forehead and face are not covered more than the chosen style strictly requires.`;
 
-  const response = await withRetry(() => callGeminiProxy({
-    model,
-    contents: {
-      parts: [
-        { inlineData: { data: originalBase64, mimeType } },
-        { text: prompt }
-      ]
-    }
-  }));
+  const response = await withRetry(async () => {
+    const res = await fetch("/api/ai/generate-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gemini-2.5-flash-image",
+        parts: [
+          { inlineData: { data: originalBase64, mimeType } },
+          { text: prompt }
+        ]
+      })
+    });
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+    return res.json();
+  });
 
-  for (const part of response.candidates?.[0]?.content?.parts || []) {
-    if (part.inlineData) {
-      return `data:image/png;base64,${part.inlineData.data}`;
-    }
+  if (response.imageData) {
+    return `data:image/png;base64,${response.imageData}`;
   }
 
   return null;
 };
+
+

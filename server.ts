@@ -3,8 +3,22 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
+
+let ai: GoogleGenAI | null = null;
+function getAI() {
+  if (!ai) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      console.warn("GEMINI_API_KEY not found in environment.");
+      return null;
+    }
+    ai = new GoogleGenAI(key);
+  }
+  return ai;
+}
 
 let stripe: Stripe | null = null;
 
@@ -31,7 +45,7 @@ function getStripe() {
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '20mb' }));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -51,10 +65,104 @@ apiRouter.get("/test", (req, res) => {
   });
 });
 
-apiRouter.get("/get-client-ip", (req, res) => {
-  const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
-  res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
+apiRouter.post("/ai/analyze-face", async (req, res) => {
+  try {
+    const { base64Image, mimeType, prompt } = req.body;
+    const ai = getAI();
+    if (!ai) throw new Error("AI not configured");
+    
+    const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const result = await model.generateContent({
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { data: base64Image, mimeType } },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    res.json({ text: result.response.text() });
+  } catch (err: any) {
+    console.error("AI Analysis error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
+
+apiRouter.post("/ai/styling-metadata", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const ai = getAI();
+    if (!ai) throw new Error("AI not configured");
+
+    const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseMimeType: "application/json",
+        temperature: 0.7,
+      }
+    });
+
+    res.json({ text: result.response.text() });
+  } catch (err: any) {
+    console.error("AI Metadata error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post("/ai/generate-image", async (req, res) => {
+  try {
+    const { parts, model: modelName } = req.body;
+    const ai = getAI();
+    if (!ai) throw new Error("AI not configured");
+
+    const model = ai.getGenerativeModel({ model: modelName || "gemini-2.5-flash-image" });
+    
+    // Convert parts back from JSON format if needed (inlineData handling)
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts }]
+    });
+
+    const responseParts = result.response.candidates?.[0]?.content?.parts || [];
+    let imageData = null;
+    for (const part of responseParts) {
+      if (part.inlineData) {
+        imageData = part.inlineData.data;
+        break;
+      }
+    }
+
+    res.json({ imageData });
+  } catch (err: any) {
+    console.error("AI Generation error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.get("/firebase-config", (req, res) => {
+  res.json({
+    apiKey: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID || process.env.VITE_FIREBASE_APP_ID,
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID || process.env.VITE_FIREBASE_MEASUREMENT_ID,
+    firestoreDatabaseId: process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID,
+  });
+});
+
+  apiRouter.get("/get-client-ip", (req, res) => {
+    let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    if (typeof ip === "string" && ip.includes(",")) {
+      ip = ip.split(",")[0].trim();
+    }
+    res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
+  });
 
 apiRouter.post("/create-checkout-session", async (req, res) => {
   console.log("Checkout request received at /api/create-checkout-session:", req.body);
@@ -134,6 +242,15 @@ apiRouter.post("/create-checkout-session", async (req, res) => {
       line_items: lineItems,
       mode: mode,
       client_reference_id: userId,
+      subscription_data: mode === "subscription" ? {
+        metadata: {
+          userId: userId,
+        },
+      } : undefined,
+      metadata: {
+        userId: userId,
+        plan: plan,
+      },
       success_url: `${baseUrl}?payment=success&plan=${plan || 'single'}${userId ? `&uid=${userId}` : ''}`,
       cancel_url: `${baseUrl}?payment=cancel`,
     });
@@ -146,12 +263,88 @@ apiRouter.post("/create-checkout-session", async (req, res) => {
   }
 });
 
+apiRouter.get("/subscription-status/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const stripeClient = getStripe();
+    
+    // Search for active subscriptions for this user
+    // Note: This matches the metadata we added above
+    const subscriptions = await stripeClient.subscriptions.list({
+      limit: 1,
+      status: 'active',
+      expand: ['data.default_payment_method'],
+    });
+    
+    // Stripe list doesn't support direct filtering by metadata in the list() call for subscriptions easily without search
+    // So we'll filter manually or use search if available
+    // Better: use search
+    const searchResult = await stripeClient.subscriptions.search({
+      query: `metadata['userId']:'${userId}' AND status:'active'`,
+    });
+
+    if (searchResult.data.length === 0) {
+      return res.json({ active: false });
+    }
+
+    const sub = searchResult.data[0];
+    res.json({
+      active: true,
+      id: sub.id,
+      cancel_at_period_end: sub.cancel_at_period_end,
+      current_period_end: sub.current_period_end,
+      plan: sub.metadata.plan || 'unknown'
+    });
+  } catch (error: any) {
+    console.error("Error fetching subscription status:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+apiRouter.post("/cancel-subscription", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "UserId is required" });
+    }
+
+    const stripeClient = getStripe();
+    
+    // Find active subscription
+    const searchResult = await stripeClient.subscriptions.search({
+      query: `metadata['userId']:'${userId}' AND status:'active'`,
+    });
+
+    if (searchResult.data.length === 0) {
+      return res.status(404).json({ error: "No active subscription found for this user." });
+    }
+
+    const sub = searchResult.data[0];
+    
+    // Update to cancel at period end
+    const updatedSub = await stripeClient.subscriptions.update(sub.id, {
+      cancel_at_period_end: true,
+    });
+
+    res.json({ 
+      success: true, 
+      message: "Subscription will cancel at the end of the period.",
+      cancel_at_period_end: updatedSub.cancel_at_period_end,
+      current_period_end: updatedSub.current_period_end
+    });
+  } catch (error: any) {
+    console.error("Error cancelling subscription:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 apiRouter.all("*", (req, res) => {
-  console.warn(`API Route not found: ${req.method} ${req.url}`);
+  console.warn(`[API] 404 - Not Found: ${req.method} ${req.originalUrl || req.url} (Mapped path: ${req.url})`);
   res.status(404).json({ 
     error: "API Route not found", 
     method: req.method, 
-    url: req.url 
+    path: req.originalUrl || req.url,
+    suggestedPath: "/api/test"
   });
 });
 
