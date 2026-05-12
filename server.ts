@@ -15,7 +15,7 @@ function getAI() {
       console.warn("GEMINI_API_KEY not found in environment.");
       return null;
     }
-    ai = new GoogleGenAI(key);
+    ai = new GoogleGenAI({ apiKey: key });
   }
   return ai;
 }
@@ -71,8 +71,8 @@ apiRouter.post("/ai/analyze-face", async (req, res) => {
     const ai = getAI();
     if (!ai) throw new Error("AI not configured");
     
-    const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
-    const result = await model.generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
       contents: [{
         role: "user",
         parts: [
@@ -80,12 +80,12 @@ apiRouter.post("/ai/analyze-face", async (req, res) => {
           { text: prompt }
         ]
       }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
       }
     });
 
-    res.json({ text: result.response.text() });
+    res.json({ text: response.text });
   } catch (err: any) {
     console.error("AI Analysis error:", err);
     res.status(500).json({ error: err.message });
@@ -98,16 +98,16 @@ apiRouter.post("/ai/styling-metadata", async (req, res) => {
     const ai = getAI();
     if (!ai) throw new Error("AI not configured");
 
-    const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
-    const result = await model.generateContent({
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
+      config: {
         responseMimeType: "application/json",
         temperature: 0.7,
       }
     });
 
-    res.json({ text: result.response.text() });
+    res.json({ text: response.text });
   } catch (err: any) {
     console.error("AI Metadata error:", err);
     res.status(500).json({ error: err.message });
@@ -120,14 +120,12 @@ apiRouter.post("/ai/generate-image", async (req, res) => {
     const ai = getAI();
     if (!ai) throw new Error("AI not configured");
 
-    const model = ai.getGenerativeModel({ model: modelName || "gemini-2.5-flash-image" });
-    
-    // Convert parts back from JSON format if needed (inlineData handling)
-    const result = await model.generateContent({
+    const response = await ai.models.generateContent({
+      model: modelName || "gemini-2.5-flash-image",
       contents: [{ role: "user", parts }]
     });
 
-    const responseParts = result.response.candidates?.[0]?.content?.parts || [];
+    const responseParts = response.candidates?.[0]?.content?.parts || [];
     let imageData = null;
     for (const part of responseParts) {
       if (part.inlineData) {

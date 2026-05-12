@@ -24,7 +24,7 @@ const configFiles = import.meta.glob('../firebase-applet-config.json', { eager: 
 const firebaseConfigJson = (configFiles['../firebase-applet-config.json'] as any)?.default || 
                            configFiles['../firebase-applet-config.json'] || {};
 
-// Initial empty/fallback config
+// Initial search for config
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY || firebaseConfigJson.apiKey,
   authDomain: (import.meta as any).env.VITE_FIREBASE_AUTH_DOMAIN || firebaseConfigJson.authDomain,
@@ -36,8 +36,21 @@ const firebaseConfig = {
   firestoreDatabaseId: (import.meta as any).env.VITE_FIREBASE_DATABASE_ID || firebaseConfigJson.firestoreDatabaseId
 };
 
-// Initialize app with whatever we have (env or json)
-const app = initializeApp(firebaseConfig);
+// Initialize app - with a safety check to prevent crash on missing config
+const initializeFirebase = () => {
+  if (!firebaseConfig.apiKey) {
+    console.warn("Firebase API Key is missing. The app might not function correctly until configuration is provided.");
+    // Return a dummy app if config is missing to prevent top-level crash
+    return initializeApp({
+      apiKey: "placeholder-please-set-env-vars",
+      authDomain: "placeholder.firebaseapp.com",
+      projectId: "placeholder-project"
+    });
+  }
+  return initializeApp(firebaseConfig);
+};
+
+const app = initializeFirebase();
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
