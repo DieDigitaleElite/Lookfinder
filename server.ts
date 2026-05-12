@@ -43,8 +43,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// API Routes
+// API Router
 const apiRouter = express.Router();
+
+// Apply CORS to the router as well
+apiRouter.use(cors());
 
 apiRouter.get("/test", (req, res) => {
   res.json({ 
@@ -76,19 +79,19 @@ apiRouter.get("/get-client-ip", (req, res) => {
   res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
 });
 
-apiRouter.all("/create-checkout-session", async (req, res) => {
-  console.log(`[Stripe Checkout] Request at /api/create-checkout-session: ${req.method} from ${req.ip}`);
-  
-  if (req.method !== 'POST') {
-    console.warn(`[Stripe Checkout] Rejected ${req.method} request (not POST)`);
-    return res.status(405).json({ 
-      error: `Method ${req.method} Not Allowed`, 
-      message: "Please use POST to create a checkout session",
-      receivedMethod: req.method,
-      receivedPath: req.originalUrl
-    });
-  }
+// GET handler for debugging
+apiRouter.get("/create-checkout-session", (req, res) => {
+  console.warn(`[Stripe Checkout] Received GET request at /api/create-checkout-session. This should be a POST.`);
+  res.status(405).json({ 
+    error: "Method Not Allowed", 
+    message: "Bitte nutze einen POST Request. Falls du dies gerade getan hast, wurde dein Request eventuell vom Browser oder einem Proxy in einen GET umgewandelt.",
+    method: req.method
+  });
+});
 
+apiRouter.post("/create-checkout-session", async (req, res) => {
+  console.log(`[Stripe Checkout] POST request at /api/create-checkout-session from ${req.ip}`);
+  
   try {
     const { plan, userId } = req.body;
     console.log(`[Stripe Checkout] Creating session for plan: ${plan}, UserID: ${userId}`);
@@ -156,7 +159,8 @@ apiRouter.all("/create-checkout-session", async (req, res) => {
 
     const protocol = req.headers["x-forwarded-proto"] || (req.headers.host?.includes('localhost') ? 'http' : 'https');
     const host = req.headers["host"] || "localhost:3000";
-    const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
+    // Important: Use the origin if available to stay on the same domain/protocol
+    const baseUrl = process.env.APP_URL || req.headers.origin || `${protocol}://${host}`;
 
     const session = await stripeClient.checkout.sessions.create({
       line_items: lineItems,
@@ -171,8 +175,9 @@ apiRouter.all("/create-checkout-session", async (req, res) => {
         userId: userId,
         plan: plan,
       },
-      success_url: `${baseUrl}?payment=success&plan=${plan || 'single'}${userId ? `&uid=${userId}` : ''}`,
-      cancel_url: `${baseUrl}?payment=cancel`,
+      // Ensure we don't end up with doubled slashes if baseUrl has one
+      success_url: `${baseUrl.replace(/\/$/, '')}/?payment=success&plan=${plan || 'single'}${userId ? `&uid=${userId}` : ''}`,
+      cancel_url: `${baseUrl.replace(/\/$/, '')}/?payment=cancel`,
     });
 
     console.log(`[Stripe Checkout] Session created: ${session.id}`);
