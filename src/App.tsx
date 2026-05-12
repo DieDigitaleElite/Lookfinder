@@ -2171,36 +2171,45 @@ export default function App() {
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
       const apiBase = window.location.origin;
-      const response = await fetch(`${apiBase}/api/create-checkout-session`, {
+      const checkoutUrl = `${apiBase}/api/create-checkout-session`;
+      console.log(`[Stripe] Fetching: ${checkoutUrl}`);
+      
+      const response = await fetch(checkoutUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan, userId: auth.currentUser?.uid }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ 
+          plan, 
+          userId: auth.currentUser?.uid,
+          email: auth.currentUser?.email 
+        }),
         signal: controller.signal
       });
       
       clearTimeout(timeoutId);
-      console.log("Response status:", response.status);
+      console.log(`[Stripe] Response: ${response.status} ${response.statusText}`);
       
       const contentType = response.headers.get("content-type");
       let data;
       
       if (contentType && contentType.includes("application/json")) {
         data = await response.json();
-        console.log("Response data:", data);
+        console.log("[Stripe] JSON Data:", data);
       } else {
         const text = await response.text();
-        console.error("Received non-JSON response:", text);
+        console.error(`[Stripe] Non-JSON response (Status ${response.status}):`, text.substring(0, 200));
         
-        // Check if it's a known Vercel/Router error
         if (response.status === 405) {
-          throw new Error(`Methode nicht erlaubt (405). Der Server hat den POST Request nicht akzeptiert. Bitte prüfe, ob die Seite per HTTPS geladen wurde.`);
+          throw new Error("Der Server erlaubt den Zahlungsvorgang aktuell nicht (Fehler 405). Bitte versuche es in einem anderen Browser oder lade die Seite neu.");
         }
         
-        let errorMsg = `Der Server hat eine ungültige Antwort gesendet (${response.status}).`;
-        throw new Error(errorMsg);
+        throw new Error(`Der Server hat eine ungültige Antwort gesendet (${response.status}).`);
       }
       
       if (!response.ok) {
+        console.error("[Stripe] API Error:", data);
         const errorDetail = data.debug ? ` (Method: ${data.debug.method})` : "";
         throw new Error((data.message || data.error || "Zahlungsvorgang konnte nicht gestartet werden.") + errorDetail);
       }
