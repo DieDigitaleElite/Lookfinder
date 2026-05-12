@@ -4,8 +4,22 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 
 dotenv.config();
+
+let ai: GoogleGenAI | null = null;
+function getAI() {
+  if (!ai) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) {
+      console.warn("GEMINI_API_KEY not found in environment.");
+      return null;
+    }
+    ai = new GoogleGenAI({ apiKey: key });
+  }
+  return ai;
+}
 
 let stripe: Stripe | null = null;
 
@@ -72,6 +86,82 @@ apiRouter.get("/firebase-config", (req, res) => {
     }
     res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
   });
+
+apiRouter.post("/ai/analyze-face", async (req, res) => {
+  try {
+    const { base64Image, mimeType, prompt } = req.body;
+    const ai = getAI();
+    if (!ai) throw new Error("AI not configured");
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { data: base64Image, mimeType } },
+          { text: prompt }
+        ]
+      }],
+      config: {
+        responseMimeType: "application/json",
+      }
+    });
+
+    res.json({ text: response.text || "" });
+  } catch (err: any) {
+    console.error("AI Analysis error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post("/ai/styling-metadata", async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const ai = getAI();
+    if (!ai) throw new Error("AI not configured");
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.7,
+      }
+    });
+
+    res.json({ text: response.text || "" });
+  } catch (err: any) {
+    console.error("AI Metadata error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+apiRouter.post("/ai/generate-image", async (req, res) => {
+  try {
+    const { parts, model: modelName } = req.body;
+    const ai = getAI();
+    if (!ai) throw new Error("AI not configured");
+
+    const response = await ai.models.generateContent({
+      model: modelName || "gemini-2.5-flash-image",
+      contents: [{ role: "user", parts }]
+    });
+
+    const responseParts = response.candidates?.[0]?.content?.parts || [];
+    let imageData = null;
+    for (const part of responseParts) {
+      if (part.inlineData) {
+        imageData = part.inlineData.data;
+        break;
+      }
+    }
+
+    res.json({ imageData });
+  } catch (err: any) {
+    console.error("AI Generation error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 apiRouter.post("/create-checkout-session", async (req, res) => {
   console.log("Checkout request received at /api/create-checkout-session:", req.body);
