@@ -207,34 +207,6 @@ export default function App() {
     }
   };
 
-  const handleCancelSubscription = async () => {
-    if (!user) return;
-    if (!window.confirm("Bist du sicher, dass du dein Abo kündigen möchtest? Du behältst den Pro-Zugang bis zum Ende deines aktuellen Abrechnungszeitraums.")) return;
-
-    setIsCancellingSubscription(true);
-    try {
-      const response = await fetch('/api/cancel-subscription', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.uid }),
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setAuthMessage({ type: 'success', text: "Dein Abo wurde erfolgreich zum Ende der Laufzeit gekündigt." });
-        // Refresh status
-        fetchSubscriptionStatus();
-      } else {
-        setError(data.error || "Kündigung fehlgeschlagen.");
-      }
-    } catch (err) {
-      console.error("Cancellation error:", err);
-      setError("Ein technischer Fehler ist aufgetreten.");
-    } finally {
-      setIsCancellingSubscription(false);
-    }
-  };
-
   useEffect(() => {
     if (dashboardTab === 'account' && isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) {
       fetchSubscriptionStatus();
@@ -2879,21 +2851,10 @@ export default function App() {
                               })()}
                             </p>
                             
-                            {isPro && !subscriptionStatus?.cancel_at_period_end && (
-                              <button 
-                                onClick={handleCancelSubscription}
-                                disabled={isCancellingSubscription}
-                                className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/80 transition-colors flex items-center gap-2"
-                              >
-                                {isCancellingSubscription ? <Loader2 className="animate-spin" size={12} /> : <XCircle size={12} />}
-                                Abo zum Laufzeitende kündigen
-                              </button>
-                            )}
-
                             {subscriptionStatus?.cancel_at_period_end && (
                               <div className="p-3 bg-white/10 rounded-xl border border-white/10">
                                 <p className="text-[10px] text-white/80 font-medium">
-                                  Dein Abo wurde gekündigt und läuft zum Ende des Abrechnungszeitraums aus. Du kannst Pro bis dahin uneingeschränkt weiternutzen.
+                                  Dein Abo wurde bereits gekündigt und läuft zum Ende des Abrechnungszeitraums aus. Du kannst Pro bis dahin uneingeschränkt weiternutzen.
                                 </p>
                               </div>
                             )}

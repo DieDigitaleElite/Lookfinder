@@ -1,29 +1,14 @@
-// api/index.ts
+// src/api-server.ts
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
-
-const app = express();
-
-app.use(cors());
-app.use(express.json({ limit: '20mb' }));
-
-// Health checks
-app.get("/api/health", (req, res) => res.status(200).send("OK"));
-app.get("/api/test", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    message: "Simple API test",
-    stripe: !!process.env.STRIPE_SECRET_KEY
-  });
-});
 
 let stripe: Stripe | null = null;
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || key === "MY_STRIPE_SECRET_KEY" || key.trim() === "") {
-    throw new Error("STRIPE_SECRET_KEY missing");
+    throw new Error("STRIPE_SECRET_KEY ist nicht konfiguriert.");
   }
   if (!stripe) {
     stripe = new Stripe(key);
@@ -31,17 +16,44 @@ function getStripe() {
   return stripe;
 }
 
-app.get("/api/get-client-ip", (req, res) => {
-  const ip = req.headers["x-forwarded-for"] || req.ip || "unknown";
+const app = express();
+
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+app.use(express.json({ limit: '20mb' }));
+
+const apiRouter = express.Router();
+
+apiRouter.get("/", (req, res) => {
+  res.json({ status: "online", message: "Frisuren.ai API" });
+});
+
+apiRouter.get("/test", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    isVercel: !!process.env.VERCEL,
+    stripe: !!process.env.STRIPE_SECRET_KEY && process.env.STRIPE_SECRET_KEY !== "MY_STRIPE_SECRET_KEY"
+  });
+});
+
+apiRouter.get("/get-client-ip", (req, res) => {
+  let ip = req.headers["x-forwarded-for"] || req.headers["x-real-ip"] || req.ip || "unknown";
+  if (Array.isArray(ip)) ip = ip[0];
+  if (typeof ip === "string" && ip.includes(",")) {
+    ip = ip.split(",")[0].trim();
+  }
   res.json({ ip });
 });
 
-app.post("/api/create-checkout-session", async (req, res) => {
+apiRouter.post("/create-checkout-session", async (req, res) => {
   try {
     const { plan, userId, email } = req.body;
-    if (!userId) return res.status(400).json({ error: "UserID is required" });
+    if (!userId) return res.status(400).json({ error: "UserID ist erforderlich." });
 
     const stripeClient = getStripe();
+    
     let lineItems: any[] = [];
     let mode: "payment" | "subscription" = "payment";
     
@@ -50,7 +62,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
       lineItems = [{
         price_data: {
           currency: "eur",
-          product_data: { name: "Frisuren.ai - Pro Monatsabo" },
+          product_data: {
+            name: "Frisuren.ai - Pro Monatsabo",
+            description: "Unbegrenzte Analysen & Styling Tipps",
+          },
           unit_amount: 999,
           recurring: { interval: "month" },
         },
@@ -61,7 +76,10 @@ app.post("/api/create-checkout-session", async (req, res) => {
       lineItems = [{
         price_data: {
           currency: "eur",
-          product_data: { name: "Frisuren.ai - Pro Jahresabo" },
+          product_data: {
+            name: "Frisuren.ai - Pro Jahresabo",
+            description: "Unbegrenzter Zugriff für 1 Jahr",
+          },
           unit_amount: 3999,
           recurring: { interval: "year" },
         },
@@ -72,25 +90,32 @@ app.post("/api/create-checkout-session", async (req, res) => {
       lineItems = [{
         price_data: {
           currency: "eur",
-          product_data: { name: "Frisuren.ai - Einmalig" },
+          product_data: {
+            name: "Frisuren.ai - Einmalige Freischaltung",
+            description: "Alle 9 Styles für dein Foto",
+          },
           unit_amount: 299,
         },
         quantity: 1,
       }];
     }
 
-    const host = req.headers["host"] || "frisuren.ai";
     const protocol = req.headers["x-forwarded-proto"] || "https";
-    const baseUrl = process.env.APP_URL || `${protocol}://${host}`;
+    const host = req.headers["host"];
+    const baseUrl = process.env.APP_URL || (host ? `${protocol}://${host}` : "https://frisuren.ai");
 
     const session = await stripeClient.checkout.sessions.create({
       line_items: lineItems,
       mode: mode,
       customer_email: email || undefined,
       client_reference_id: userId,
+      subscription_data: mode === "subscription" ? {
+        metadata: { userId, plan },
+      } : undefined,
+      metadata: { userId, plan: plan || 'single' },
       success_url: `${baseUrl}/?payment=success&plan=${plan || 'single'}&uid=${userId}`,
       cancel_url: `${baseUrl}/?payment=cancel`,
-      metadata: { userId, plan: plan || 'single' },
+      allow_promotion_codes: true,
     });
 
     res.json({ id: session.id, url: session.url });
@@ -100,14 +125,16 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
-app.get("/api/subscription-status/:userId", async (req, res) => {
+apiRouter.get("/subscription-status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const stripeClient = getStripe();
     const searchResult = await stripeClient.subscriptions.search({
       query: `metadata['userId']:'${userId}' AND status:'active'`,
     });
+
     if (searchResult.data.length === 0) return res.json({ active: false });
+
     const sub = searchResult.data[0];
     res.json({
       active: true,
@@ -122,7 +149,7 @@ app.get("/api/subscription-status/:userId", async (req, res) => {
   }
 });
 
-// For local dev where we might not have /api rewrite
-app.get("/test", (req, res) => res.json({ status: "ok", from: "root" }));
+app.use("/api", apiRouter);
+app.use("/", apiRouter);
 
 export default app;
