@@ -95,12 +95,22 @@ app.post("/api/gemini", async (req, res) => {
         let promptSnippet = "";
         if (isSketch) {
           if (payload.isBase) {
-             promptSnippet = `Create a high-end, minimalist charcoal fashion sketch of the face. Preserve exact features. Render with clean bald head. Ink lines on white background.`;
+             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a high-end, minimalist charcoal fashion sketch of the EXACT face provided. 
+             DO NOT ALTER facial features, eye shape, nose structure, or expression. 
+             Render ONLY the head and neck with a clean bald head. 
+             Use clean ink lines on a pure white background. The goal is to perfectly preserve the person's identity in sketch form.`;
           } else {
-             promptSnippet = `Create a high-end fashion illustration of the person with the hairstyle: ${styleName}. Preserve facial features exactly. White background.`;
+             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a high-end fashion illustration of the person with the hairstyle: ${styleName}. 
+             The face must remain 100% IDENTICAL to the original. DO NOT change the eyes, nose, mouth, face shape, or head orientation. 
+             Only change the hair. Use a clean white background.`;
           }
         } else {
-          promptSnippet = `Perform a pixel-perfect hairstyle swap. Render a photograph of the person wearing: ${styleName}. ${description}. Preserve identity 100%. Photorealism.`;
+          promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 
+          ${description}. 
+          CRITICAL: The face MUST be 100% identical to the source image. 
+          KEEP IDENTICAL: Eyes (color, shape, position), Nose, Mouth, Chin, Skin tone, Lighting on the face, and Head tilt. 
+          The ONLY change allowed is the hairstyle. The transition from hair to skin (hairline) must be seamless and photorealistic. 
+          DO NOT manipulate or 'beautify' the original face. Identity preservation is the absolute priority.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
