@@ -3091,7 +3091,7 @@ export default function App() {
                         isGenerating={isGenerating}
                         onImageUpload={handleStylingStudioImageUpload}
                         avatarSketch={avatarSketch}
-                        isPremium={isPremium}
+                        isPremium={isPro}
                         preGeneratedSketches={hairstyleSketches}
                         isGeneratingBackground={isGeneratingBackground}
                         onCheckout={handleCheckout}
@@ -3787,8 +3787,8 @@ export default function App() {
                   
                   return (
                     <React.Fragment key={result.id}>
-                      {/* Miniatur Studio Preview (Hingucker) as 4th card for free users */}
-                      {index === 3 && !isPremium && avatarSketch && (
+                      {/* Miniatur Studio Preview (Hingucker) as 4th card for free/single users */}
+                      {index === 3 && !isPro && avatarSketch && (
                         <motion.div
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
