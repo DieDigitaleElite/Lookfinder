@@ -36,7 +36,7 @@ interface StylingStudioProps {
   preGeneratedSketches?: Record<string, string>;
   isPremiumFetching?: boolean;
   isGeneratingBackground?: boolean;
-  onCheckout?: (plan: 'single' | 'monthly' | 'yearly', metadata?: any) => void;
+  onCheckout?: (plan: 'single' | 'monthly' | 'yearly' | 'studio-single', metadata?: any) => void;
   onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
 }
 
@@ -592,14 +592,14 @@ export default function StylingStudio({
                       </div>
                     </button>
 
-                    {/* Single Unlock Option */}
+                    {/* Studio Single Unlock Option */}
                     <button 
                       onClick={() => {
                         if (!agreedToTerms || !agreedToWiderruf) {
                           setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                           return;
                         }
-                        onCheckout?.('single', {
+                        onCheckout?.('studio-single', {
                           styleId: selectedStyleId,
                           colorId: selectedColorId,
                           techId: selectedTechId
@@ -608,11 +608,11 @@ export default function StylingStudio({
                       className="bg-white/50 p-6 rounded-[2rem] border-2 border-black/5 text-left flex flex-col justify-between hover:border-black/10 transition-all hover:scale-[1.02]"
                     >
                       <div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block mb-2">Einmalig</span>
-                        <p className="text-xs font-bold text-brand-primary leading-snug">Schalte dieses eine Bild sofort in HD frei.</p>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block mb-2">Einzel-Look</span>
+                        <p className="text-xs font-bold text-brand-primary leading-snug">Schalte diesen Look sofort in HD frei.</p>
                       </div>
                       <div className="mt-4 pt-4 border-t border-black/5">
-                        <span className="text-lg font-black text-brand-primary">Nur 2,99€</span>
+                        <span className="text-lg font-black text-brand-primary">Nur 1,49€</span>
                       </div>
                     </button>
                   </div>

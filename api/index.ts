@@ -67,6 +67,16 @@ app.post("/api/create-checkout-session", async (req, res) => {
         },
         quantity: 1,
       }];
+    } else if (plan === "studio-single") {
+      mode = "payment";
+      lineItems = [{
+        price_data: {
+          currency: "eur",
+          product_data: { name: "Frisuren.ai - Styling Studio (Einzelbild)" },
+          unit_amount: 149,
+        },
+        quantity: 1,
+      }];
     } else {
       mode = "payment";
       lineItems = [{

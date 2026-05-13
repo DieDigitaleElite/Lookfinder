@@ -22,6 +22,7 @@ interface UserDashboardProps {
   children: React.ReactNode;
   onLogout: () => void;
   avatarSketch?: string | null;
+  studioCredits?: number;
 }
 
 export default function UserDashboard({ 
@@ -30,7 +31,8 @@ export default function UserDashboard({
   setActiveTab, 
   children, 
   onLogout,
-  avatarSketch
+  avatarSketch,
+  studioCredits = 0
 }: UserDashboardProps) {
   const navItems = [
     { id: 'overview', name: 'Übersicht', icon: LayoutDashboard },
@@ -106,6 +108,17 @@ export default function UserDashboard({
              <span className="font-sans font-extralight italic text-white/70">.ai</span>
              <span className="ml-2 px-2 py-0.5 bg-white/20 rounded text-[9px] uppercase tracking-widest font-sans not-italic border border-white/10 shadow-sm transition-colors group-hover:bg-[#FF9EBE] group-hover:text-white">Pro</span>
            </h4>
+           
+           {studioCredits > 0 && (
+             <div className="flex flex-col gap-1 py-3 border-y border-white/10">
+               <p className="text-[9px] font-black uppercase tracking-widest opacity-80">Guthaben</p>
+               <div className="flex items-center gap-2">
+                 <Star size={14} className="text-white fill-white" />
+                 <span className="text-lg font-black">{studioCredits} Studio-Look{studioCredits > 1 ? 's' : ''}</span>
+               </div>
+             </div>
+           )}
+
            <p className="text-xs opacity-80 leading-relaxed font-medium">Unbegrenzte Analysen & High-Res Downloads freigeschaltet.</p>
            <button 
              onClick={() => setActiveTab('studio')}

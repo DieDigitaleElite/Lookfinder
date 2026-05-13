@@ -100,7 +100,6 @@ export default function App() {
     if (urlPlan) return urlPlan === 'upsell' ? 'monthly' : urlPlan;
     return localStorage.getItem('frisurenai_pending_plan');
   });
-  const isPro = isPremium && (userPlan === 'monthly' || userPlan === 'yearly');
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -173,6 +172,11 @@ export default function App() {
   const [faceAnalysis, setFaceAnalysis] = useState<any>(null);
   const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
+  const [studioCredits, setStudioCredits] = useState(() => {
+    const pending = localStorage.getItem('frisurenai_pending_studio_credits');
+    return pending ? parseInt(pending) : 0;
+  });
+  const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
 
   const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account' | null>(null);
@@ -786,6 +790,7 @@ export default function App() {
             
             setIsPremium(premiumActive);
             setUserPlan(data.plan || null);
+            setStudioCredits(data.studioCredits || 0);
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
           }
@@ -875,6 +880,9 @@ export default function App() {
         setPendingPayment({ plan, uid });
         // Save plan/uid to localStorage in case of reloads during login
         localStorage.setItem('frisurenai_pending_plan', plan);
+        if (plan === 'studio-single') {
+          localStorage.setItem('frisurenai_pending_studio_credits', '1');
+        }
         if (uid) localStorage.setItem('frisurenai_pending_uid', uid);
       } else if (hasPendingData && !pendingPayment) {
         // Restore pending payment state from localStorage if URL params are gone
@@ -889,6 +897,7 @@ export default function App() {
       if (isPaymentSuccess) {
         let message = "Zahlung erfolgreich! Dein Premium-Zugang ist jetzt aktiv.";
         if (plan === 'single') message = "Erfolg! Deine 6 zusätzlichen Styles wurden freigeschaltet.";
+        if (plan === 'studio-single') message = "Erfolg! Dein Einzel-Look im Styling Studio wurde freigeschaltet.";
         if (plan === 'monthly' || plan === 'yearly') message = "Willkommen bei Frisuren.ai Pro! Du hast jetzt unbegrenzten Zugriff.";
         
         setAuthMessage({ type: 'success', text: message });
@@ -935,6 +944,12 @@ export default function App() {
           plan: pendingPayment.plan === 'upsell' ? 'monthly' : pendingPayment.plan,
           premiumSince: serverTimestamp()
         };
+
+        if (pendingPayment.plan === 'studio-single') {
+          updateData.studioCredits = (userData?.studioCredits || 0) + 1;
+          setStudioCredits(prev => prev + 1);
+          localStorage.removeItem('frisurenai_pending_studio_credits');
+        }
         
         if (pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
           updateData.premiumExpiresAt = Timestamp.fromDate(expiresAt);
@@ -1872,6 +1887,18 @@ export default function App() {
       const lightingPrompt = lighting.prompt || '';
       const customPrompt = `${style.name}, ${style.description}. ${colorAndTechText}. Lighting: ${lightingPrompt}. Ensure hyper-realistic photo quality with precise high-end hair salon results. The hair color must look completely natural, with realistic depth, texture, and light reflection. Maintain perfect facial consistency and professional photography style.`;
       
+      // Consume credit if user is not on a subscription plan
+      if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { 
+          studioCredits: studioCredits - 1 
+        }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+          throw err;
+        });
+        setStudioCredits(prev => Math.max(0, prev - 1));
+      }
+
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
         // Generate a more emotional and face-shape specific metadata using AI
@@ -2026,6 +2053,18 @@ export default function App() {
       const base64Data = image.split(',')[1];
       const styleWithColor = `${selectedLibraryStyle.name} in der Farbe ${selectedColor.name}`;
       const descriptionWithColor = `${selectedLibraryStyle.description} Die Haarfarbe soll ein realistisches ${selectedColor.name} sein.`;
+
+      // Consume credit if user is not on a subscription plan
+      if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { 
+          studioCredits: studioCredits - 1 
+        }).catch(err => {
+          handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+          throw err;
+        });
+        setStudioCredits(prev => Math.max(0, prev - 1));
+      }
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, styleWithColor, descriptionWithColor);
       
@@ -2103,7 +2142,7 @@ export default function App() {
     }
   };
 
-  const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' = 'single', metadata?: any) => {
+  const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' | 'studio-single' = 'single', metadata?: any) => {
     console.log("Initiating checkout for plan:", plan, "metadata:", metadata);
     
     if (!user) {
@@ -2697,6 +2736,7 @@ export default function App() {
                 setActiveTab={setDashboardTab}
                 onLogout={handleLogout}
                 avatarSketch={avatarSketch}
+                studioCredits={studioCredits}
               >
                 {dashboardTab === 'overview' && (
                   <div className="space-y-8">
@@ -5304,6 +5344,32 @@ export default function App() {
                           <div className="flex justify-end">
                             <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
                               {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 2,99 €"}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* Studio Single Unlock */}
+                      <button 
+                        onClick={() => {
+                          if (!agreedToTerms || !agreedToWiderruf) {
+                            setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                            return;
+                          }
+                          handleCheckout('studio-single');
+                        }}
+                        disabled={isCheckingOut}
+                        className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-bold text-base lg:text-lg text-brand-primary">Studio Einzel-Look</span>
+                          <span className="text-xl lg:text-2xl font-black text-brand-primary">1,49 €</span>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs lg:text-sm text-brand-primary/60">Schalte ein beliebiges Bild im Styling Studio frei. Ideal zum Testen.</p>
+                          <div className="flex justify-end">
+                            <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
+                              {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 1,49 €"}
                             </div>
                           </div>
                         </div>
