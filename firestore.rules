@@ -99,15 +99,25 @@ service cloud.firestore {
 
     // Public Voting Polls (Viral Loop)
     match /polls/{pollId} {
-      allow get, list: if true;
+      allow get: if true;
+      allow list: if isSignedIn(); // Don't allow anonymous listing of all polls
       allow create: if isSignedIn() && isValidPoll(incoming());
-      allow update: if true; 
+      // Harden Update: Only allow voting (incrementing votes in options) OR Admin/Owner full edit
+      allow update: if (isSignedIn() && (isOwner(existing().creatorId) || isAdmin())) || (
+        // Public Voting Rule: Only allow changing the 'options' field
+        incoming().diff(existing()).affectedKeys().hasOnly(['options']) &&
+        // Basic check to ensure options size hasn't changed (prevents adding/removing options)
+        incoming().options.size() == existing().options.size()
+      );
       allow delete: if isOwner(existing().creatorId) || isAdmin();
     }
 
     // Usage Tracking (Enforce limits)
     match /usage/{usageId} {
-      allow read, write: if true; // Publicly track usage for rate limiting
+      allow get: if true;
+      allow create: if isValidId(usageId) && isValidUsage(incoming());
+      allow update: if isValidId(usageId) && isValidUsage(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['count', 'lastUsed', 'isUser', 'updatedAt']);
     }
 
     // Test Connection

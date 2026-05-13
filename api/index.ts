@@ -2,33 +2,164 @@
 import express from "express";
 import Stripe from "stripe";
 import cors from "cors";
+import { GoogleGenAI } from "@google/genai";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
 
+// Gemini Proxy Implementation
+const getGeminiAI = () => {
+  // Try common keys in order, prioritizing the platform's API_KEY
+  const key = process.env.API_KEY || 
+              process.env.GEMINI_API_KEY || 
+              process.env.GOOGLE_API_KEY || 
+              process.env.VITE_GEMINI_API_KEY;
+  
+  if (!key || key === "MY_GEMINI_API_KEY" || key.trim() === "") {
+    const env = process.env.NODE_ENV || "development";
+    console.warn("API Key Check Failed. Env keys:", Object.keys(process.env).filter(k => k.toLowerCase().includes('key')));
+    
+    if (env === "production") {
+      throw new Error("CONFIG_ERROR: No valid API\_KEY found in environment.");
+    }
+    throw new Error("GEMINI_API_KEY fehlt. Bitte füge deinen API Key in den AI Studio Secrets unter dem Namen 'GEMINI_API_KEY' hinzu.");
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
+
+// --- API GUIDELINES ---
 // Health checks
 app.get("/api/health", (req, res) => res.status(200).send("OK"));
-app.get("/api/test", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    message: "Simple API test",
-    stripe: !!process.env.STRIPE_SECRET_KEY
-  });
+
+// Gemini Endpoint
+app.post("/api/gemini", async (req, res) => {
+  try {
+    const { action, payload } = req.body;
+    const ai = getGeminiAI();
+
+    switch (action) {
+      case "analyzeFace": {
+        const { base64Image, mimeType } = payload;
+        
+        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr hervorragend stehen würden.
+        WICHTIG FÜR DIE AUSWAHL (ERSTEN 3 VORSCHLÄGE):
+        - Der ABSOLUT wichtigste Fokus liegt auf der ERHALTUNG DER IDENTITÄT. 
+        - Berücksichtige bei den ersten 3 Vorschlägen die ORIGINAL-Haarfarbe und Struktur.
+        Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: {
+            parts: [
+              { inlineData: { data: base64Image, mimeType } },
+              { text: prompt }
+            ]
+          },
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+        
+        res.json({ text: response.text });
+        break;
+      }
+
+      case "getMetadata": {
+        const { faceShape, styleName, colorName, styleDescription } = payload;
+        
+        const prompt = `Du bist ein professioneller Star-Friseur. 
+        Analysiere die Kombination aus der Frisur "${styleName}" in der Farbe "${colorName}" für eine person mit einer ${faceShape}en Gesichtsform.
+        Kontext zum gewählten Style: ${styleDescription}
+        Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+        res.json({ text: response.text });
+        break;
+      }
+
+      case "generateImage": {
+        const { base64Image, mimeType, styleName, description, isSketch, baseSketch } = payload;
+        const model = "gemini-2.5-flash-image";
+        
+        let promptSnippet = "";
+        if (isSketch) {
+          if (payload.isBase) {
+             promptSnippet = `Create a high-end, minimalist charcoal fashion sketch of the face. Preserve exact features. Render with clean bald head. Ink lines on white background.`;
+          } else {
+             promptSnippet = `Create a high-end fashion illustration of the person with the hairstyle: ${styleName}. Preserve facial features exactly. White background.`;
+          }
+        } else {
+          promptSnippet = `Perform a pixel-perfect hairstyle swap. Render a photograph of the person wearing: ${styleName}. ${description}. Preserve identity 100%. Photorealism.`;
+        }
+
+        const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
+        if (baseSketch) {
+           const sketchMimeType = baseSketch.split(";")[0].split(":")[1];
+           const sketchData = baseSketch.split(",")[1];
+           parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
+        }
+        parts.push({ text: promptSnippet });
+
+        const response = await ai.models.generateContent({
+          model: model,
+          contents: { parts }
+        });
+        
+        let imageData = null;
+        for (const part of response.candidates?.[0]?.content?.parts || []) {
+          if (part.inlineData) {
+            imageData = part.inlineData.data;
+            break;
+          }
+        }
+        
+        if (imageData) {
+           res.json({ imageData });
+        } else {
+           res.json({ text: response.text });
+        }
+        break;
+      }
+
+      default:
+        res.status(400).json({ error: "Invalid action" });
+    }
+  } catch (error: any) {
+    const errorMsg = error.message || "Unbekannter Fehler";
+    console.error("Gemini Proxy error:", errorMsg.replace(/AIza[0-9A-Za-z-_]{35}/g, "[HIDDEN_KEY]"));
+    
+    // Provide slightly more detail in non-production to help the user
+    const isProd = process.env.NODE_ENV === "production";
+    const userMessage = isProd 
+      ? "Ein interner Fehler im KI-Dienst ist aufgetreten." 
+      : `KI-Fehler: ${errorMsg.substring(0, 100)}`;
+      
+    res.status(500).json({ error: userMessage });
+  }
 });
 
-let stripe: Stripe | null = null;
+let stripeClientInstance: Stripe | null = null;
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || key === "MY_STRIPE_SECRET_KEY" || key.trim() === "") {
     throw new Error("STRIPE_SECRET_KEY missing");
   }
-  if (!stripe) {
-    stripe = new Stripe(key);
+  if (!stripeClientInstance) {
+    stripeClientInstance = new Stripe(key);
   }
-  return stripe;
+  return stripeClientInstance;
 }
 
 app.get("/api/get-client-ip", (req, res) => {
@@ -161,5 +292,25 @@ app.post("/api/create-portal-session", async (req, res) => {
 
 // For local dev where we might not have /api rewrite
 app.get("/test", (req, res) => res.json({ status: "ok", from: "root" }));
+
+// Usage Increment Endpoint
+app.post("/api/usage/increment", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const ip = req.headers["x-forwarded-for"] || req.ip || "unknown";
+    const actualIp = Array.isArray(ip) ? ip[0] : ip.split(',')[0].trim();
+    
+    // Use the provided userId if available, otherwise fall back to IP
+    const targetId = (userId && userId !== "unknown") ? userId : actualIp;
+    
+    // We can't easily use the Firebase Admin SDK here without the service account key,
+    // so for now, we'll keep the client-side usage increment but limit the rules better.
+    // HOWEVER, to be truly secure, we should provide a way for the backend to write to Firestore.
+    
+    res.json({ status: "ok", targetId });
+  } catch (error) {
+    res.status(500).json({ error: "Internal Error" });
+  }
+});
 
 export default app;

@@ -79,23 +79,22 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): FirestoreErrorInfo {
-  const message = error instanceof Error ? error.message : String(error);
+  let message = error instanceof Error ? error.message : String(error);
   const code = (error as any)?.code;
+
+  // Scrub potential API keys from message (Red Team Audit finding)
+  message = message.replace(/AIza[0-9A-Za-z-_]{35}/g, "[HIDDEN_KEY]");
 
   const errInfo: FirestoreErrorInfo = {
     error: message,
     authInfo: {
       userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
+      // Scrub PII for production security
+      email: auth.currentUser?.email ? "[HIDDEN_EMAIL]" : null,
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
+      providerInfo: [] // Removed PII for logs
     },
     operationType,
     path
@@ -107,9 +106,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     message.includes('Quota exceeded');
 
   if (isQuotaError) {
-    console.warn(`Firestore Quota Exceeded during ${operationType} on ${path}. Gracefully handling.`);
+    console.warn(`Firestore Quota Exceeded during ${operationType} on ${path}.`);
   } else {
-    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    // Only log if not a standard permission/quota error to keep console clean
+    if (code !== 'permission-denied' && !message.includes('insufficient permissions')) {
+      console.error('Firestore Error context:', { operationType, path, code });
+    }
   }
   
   // Don't throw for specific errors that we want to handle gracefully or that happen due to environmental limits
@@ -121,7 +123,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     return errInfo;
   }
   
-  throw new Error(JSON.stringify(errInfo));
+  // Safe stringification for bubble up
+  throw new Error(`Firestore Error (${code || 'unknown'}): ${message}`);
 }
 
 // Test connection
