@@ -46,6 +46,7 @@ import {
   getDoc, 
   getDocs,
   updateDoc,
+  increment,
   addDoc,
   collection, 
   query, 
@@ -287,42 +288,6 @@ export default function App() {
 
     processQueue();
   }, [avatarSketch, image, !!user, showStylingStudio, dashboardTab, isGenerating]); // Added dependencies to handle state changes
-
-  // Sync existing guest sketches to newly logged in user
-  useEffect(() => {
-    if (user && Object.keys(hairstyleSketches).length > 0) {
-      const syncSketches = async () => {
-        try {
-          const sketchesCollectionRef = collection(db, 'users', user.uid, 'sketches');
-          const batchSize = 10;
-          const entries = Object.entries(hairstyleSketches) as [string, string][];
-          
-          for (let i = 0; i < entries.length; i += batchSize) {
-            const chunk = entries.slice(i, i + batchSize);
-            await Promise.all(chunk.map(async ([id, data]) => {
-              const sketchRef = doc(sketchesCollectionRef, id);
-              // Only save if it's not too huge (paranoia check)
-              if (data && typeof data === 'string' && data.length < 500000) {
-                return setDoc(sketchRef, { 
-                  id, 
-                  data, 
-                  updatedAt: serverTimestamp() 
-                }, { merge: true });
-              }
-            }));
-            // Throttling batches to stay within firestore limits
-            if (i + batchSize < entries.length) {
-              await new Promise(r => setTimeout(r, 1000));
-            }
-          }
-          console.log("Guest sketches synced to subcollection");
-        } catch (e) {
-          console.warn("Failed to sync guest sketches", e);
-        }
-      };
-      syncSketches();
-    }
-  }, [user]);
 
   // Manage body overflow for full-screen modals
   useEffect(() => {
@@ -1148,21 +1113,31 @@ export default function App() {
         // Combined list of all results to check
         const allResults = [...results, ...customResults];
         
-        for (const res of allResults) {
-          // Check if already in savedResults to avoid duplicates
-          if (!savedResults.some(sr => sr.id === res.id)) {
-            // Only sync if it has an image or if it's part of the main results set
-            // (We want to back up suggested placeholders for premium users too)
-            if (res.imageUrl || results.some(r => r.id === res.id)) {
-              console.log(`Syncing result ${res.id} to Firestore...`);
-              await saveResult(res, true);
-            }
+        // Find results that are NOT in savedResults
+        const unsaved = allResults.filter(res => 
+          !savedResults.some(sr => sr.id === res.id)
+        );
+
+        if (unsaved.length === 0) return;
+
+        console.log(`Syncing ${unsaved.length} results to Firestore...`);
+        // Use Promise.all to handle sync more efficiently, but be careful with quota
+        // For larger sets, we might want to batch, but usually it's just a few
+        for (const res of unsaved) {
+          if (res.imageUrl || results.some(r => r.id === res.id)) {
+            await saveResult(res, true);
           }
         }
       };
-      syncLocalResults();
+      
+      // Delay slightly to allow state to settle
+      const timer = setTimeout(() => {
+        syncLocalResults();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
     }
-  }, [user, results.length, customResults.length, savedResults.length]);
+  }, [user?.uid, results.length, customResults.length, savedResults.length]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -1172,19 +1147,23 @@ export default function App() {
       
       // Initialize or update user profile in Firestore
       try {
-        await setDoc(doc(db, 'users', user.uid), {
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        
+        const userData: any = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
           lastLogin: serverTimestamp(),
-          // We use merge: true to avoid overwriting premium status if it exists
-        }, { merge: true });
-        
-        // If it's a new document, ensure createdAt exists
-        const userSnap = await getDoc(doc(db, 'users', user.uid));
-        if (userSnap.exists() && !userSnap.data().createdAt) {
-          await setDoc(doc(db, 'users', user.uid), { createdAt: serverTimestamp() }, { merge: true });
+        };
+
+        if (!userSnap.exists()) {
+          userData.createdAt = serverTimestamp();
+          userData.isPremium = false;
+          await setDoc(userRef, userData);
+        } else {
+          await setDoc(userRef, userData, { merge: true });
         }
       } catch (dbErr) {
         console.error("Failed to sync user profile to Firestore", dbErr);
@@ -1612,22 +1591,14 @@ export default function App() {
 
     const usageDocRef = doc(db, 'usage', usageId);
     try {
-      const docSnap = await getDoc(usageDocRef);
-      
-      if (docSnap.exists()) {
-        await setDoc(usageDocRef, { 
-          count: (docSnap.data().count || 0) + 1,
-          lastUsed: serverTimestamp(),
-          isUser: !!user
-        }, { merge: true });
-      } else {
-        await setDoc(usageDocRef, { 
-          count: 1, 
-          createdAt: serverTimestamp(),
-          lastUsed: serverTimestamp(),
-          isUser: !!user
-        });
-      }
+      // Use atomic increment to save a GET request and keep logic simple
+      await setDoc(usageDocRef, { 
+        count: increment(1),
+        lastUsed: serverTimestamp(),
+        isUser: !!user,
+        // Ensure createdAt exists on first write
+        updatedAt: serverTimestamp()
+      }, { merge: true });
     } catch (error) {
       const err = handleFirestoreError(error, OperationType.WRITE, `usage/${usageId}`);
       if (err?.error.includes('Quota') || err?.error.includes('exhausted')) {
