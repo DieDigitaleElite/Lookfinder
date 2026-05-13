@@ -1,13 +1,8 @@
 // server.ts
 import express from "express";
-import { createServer as createViteServer } from "vite";
 import path from "path";
 import Stripe from "stripe";
-import dotenv from "dotenv";
-
 import cors from "cors";
-
-dotenv.config();
 
 let stripe: Stripe | null = null;
 
@@ -15,7 +10,7 @@ function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || key === "MY_STRIPE_SECRET_KEY" || key.trim() === "") {
     console.error("Stripe key is missing or is a placeholder.");
-    throw new Error("STRIPE_SECRET_KEY ist nicht konfiguriert. Bitte füge deinen Stripe Secret Key (sk_test_... oder sk_live_...) im AI Studio unter 'Settings' -> 'Secrets' hinzu.");
+    throw new Error("STRIPE_SECRET_KEY ist nicht konfiguriert. Bitte füge deinen Stripe Secret Key im AI Studio unter 'Settings' -> 'Secrets' hinzu.");
   }
   
   if (!key.startsWith('sk_')) {
@@ -24,9 +19,8 @@ function getStripe() {
   }
 
   if (!stripe) {
-    stripe = new Stripe(key, {
-      apiVersion: '2023-10-16' as any,
-    });
+    // Using default version to avoid compatibility issues
+    stripe = new Stripe(key);
   }
   return stripe;
 }
@@ -51,7 +45,6 @@ app.use((req, res, next) => {
 // API Router
 const apiRouter = express.Router();
 
-// Apply CORS to the router as well
 apiRouter.use(cors());
 
 apiRouter.get("/", (req, res) => {
@@ -67,7 +60,8 @@ apiRouter.get("/test", (req, res) => {
     status: "ok", 
     message: "API is working", 
     env: process.env.NODE_ENV,
-    time: new Date().toISOString()
+    time: new Date().toISOString(),
+    isVercel: !!process.env.VERCEL
   });
 });
 
@@ -85,47 +79,39 @@ apiRouter.get("/firebase-config", (req, res) => {
 });
 
 apiRouter.get("/get-client-ip", (req, res) => {
-  let ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+  // Use Express's built-in req.ip which handles x-forwarded-for if 'trust proxy' is on
+  // For Vercel, x-forwarded-for is correctly set
+  let ip = req.headers["x-forwarded-for"] || req.ip || "unknown";
+  if (Array.isArray(ip)) ip = ip[0];
   if (typeof ip === "string" && ip.includes(",")) {
     ip = ip.split(",")[0].trim();
   }
-  res.json({ ip: Array.isArray(ip) ? ip[0] : ip });
+  res.json({ ip });
 });
 
-// GET handler for debugging
 apiRouter.all(["/create-checkout-session", "/create-checkout-session/"], async (req, res) => {
   const requestId = Math.random().toString(36).substring(7);
-  console.log(`[Stripe ${requestId}] Request: ${req.method} ${req.url} (Original: ${req.originalUrl})`);
+  console.log(`[Stripe ${requestId}] Request: ${req.method} ${req.url}`);
   
-  // Explicitly handle OPTIONS for CORS
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method !== 'POST') {
-    console.warn(`[Stripe ${requestId}] Rejected ${req.method} request (Expect POST)`);
     return res.status(405).json({ 
       error: "Method Not Allowed", 
-      message: `Der Server hat einen ${req.method} Request erhalten, aber /api/create-checkout-session benötigt POST.`,
-      debug: { method: req.method, url: req.url, originalUrl: req.originalUrl }
+      message: `POST erforderlich. Erhalten: ${req.method}`,
+      debug: { method: req.method, url: req.url }
     });
   }
 
   try {
     const { plan, userId } = req.body;
-    console.log(`[Stripe ${requestId}] Plan: ${plan}, UserID: ${userId}`);
-    
-    if (!userId) {
-      console.error(`[Stripe ${requestId}] Missing userId in request body`);
-      return res.status(400).json({ error: "UserID ist erforderlich für den Checkout." });
-    }
+    if (!userId) return res.status(400).json({ error: "UserID ist erforderlich." });
 
     const stripeClient = getStripe();
     
     let lineItems: any[] = [];
     let mode: "payment" | "subscription" = "payment";
     
-    // Plan definitions
     if (plan === "monthly") {
       mode = "subscription";
       lineItems = [{
@@ -169,7 +155,6 @@ apiRouter.all(["/create-checkout-session", "/create-checkout-session/"], async (
         quantity: 1,
       }];
     } else {
-      // Single Unlock (One-time payment)
       mode = "payment";
       lineItems = [{
         price_data: {
@@ -187,55 +172,37 @@ apiRouter.all(["/create-checkout-session", "/create-checkout-session/"], async (
     const protocol = req.headers["x-forwarded-proto"] || (req.headers.host?.includes('localhost') ? 'http' : 'https');
     const host = req.headers["host"] || "localhost:3000";
     const baseUrl = process.env.APP_URL || req.headers.origin || `${protocol}://${host}`;
-    
-    console.log(`[Stripe ${requestId}] Creating session with baseUrl: ${baseUrl}`);
 
     const session = await stripeClient.checkout.sessions.create({
       line_items: lineItems,
       mode: mode,
-      customer_email: req.body.email || undefined, // Prefill email if available
+      customer_email: req.body.email || undefined,
       client_reference_id: userId,
       subscription_data: mode === "subscription" ? {
-        metadata: {
-          userId: userId,
-          plan: plan
-        },
+        metadata: { userId: userId, plan: plan },
       } : undefined,
-      metadata: {
-        userId: userId,
-        plan: plan || 'single',
-      },
+      metadata: { userId: userId, plan: plan || 'single' },
       success_url: `${baseUrl.replace(/\/$/, '')}/?payment=success&plan=${plan || 'single'}${userId ? `&uid=${userId}` : ''}`,
       cancel_url: `${baseUrl.replace(/\/$/, '')}/?payment=cancel`,
       allow_promotion_codes: true,
     });
 
-    console.log(`[Stripe ${requestId}] Session Success: ${session.id}`);
     res.json({ id: session.id, url: session.url });
   } catch (error: any) {
     console.error(`[Stripe ${requestId}] Error:`, error);
-    res.status(500).json({ 
-      error: "Stripe-Fehler", 
-      message: error.message,
-      type: error.type 
-    });
+    res.status(500).json({ error: "Stripe-Fehler", message: error.message });
   }
 });
 
 apiRouter.get("/subscription-status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    console.log(`[Subscription Status] Checking for: ${userId}`);
     const stripeClient = getStripe();
-    
-    // First find the customer by email or just search subscriptions by metadata which is safer
     const searchResult = await stripeClient.subscriptions.search({
       query: `metadata['userId']:'${userId}' AND status:'active'`,
     });
 
-    if (searchResult.data.length === 0) {
-      return res.json({ active: false });
-    }
+    if (searchResult.data.length === 0) return res.json({ active: false });
 
     const sub = searchResult.data[0];
     res.json({
@@ -247,7 +214,6 @@ apiRouter.get("/subscription-status/:userId", async (req, res) => {
       status: sub.status
     });
   } catch (error: any) {
-    console.error(`[Subscription Status] Error:`, error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -255,29 +221,20 @@ apiRouter.get("/subscription-status/:userId", async (req, res) => {
 apiRouter.post("/cancel-subscription", async (req, res) => {
   try {
     const { userId } = req.body;
-    console.log(`[Cancel Subscription] Request for: ${userId}`);
-    
-    if (!userId) {
-      return res.status(400).json({ error: "UserId ist erforderlich." });
-    }
+    if (!userId) return res.status(400).json({ error: "UserId ist erforderlich." });
 
     const stripeClient = getStripe();
     const searchResult = await stripeClient.subscriptions.search({
       query: `metadata['userId']:'${userId}' AND status:'active'`,
     });
 
-    if (searchResult.data.length === 0) {
-      return res.status(404).json({ error: "Kein aktives Abo gefunden." });
-    }
+    if (searchResult.data.length === 0) return res.status(404).json({ error: "Kein aktives Abo gefunden." });
 
     const sub = searchResult.data[0];
-    
-    // Update the subscription to cancel at the end of the current period
     const updatedSub = await stripeClient.subscriptions.update(sub.id, {
       cancel_at_period_end: true,
     });
 
-    console.log(`[Cancel Subscription] Success for: ${sub.id}`);
     res.json({ 
       success: true, 
       message: "Dein Abo wird zum Ende der aktuellen Laufzeit gekündigt.",
@@ -285,31 +242,32 @@ apiRouter.post("/cancel-subscription", async (req, res) => {
       current_period_end: updatedSub.current_period_end
     });
   } catch (error: any) {
-    console.error(`[Cancel Subscription] Error:`, error);
     res.status(500).json({ error: error.message });
   }
 });
 
 apiRouter.all("*", (req, res) => {
-  console.warn(`[API] 404 - Not Found: ${req.method} ${req.url}`);
   res.status(404).json({ error: "API Route not found" });
 });
 
-// API Router must be mounted BEFORE static files and Vite
 app.use("/api", apiRouter);
 
-async function startServer() {
-  console.log(`Starting server in ${process.env.NODE_ENV || 'development'} mode...`);
+// Start server function (only for local development)
+async function boot() {
+  if (process.env.VERCEL) return;
   
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else if (!process.env.VERCEL) {
-    // Only serve static files here if NOT on Vercel
-    // Vercel handles static files via its own routing/rewrites
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (e) {
+      console.warn("Vite failed to load locally.");
+    }
+  } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
     app.get("*", (req, res) => {
@@ -317,13 +275,14 @@ async function startServer() {
     });
   }
 
-  if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running at http://localhost:${PORT}`);
-    });
-  }
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
 }
 
-startServer();
+// Guard boot call
+if (!process.env.VERCEL) {
+  boot();
+}
 
 export default app;

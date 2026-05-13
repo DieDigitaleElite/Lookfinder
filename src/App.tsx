@@ -2199,19 +2199,37 @@ export default function App() {
         console.log("[Stripe] JSON Data:", data);
       } else {
         const text = await response.text();
-        console.error(`[Stripe] Non-JSON response (Status ${response.status}):`, text.substring(0, 200));
+        console.error(`[Stripe] Non-JSON response (Status ${response.status}):`, text.substring(0, 500));
         
         if (response.status === 405) {
-          throw new Error("Der Server erlaubt den Zahlungsvorgang aktuell nicht (Fehler 405). Bitte versuche es in einem anderen Browser oder lade die Seite neu.");
+          throw new Error("Der Server erlaubt den Zahlungsvorgang aktuell nicht (Fehler 405). Dies kann an einer Fehlkonfiguration der Deployment-Umgebung liegen.");
         }
         
         throw new Error(`Der Server hat eine ungültige Antwort gesendet (${response.status}).`);
       }
       
       if (!response.ok) {
-        console.error("[Stripe] API Error:", data);
+        console.error("[Stripe] API Error response:", data);
+        
+        let errorMsg = "Zahlungsvorgang konnte nicht gestartet werden.";
+        
+        if (typeof data.error === 'string') {
+          errorMsg = data.error;
+        } else if (data.error && typeof data.error.message === 'string') {
+          errorMsg = data.error.message;
+        } else if (data.message && typeof data.message === 'string') {
+          errorMsg = data.message;
+        } else if (data.error) {
+          // If error is an object but doesn't have a message, stringify it
+          try {
+            errorMsg = JSON.stringify(data.error);
+          } catch (e) {
+            errorMsg = "Unbekannter Fehler (" + response.status + ")";
+          }
+        }
+        
         const errorDetail = data.debug ? ` (Method: ${data.debug.method})` : "";
-        throw new Error((data.message || data.error || "Zahlungsvorgang konnte nicht gestartet werden.") + errorDetail);
+        throw new Error(errorMsg + errorDetail);
       }
 
       if (data.url) {
