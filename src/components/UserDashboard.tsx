@@ -21,8 +21,10 @@ interface UserDashboardProps {
   setActiveTab: (tab: any) => void;
   children: React.ReactNode;
   onLogout: () => void;
+  onManageSubscription?: () => void;
   avatarSketch?: string | null;
   studioCredits?: number;
+  isCheckingOut?: boolean;
 }
 
 export default function UserDashboard({ 
@@ -31,8 +33,10 @@ export default function UserDashboard({
   setActiveTab, 
   children, 
   onLogout,
+  onManageSubscription,
   avatarSketch,
-  studioCredits = 0
+  studioCredits = 0,
+  isCheckingOut = false
 }: UserDashboardProps) {
   const navItems = [
     { id: 'overview', name: 'Übersicht', icon: LayoutDashboard },

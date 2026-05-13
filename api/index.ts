@@ -132,6 +132,33 @@ app.get("/api/subscription-status/:userId", async (req, res) => {
   }
 });
 
+app.post("/api/create-portal-session", async (req, res) => {
+  try {
+    const { email, origin } = req.body;
+    const stripeClient = getStripe();
+    
+    // Find customer by email
+    const customers = await stripeClient.customers.list({
+      email: email,
+      limit: 1
+    });
+
+    if (customers.data.length === 0) {
+      return res.status(404).json({ error: "Kein Stripe-Kunde mit dieser E-Mail gefunden." });
+    }
+
+    const session = await stripeClient.billingPortal.sessions.create({
+      customer: customers.data[0].id,
+      return_url: `${origin}/?tab=account`,
+    });
+
+    res.json({ url: session.url });
+  } catch (error: any) {
+    console.error("Stripe Portal Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // For local dev where we might not have /api rewrite
 app.get("/test", (req, res) => res.json({ status: "ok", from: "root" }));
 

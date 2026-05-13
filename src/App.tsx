@@ -1387,6 +1387,34 @@ export default function App() {
     }
   };
 
+  const handleManageSubscription = async () => {
+    if (!user?.email) return;
+    
+    setIsCheckingOut(true);
+    try {
+      const response = await fetch('/api/create-portal-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email: user.email,
+          origin: window.location.origin
+        }),
+      });
+
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        throw new Error(data.error || 'Portal konnte nicht geladen werden.');
+      }
+    } catch (err: any) {
+      console.error("Stripe Portal Error:", err);
+      setAuthMessage({ type: 'error', text: "Fehler beim Öffnen der Abo-Verwaltung. Bitte versuche es später erneut." });
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -2735,8 +2763,10 @@ export default function App() {
                 activeTab={dashboardTab}
                 setActiveTab={setDashboardTab}
                 onLogout={handleLogout}
+                onManageSubscription={handleManageSubscription}
                 avatarSketch={avatarSketch}
                 studioCredits={studioCredits}
+                isCheckingOut={isCheckingOut}
               >
                 {dashboardTab === 'overview' && (
                   <div className="space-y-8">
@@ -2897,6 +2927,21 @@ export default function App() {
                                   Dein Abo wurde bereits gekündigt und läuft zum Ende des Abrechnungszeitraums aus. Du kannst Pro bis dahin uneingeschränkt weiternutzen.
                                 </p>
                               </div>
+                            )}
+
+                            {isPremium && !userPlan?.includes('single') && (
+                              <button 
+                                onClick={handleManageSubscription}
+                                disabled={isCheckingOut}
+                                className="w-full py-4 bg-white/10 hover:bg-white/20 border border-white/20 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 group/btn"
+                              >
+                                {isCheckingOut ? (
+                                  <Loader2 className="animate-spin" size={16} />
+                                ) : (
+                                  <ExternalLink size={16} className="group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
+                                )}
+                                Abo verwalten & kündigen
+                              </button>
                             )}
                           </div>
                         ) : (
