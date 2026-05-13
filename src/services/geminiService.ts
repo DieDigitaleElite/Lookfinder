@@ -7,18 +7,29 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error: any) {
       lastError = error;
-      const errorMsg = (error.message || "").toUpperCase();
+      const errorMsg = (error.message || "").toLowerCase();
       
-      if (i < maxRetries - 1) {
-        const waitTime = Math.pow(2, i) * 2000 + Math.random() * 1000;
-        console.warn(`Retryable error hit (${errorMsg}), retrying in ${Math.round(waitTime)}ms...`);
+      // Determine if the error is retryable (429 Rate Limit, 503 Overloaded, 500 Internal)
+      const isRetryable = 
+        errorMsg.includes('429') || 
+        errorMsg.includes('rate limit') || 
+        errorMsg.includes('503') || 
+        errorMsg.includes('overloaded') ||
+        errorMsg.includes('500') ||
+        errorMsg.includes('internal error') ||
+        errorMsg.includes('deadline exceeded');
+
+      if (isRetryable && i < maxRetries - 1) {
+        // Exponential backoff: 2s, 4s, 8s... + jitter
+        const waitTime = Math.pow(2, i) * 2000 + Math.random() * 2000;
+        console.warn(`AI temporary bottleneck hit (${errorMsg}), retrying in ${Math.round(waitTime)}ms... (Attempt ${i + 1}/${maxRetries})`);
         await sleep(waitTime);
         continue;
       }

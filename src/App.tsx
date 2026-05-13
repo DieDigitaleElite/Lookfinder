@@ -1785,13 +1785,22 @@ export default function App() {
 
     } catch (err: any) {
       console.error("Process failed", err);
+      const errorMsg = (err.message || String(err)).toLowerCase();
       
-      // Check for API key error
-      const errorMsg = err.message || String(err);
-      if (errorMsg.includes("API key not valid") || errorMsg.includes("API key is missing") || errorMsg.includes("400") || errorMsg.includes("INVALID_ARGUMENT") || errorMsg.includes("GEMINI_API_KEY is not configured")) {
-        setError("KI-Dienst ist derzeit nicht verfügbar oder falsch konfiguriert. Bitte kontaktiere den Support.");
+      if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('503') || errorMsg.includes('overloaded')) {
+        setError("Der Ansturm ist gerade riesig! ✨ Unsere KI braucht eine kurze Verschnaufpause. Bitte hab einen Moment Geduld – wir versuchen es gleich automatisch noch einmal für dich.");
+        
+        // Automatic silent retry after a delay if it's a rate limit
+        setTimeout(() => {
+          if (image) {
+            console.log("Retrying AI analysis automatically...");
+            processImage();
+          }
+        }, 8000);
+      } else if (errorMsg.includes("api key not valid") || errorMsg.includes("400") || errorMsg.includes("invalid_argument")) {
+        setError("Der KI-Dienst ist gerade nicht erreichbar. Bitte kontaktiere unseren Support oder versuche es später erneut.");
       } else {
-        setError(errorMsg || "Ein Fehler ist aufgetreten. Bitte versuche es erneut.");
+        setError(err.message || "Ein kleiner Fehler ist aufgetreten. Bitte versuche es mit einem anderen Foto oder lade die Seite neu.");
       }
     } finally {
       setIsAnalyzing(false);
@@ -1963,9 +1972,17 @@ export default function App() {
         setSelectedResult(result);
         // We stay in styling studio but show result
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Studio Try-On failed", err);
-      setError("Entschuldigung, die Simulation konnte nicht gestartet werden.");
+      const errorMsg = (err.message || String(err)).toLowerCase();
+      if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('503') || errorMsg.includes('overloaded')) {
+        setError("Der Ansturm ist gerade riesig! ✨ Unsere KI braucht eine kurze Verschnaufpause. Bitte hab einen Moment Geduld – wir versuchen es gleich automatisch noch einmal für dich.");
+        setTimeout(() => {
+          if (image) handleStudioTryOn(style, color, tech, lighting);
+        }, 8000);
+      } else {
+        setError("Hoppla! ✨ Die Simulation konnte gerade nicht gestartet werden. Bitte versuche es in einem Moment noch einmal.");
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -2008,8 +2025,17 @@ export default function App() {
           setIsGeneratingSketch(false);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Face analysis failed", err);
+      const errorMsg = (err.message || String(err)).toLowerCase();
+      if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('503') || errorMsg.includes('overloaded')) {
+        setError("Der Ansturm ist gerade riesig! ✨ Unsere KI braucht eine kurze Verschnaufpause. Bitte hab einen Moment Geduld – wir versuchen es gleich automatisch noch einmal für dich.");
+        setTimeout(() => {
+          if (image) handleAnalyzeFace();
+        }, 8000);
+      } else {
+        setError("Hoppla! ✨ Die Analyse konnte gerade nicht durchgeführt werden. Bitte versuche es in einem Moment noch einmal.");
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -4215,7 +4241,7 @@ export default function App() {
                             </div>
                             <div className="space-y-1">
                               <p className="text-sm font-bold text-red-900">Fehlgeschlagen</p>
-                              <p className="text-[10px] text-red-600 leading-tight">Die KI ist gerade überlastet (Rate Limit). Bitte warte einen Moment und versuche es erneut.</p>
+                              <p className="text-[10px] text-red-600 leading-tight">Die KI braucht gerade eine kurze Verschnaufpause ✨ Bitte versuche es in ein paar Sekunden erneut.</p>
                             </div>
                             <button 
                               onClick={(e) => {
