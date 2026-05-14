@@ -37,6 +37,7 @@ interface StylingStudioProps {
   isPremiumFetching?: boolean;
   isGeneratingBackground?: boolean;
   onCheckout?: (plan: 'single' | 'monthly' | 'yearly' | 'studio-single', metadata?: any) => void;
+  onShowPricing?: () => void;
   onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
 }
 
@@ -50,6 +51,7 @@ export default function StylingStudio({
   preGeneratedSketches = {},
   isGeneratingBackground = false,
   onCheckout,
+  onShowPricing,
   onOpenLegalModal
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
@@ -114,6 +116,7 @@ export default function StylingStudio({
       await new Promise(r => setTimeout(r, 1500));
       setIsSimulatingPrePaywall(false);
       setShowPaywall(true);
+      onShowPricing?.();
       return;
     }
     

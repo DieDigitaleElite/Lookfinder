@@ -140,6 +140,25 @@ export default function App() {
   const [agreedToWiderruf, setAgreedToWiderruf] = useState(false);
   
   // GA4 Initialization
+  const trackEvent = (action: string, category: string = 'User', label?: string, value?: number, params?: any) => {
+    try {
+      ReactGA.event({
+        category,
+        action,
+        label,
+        value,
+        ...params
+      });
+    } catch (err) {
+      console.warn("GA Tracking failed", err);
+    }
+  };
+
+  const handleShowPricing = (source: 'general' | 'styling_studio' = 'general') => {
+    setShowPricingModal(true);
+    trackEvent('paywall_viewed', 'Revenue', source);
+  };
+
   useEffect(() => {
     const gaId = (import.meta as any).env.VITE_GA_MEASUREMENT_ID;
     if (gaId) {
@@ -147,9 +166,9 @@ export default function App() {
       ReactGA.send("pageview");
     }
 
-    const handleShowPricing = () => setShowPricingModal(true);
-    window.addEventListener('show-pricing-modal', handleShowPricing);
-    return () => window.removeEventListener('show-pricing-modal', handleShowPricing);
+    const onShowPricingModal = (e: any) => handleShowPricing(e.detail?.source || 'general');
+    window.addEventListener('show-pricing-modal', onShowPricingModal as any);
+    return () => window.removeEventListener('show-pricing-modal', onShowPricingModal as any);
   }, []);
 
   // Firebase State
@@ -843,6 +862,15 @@ export default function App() {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid);
         isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid });
+
+        // Track Purchase Event
+        ReactGA.event('purchase', {
+          transaction_id: `trans_${Date.now()}_${uid || 'anon'}`,
+          value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 9.99 : 4.99,
+          currency: 'EUR',
+          items: [{ item_id: plan, item_name: `Frisuren AI ${plan}` }]
+        });
+
         // Save plan/uid to localStorage in case of reloads during login
         localStorage.setItem('frisurenai_pending_plan', plan);
         if (plan === 'studio-single') {
@@ -1162,8 +1190,12 @@ export default function App() {
           userData.createdAt = serverTimestamp();
           userData.isPremium = false;
           await setDoc(userRef, userData);
+          // Track Sign Up
+          trackEvent('sign_up', 'Auth', 'Google');
         } else {
           await setDoc(userRef, userData, { merge: true });
+          // Track Login
+          trackEvent('login', 'Auth', 'Google');
         }
       } catch (dbErr) {
         console.error("Failed to sync user profile to Firestore", dbErr);
@@ -1217,11 +1249,16 @@ export default function App() {
           console.error("Failed to initialize user profile document", dbErr);
         }
 
+        // Track Sign Up
+        trackEvent('sign_up', 'Auth', 'Email');
+
         await sendEmailVerification(userCredential.user);
         setAuthMessage({ type: 'info', text: "Konto erstellt! Bitte bestätige deine E-Mail-Adresse." });
         setTimeout(() => setShowLoginModal(false), 4000);
       } else {
         await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+        // Track Login
+        trackEvent('login', 'Auth', 'Email');
         setShowLoginModal(false);
       }
       setLoginEmail('');
@@ -1546,11 +1583,7 @@ export default function App() {
     const file = e.target.files?.[0];
     if (file) {
       // Track event
-      ReactGA.event({
-        category: 'User',
-        action: 'Upload Photo',
-        label: file.type
-      });
+      trackEvent('click_upload_button', 'User', file.type);
 
       const reader = new FileReader();
       reader.onload = async (event) => {
@@ -1563,7 +1596,10 @@ export default function App() {
         
         // Resize image immediately - using smaller size for mobile/web upload to save tokens/bandwidth
         const processedImage = await fastResizeImage(base64, 800, 0.65);
-        setImage(processedImage); 
+        setImage(processedImage);
+
+        // Track complete
+        trackEvent('upload_completed', 'User', file.type);
       };
       reader.readAsDataURL(file);
     }
@@ -1639,7 +1675,7 @@ export default function App() {
         setShowLoginModal(true);
       } else {
         setAuthMessage({ type: 'info', text: "Du hast dein kostenloses Limit erreicht. Werde Premium-Mitglied für unbegrenzte Styles!" });
-        setShowPricingModal(true);
+        handleShowPricing('general');
       }
       return;
     }
@@ -1821,7 +1857,7 @@ export default function App() {
     }
 
     if (!isPremium && userPlan !== 'single') {
-       setShowPricingModal(true);
+       handleShowPricing('general');
        return;
     }
 
@@ -2195,10 +2231,10 @@ export default function App() {
     setError(null);
     
     // Track event
-    ReactGA.event({
-      category: 'Payment',
-      action: 'Initiate Checkout',
-      label: plan
+    ReactGA.event('begin_checkout', {
+      value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 9.99 : 4.99,
+      currency: 'EUR',
+      items: [{ item_id: plan, item_name: `Frisuren AI ${plan}` }]
     });
 
     try {
@@ -2949,7 +2985,7 @@ export default function App() {
                               <li className="flex items-center gap-2 text-xs font-semibold"><CheckCircle2 size={14} className="text-[#FF9EBE]" /> Alle Looks in der Galerie speichern</li>
                             </ul>
                             <button 
-                              onClick={() => setShowPricingModal(true)}
+                              onClick={() => handleShowPricing('general')}
                               className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:scale-[1.02] transition-all shadow-xl shadow-[#FF9EBE]/20"
                             >
                               Jetzt zum Pro Upgrade
@@ -3177,6 +3213,7 @@ export default function App() {
                         preGeneratedSketches={hairstyleSketches}
                         isGeneratingBackground={isGeneratingBackground}
                         onCheckout={handleCheckout}
+                        onShowPricing={() => handleShowPricing('styling_studio')}
                         onOpenLegalModal={setActiveLegalModal}
                       />
                     </div>
