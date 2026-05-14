@@ -46,10 +46,17 @@ app.post("/api/gemini", async (req, res) => {
       case "analyzeFace": {
         const { base64Image, mimeType } = payload;
         
-        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor, die ihr hervorragend stehen würden.
-        WICHTIG FÜR DIE AUSWAHL (ERSTEN 3 VORSCHLÄGE):
-        - Der ABSOLUT wichtigste Fokus liegt auf der ERHALTUNG DER IDENTITÄT. 
-        - Berücksichtige bei den ersten 3 Vorschlägen die ORIGINAL-Haarfarbe und Struktur.
+        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor.
+        REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (PFLICHT):
+        1. VORSCHLAG: Muss eine MITTELLANGE Frisur sein.
+        2. VORSCHLAG: Muss eine LANGE Frisur sein.
+        3. VORSCHLAG: Muss eine KURZHAARFRISUR sein.
+        
+        STRICT IDENTITY GUIDELINES:
+        - Die ersten 3 Vorschläge MÜSSEN die Original-Haarfarbe und -Struktur berücksichtigen.
+        - Der Fokus liegt zu 100% auf der Erhaltung der Identität der Person.
+        - Die Frisuren müssen perfekt zur Gesichtsform passen.
+        
         Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
         const response = await ai.models.generateContent({
@@ -107,10 +114,10 @@ app.post("/api/gemini", async (req, res) => {
         } else {
           promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 
           ${description}. 
-          CRITICAL: The face MUST be 100% identical to the source image. 
-          KEEP IDENTICAL: Eyes (color, shape, position), Nose, Mouth, Chin, Skin tone, Lighting on the face, and Head tilt. 
+          CRITICAL: The face and environment MUST be 100% identical to the source image. 
+          KEEP UNCHANGED: Eyes (color, shape, position), Nose, Mouth, Chin, Skin tone, Lighting on the face, Head tilt, and the EXACT BACKGROUND. 
           The ONLY change allowed is the hairstyle. The transition from hair to skin (hairline) must be seamless and photorealistic. 
-          DO NOT manipulate or 'beautify' the original face. Identity preservation is the absolute priority.`;
+          DO NOT manipulate or 'beautify' the original face or background. Identity and environment preservation is the absolute priority.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
