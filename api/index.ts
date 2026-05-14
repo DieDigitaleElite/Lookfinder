@@ -130,14 +130,18 @@ app.post("/api/gemini", async (req, res) => {
         let promptSnippet = "";
         if (isSketch) {
           if (payload.isBase) {
-             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a high-end, minimalist charcoal fashion sketch of the EXACT face provided. 
+             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a PHOTOREALISTIC, high-end beauty-model portrait of the EXACT face provided. 
+             The image should have a professional studio lighting aesthetic, highly polished skin, and "beauty model" quality.
              DO NOT ALTER facial features, eye shape, nose structure, or expression. 
-             Render ONLY the head and neck with a clean bald head. 
-             Use clean ink lines on a pure white background. The goal is to perfectly preserve the person's identity in sketch form.`;
+             Render ONLY the head and neck with a clean bald head (hair removed). 
+             Use a pure, solid white background. The goal is to perfectly preserve the person's identity in a high-end beauty-shot form.`;
           } else {
-             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a high-end fashion illustration of the person with the hairstyle: ${styleName}. 
-             The face must remain 100% IDENTICAL to the original. DO NOT change the eyes, nose, mouth, face shape, or head orientation. 
-             Only change the hair. Use a clean white background.`;
+             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a PHOTOREALISTIC, high-end beauty portrait of the person with the hairstyle: ${styleName}. 
+             You are provided with two images: the original photo for identity verification and a "Beauty Avatar" (bald beauty-model portrait of the same person).
+             USE THE BEAUTY AVATAR (bald image) as the primary face and skin reference. 
+             The aesthetic should be professional fashion photography with high-end retouching quality.
+             The face must remain 100% IDENTICAL to the beauty avatar. DO NOT change the eyes, nose, mouth, face shape, or head orientation. 
+             Only add/change the hair to match the style: ${styleName}. Use a solid, pure white background.`;
           }
         } else {
           promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 

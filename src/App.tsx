@@ -744,13 +744,20 @@ export default function App() {
         
         // Initial profile sync
         try {
-          setDoc(userDocRef, {
+          const profileData: any = {
             uid: currentUser.uid,
             email: currentUser.email,
             displayName: currentUser.displayName,
             photoURL: currentUser.photoURL,
-            createdAt: serverTimestamp()
-          }, { merge: true });
+            lastActive: serverTimestamp()
+          };
+          
+          // If we already have an avatar sketch in local state, sync it
+          if (avatarSketch) {
+            profileData.avatarSketch = avatarSketch;
+          }
+          
+          setDoc(userDocRef, profileData, { merge: true });
         } catch (e) {
           console.warn("Initial profile sync failed", e);
         }
@@ -1138,38 +1145,50 @@ export default function App() {
     }
   }, [user, image]);
 
-  // Sync local results and custom results to Firestore on login or when they change
+  // Sync local results and sketches to Firestore on login or when they change
   useEffect(() => {
-    if (user && (results.length > 0 || customResults.length > 0)) {
-      const syncLocalResults = async () => {
-        // Combined list of all results to check
-        const allResults = [...results, ...customResults];
+    if (user) {
+      const syncLocalData = async () => {
+        // 1. Sync results
+        if (results.length > 0 || customResults.length > 0) {
+          const allResults = [...results, ...customResults];
+          const unsaved = allResults.filter(res => !savedResults.some(sr => sr.id === res.id));
+          
+          for (const res of unsaved) {
+            if (res.imageUrl || results.some(r => r.id === res.id)) {
+              await saveResult(res, true);
+            }
+          }
+        }
         
-        // Find results that are NOT in savedResults
-        const unsaved = allResults.filter(res => 
-          !savedResults.some(sr => sr.id === res.id)
-        );
+        // 2. Sync avatar sketch if missing in Firestore
+        if (avatarSketch && (!userData || !userData.avatarSketch)) {
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, { avatarSketch }).catch(e => console.warn("Failed to sync avatar sketch", e));
+        }
 
-        if (unsaved.length === 0) return;
-
-        console.log(`Syncing ${unsaved.length} results to Firestore...`);
-        // Use Promise.all to handle sync more efficiently, but be careful with quota
-        // For larger sets, we might want to batch, but usually it's just a few
-        for (const res of unsaved) {
-          if (res.imageUrl || results.some(r => r.id === res.id)) {
-            await saveResult(res, true);
+        // 3. Sync hairstyle sketches
+        const sketchIds = Object.keys(hairstyleSketches);
+        if (sketchIds.length > 0) {
+          for (const id of sketchIds) {
+            const sketchRef = doc(db, 'users', user.uid, 'sketches', id);
+            // We use setDoc to avoid unnecessary reads
+            await setDoc(sketchRef, { 
+              id, 
+              data: hairstyleSketches[id],
+              updatedAt: serverTimestamp() 
+            }, { merge: true }).catch(e => console.warn(`Failed to sync sketch ${id}`, e));
           }
         }
       };
       
-      // Delay slightly to allow state to settle
       const timer = setTimeout(() => {
-        syncLocalResults();
-      }, 1000);
+        syncLocalData();
+      }, 2000); // Wait a bit longer to ensure data is settled
       
       return () => clearTimeout(timer);
     }
-  }, [user?.uid, results.length, customResults.length, savedResults.length]);
+  }, [user?.uid, results.length, customResults.length, savedResults.length, !!avatarSketch, Object.keys(hairstyleSketches).length]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
