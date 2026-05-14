@@ -57,6 +57,22 @@ app.post("/api/gemini", async (req, res) => {
         - Der Fokus liegt zu 100% auf der Erhaltung der Identität der Person.
         - Die Frisuren müssen perfekt zur Gesichtsform passen.
         
+        BEWERTUNG (rating):
+        Bewerte wie gut diese Frisur zur Person passt. Berücksichtige: Gesichtsform, Proportionen, Harmonie, Trends, Natürlichkeit und Gesamtwirkung.
+        Gib eine realistische Bewertung als GANZAHL zwischen 80 und 99 zurück.
+        - 95–99: außergewöhnlich starke Matches
+        - 90–94: sehr passende Looks
+        - 85–89: gute Looks
+        WICHTIG: Nutze niemals für alle Bilder den gleichen Wert (z.B. überall 98), das wirkt unglaubwürdig. Variiere die Zahlen.
+
+        TONALITÄT FÜR "description" UND "suitabilityReason":
+        - Du bist ein moderner Premium-Hairstylist und Beauty-Consultant.
+        - Stimme: Positiv, glaubwürdig, modern, emotional, persönlich, nicht zu technisch.
+        - Mix aus prof. Beratung, stylischer Freundin und moderner Beauty-App.
+        - Vermeide generische Aussagen ("Sieht gut aus") oder Fachbegriffe.
+        - "description": Fokus auf das "Gute Gefühl" und den Look.
+        - "suitabilityReason": Maximal 4 kurze Sätze. Starte positiv, erkläre kurz den Fit zur Gesichtsform, nenne ein optisches Highlight und beschreibe den Vibe.
+        
         Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
         const response = await ai.models.generateContent({
@@ -79,9 +95,21 @@ app.post("/api/gemini", async (req, res) => {
       case "getMetadata": {
         const { faceShape, styleName, colorName, styleDescription } = payload;
         
-        const prompt = `Du bist ein professioneller Star-Friseur. 
-        Analysiere die Kombination aus der Frisur "${styleName}" in der Farbe "${colorName}" für eine person mit einer ${faceShape}en Gesichtsform.
+        const prompt = `Du bist ein moderner Premium-Hairstylist und Beauty-Consultant.
+        Analysiere die Kombination aus der Frisur "${styleName}" in der Farbe "${colorName}" für eine Person mit einer ${faceShape}en Gesichtsform.
         Kontext zum gewählten Style: ${styleDescription}
+        
+        DEINE AUFGABE:
+        Erstelle eine personalisierte, moderne Beschreibung und Bewertung.
+        Tonalität: Positiv, glaubwürdig, emotional, persönlich, wie eine Mischung aus Profi-Beratung und stylischer Freundin. Keine Fachbegriffe.
+        
+        FELD "description": Fokus auf das Gefühl und den Gesamtlook. Modern und einladend.
+        FELD "suitabilityReason": Maximal 4 kurze Sätze. Startet positiv, erklärt kurz warum es zur Gesichtsform passt, nennt ein optisches Highlight und beschreibe den Vibe.
+        
+        BEWERTUNG (rating):
+        Bewerte wie gut diese Frisur zur Person passt (Gesichtsform, Proportionen, Harmonie, Trends).
+        Gib eine realistische Bewertung als GANZAHL zwischen 80 und 99 zurück.
+        
         Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
         const response = await ai.models.generateContent({

@@ -108,6 +108,8 @@ export default function App() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [pricingSource, setPricingSource] = useState<'general' | 'styling_studio'>('general');
+  const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
@@ -155,6 +157,8 @@ export default function App() {
   };
 
   const handleShowPricing = (source: 'general' | 'styling_studio' = 'general') => {
+    setPricingSource(source);
+    setSelectedPlanId(null);
     setShowPricingModal(true);
     trackEvent('paywall_viewed', 'Revenue', source);
   };
@@ -3296,7 +3300,7 @@ export default function App() {
                                   {result.imageUrl && (
                                     <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
                                       <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
-                                      <span className="text-sm font-bold">{result.rating || 9}/10</span>
+                                      <span className="text-sm font-bold">{result.rating || 90}% Match</span>
                                     </div>
                                   )}
                                 </div>
@@ -3503,7 +3507,7 @@ export default function App() {
                         />
                         <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
                           <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
-                          <span className="text-sm font-bold">{result.rating}/10</span>
+                          <span className="text-sm font-bold">{result.rating}% Match</span>
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -3815,17 +3819,47 @@ export default function App() {
                       <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
                     </button>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 text-[#FF9EBE] font-medium">
-                        <Loader2 className="animate-spin" size={24} />
-                        <span>{isGenerating ? `Dein Traum-Look ${results.length + 1} von 9 wird gerade erstellt...` : "Deine Gesichtsform wird analysiert..."}</span>
-                      </div>
-                      <div className="w-full h-2 bg-black/5 rounded-full overflow-hidden">
-                        <motion.div 
-                          className="h-full bg-[#FF9EBE]"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${generationProgress}%` }}
-                        />
+                    <div className="space-y-6">
+                      <div className="space-y-4 text-center">
+                        <div className="flex flex-col items-center gap-4 text-[#FF9EBE] font-medium">
+                          <Loader2 className="animate-spin" size={32} />
+                          <div className="space-y-1">
+                            <span className="text-lg md:text-xl block font-bold">
+                              Unsere KI analysiert deine Gesichtsform und erstellt gleich deine personalisierten Styles✨
+                            </span>
+                            <span className="text-sm opacity-60">Das dauert nur wenige Sekunden....</span>
+                          </div>
+                        </div>
+
+                        {/* Animated Steps */}
+                        <div className="grid grid-cols-3 gap-2 mt-8">
+                          {[
+                            { label: 'Gesicht erkannt', threshold: 0 },
+                            { label: 'Gesichtsform analysiert', threshold: 35 },
+                            { label: 'Styles werden erstellt', threshold: 70 }
+                          ].map((step, i) => {
+                            const isActive = generationProgress >= step.threshold;
+                            return (
+                              <div key={i} className="flex flex-col items-center gap-2">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 ${isActive ? 'bg-[#FF9EBE] text-white' : 'bg-black/5 text-black/20'}`}>
+                                  {isActive ? <Check size={14} strokeWidth={3} /> : i + 1}
+                                </div>
+                                <span className={`text-[10px] font-black uppercase tracking-widest text-center transition-colors duration-500 ${isActive ? 'text-brand-primary' : 'text-brand-primary/20'}`}>
+                                  {step.label}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        
+                        <div className="w-full h-1.5 bg-black/5 rounded-full overflow-hidden mt-4">
+                          <motion.div 
+                            className="h-full bg-[#FF9EBE]"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${generationProgress}%` }}
+                            transition={{ duration: 0.5 }}
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3948,7 +3982,7 @@ export default function App() {
 
                           <div className="mt-6 text-center">
                              <p className="text-[11px] font-bold text-brand-primary/60 italic leading-tight">
-                               "Unsere KI hat deine Gesichtsform analysiert und in deinem persönlichen Styling Studio findest du alle perfekt zu dir passenden Frisuren! ✨"
+                               "Unsere KI hat deine Gesichtsform analysiert. In deinem persönlichen Styling Studio findest du alle perfekt zu dir passenden Frisuren! ✨"
                              </p>
                           </div>
                         </motion.div>
@@ -3973,7 +4007,7 @@ export default function App() {
                               <span className="text-[10px] font-bold text-brand-primary/60 uppercase tracking-widest">1000+ zufriedene Nutzer</span>
                             </div>
                             <h3 className="text-3xl lg:text-5xl font-serif font-bold text-brand-primary leading-tight">
-                              Wow – diese 3 Styles stehen dir schon unglaublich gut! 😍
+                              Dein stärkster Look wartet noch 😍
                             </h3>
                             <div className="space-y-6 text-lg lg:text-xl text-brand-primary/70 font-medium max-w-2xl mx-auto mt-4">
                               <p>
@@ -4020,18 +4054,41 @@ export default function App() {
                             
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
                               {/* Option 1: Single Unlock */}
-                              <div className="bg-white/50 p-5 rounded-2xl border border-[#FF9EBE]/10 text-left flex flex-col justify-between hover:shadow-md transition-shadow">
+                              <div 
+                                onClick={() => {
+                                  if (selectedPlanId === 'single') {
+                                    handleCheckout('single');
+                                  } else {
+                                    setSelectedPlanId('single');
+                                  }
+                                }}
+                                className={`p-5 rounded-2xl border transition-all text-left flex flex-col justify-between hover:shadow-md cursor-pointer ${selectedPlanId === 'single' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'bg-white/50 border-[#FF9EBE]/10'}`}
+                              >
                                 <div>
                                   <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 block mb-2">Einmalig</span>
                                   <p className="text-sm font-bold text-brand-primary leading-snug">Schalte alle 9 Bilder dieser Analyse sofort frei.</p>
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-black/5">
                                   <span className="text-lg font-black text-brand-primary">Nur 2,99€</span>
+                                  {selectedPlanId === 'single' && (
+                                    <div className="mt-2 w-full py-2 bg-[#FF9EBE] text-white text-center font-black rounded-lg uppercase tracking-widest text-[10px] shadow-sm">
+                                      Jetzt bestellen
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
                               {/* Option 2: Yearly Subscription */}
-                              <div className="bg-[#FF9EBE]/10 p-5 rounded-2xl border-2 border-[#FF9EBE] text-left relative overflow-hidden flex flex-col justify-between shadow-lg scale-105 z-10">
+                              <div 
+                                onClick={() => {
+                                  if (selectedPlanId === 'yearly') {
+                                    handleCheckout('yearly');
+                                  } else {
+                                    setSelectedPlanId('yearly');
+                                  }
+                                }}
+                                className={`bg-[#FF9EBE]/10 p-5 rounded-2xl border-2 text-left relative overflow-hidden flex flex-col justify-between shadow-lg scale-105 z-10 cursor-pointer transition-all ${selectedPlanId === 'yearly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-transparent'}`}
+                              >
                                 <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest animate-pulse">Beste Wahl ★</div>
                                 <div className="absolute -left-8 top-4 -rotate-45 bg-red-500 text-white text-[7px] font-black px-8 py-1 uppercase tracking-widest shadow-sm">
                                   -52% RABATT
@@ -4044,7 +4101,7 @@ export default function App() {
                                   <div className="space-y-1 py-2 border-y border-[#FF9EBE]/10">
                                     <p className="text-[9px] text-brand-primary/60 flex items-center gap-2">
                                       <Calendar size={10} className="text-[#FF9EBE]" />
-                                      <span>Vertrag läuft 12 Monate, dann automatisch jährlich verlängerbar</span>
+                                      <span>Vertrag läuft 12 Monate</span>
                                     </p>
                                     <p className="text-[9px] text-brand-primary/60 flex items-center gap-2">
                                       <RefreshCw size={10} className="text-[#FF9EBE]" />
@@ -4055,11 +4112,25 @@ export default function App() {
                                 <div className="mt-4 pt-4 border-t border-[#FF9EBE]/10">
                                   <span className="text-lg font-black text-[#FF9EBE]">3,33 € / Monat</span>
                                   <span className="text-[10px] text-brand-primary/40 block">39,99 € jährlich</span>
+                                  {selectedPlanId === 'yearly' && (
+                                    <div className="mt-2 w-full py-2 bg-[#FF9EBE] text-white text-center font-black rounded-lg uppercase tracking-widest text-[10px] shadow-sm">
+                                      Jetzt bestellen
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
                               {/* Option 3: Monthly Subscription */}
-                              <div className="bg-white/50 p-5 rounded-2xl border border-[#FF9EBE]/10 text-left flex flex-col justify-between hover:shadow-md transition-shadow relative overflow-hidden">
+                              <div 
+                                onClick={() => {
+                                  if (selectedPlanId === 'monthly') {
+                                    handleCheckout('monthly');
+                                  } else {
+                                    setSelectedPlanId('monthly');
+                                  }
+                                }}
+                                className={`p-5 rounded-2xl border transition-all text-left flex flex-col justify-between hover:shadow-md relative overflow-hidden cursor-pointer ${selectedPlanId === 'monthly' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'bg-white/50 border-[#FF9EBE]/10'}`}
+                              >
                                 <div className="absolute top-0 right-0 bg-brand-primary text-white text-[8px] font-black px-2 py-1 rounded-bl-lg uppercase tracking-widest">BELIEBT ⭐</div>
                                 <div className="space-y-2">
                                   <div>
@@ -4075,6 +4146,11 @@ export default function App() {
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-black/5">
                                   <span className="text-lg font-black text-brand-primary">9,99€ / Monat</span>
+                                  {selectedPlanId === 'monthly' && (
+                                    <div className="mt-2 w-full py-2 bg-brand-primary text-white text-center font-black rounded-lg uppercase tracking-widest text-[10px] shadow-sm">
+                                      Jetzt bestellen
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -4138,14 +4214,14 @@ export default function App() {
                             />
                             
                             {/* Conversion Badges for Locked/Blurred Styles */}
-                            {isLocked && index === 4 && (
+                            {isLocked && index === 3 && (
                               <div className="absolute top-4 left-4 bg-[#FF9EBE] text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10 animate-bounce">
                                 KI-FAVORIT (98% MATCH) ★
                               </div>
                             )}
                             {isLocked && index === 5 && (
                               <div className="absolute top-4 left-4 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
-                                TOP-BEWERTUNG (9.8/10) ⭐
+                                TOP-BEWERTUNG (98% Match) ⭐
                               </div>
                             )}
                             {isLocked && index === 6 && (
@@ -4232,7 +4308,7 @@ export default function App() {
                                 </div>
                                 <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
                                   <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
-                                  <span className="text-sm font-bold">{result.rating}/10</span>
+                                  <span className="text-sm font-bold">{result.rating}% Match</span>
                                 </div>
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
                                   <span className="text-white font-medium flex items-center gap-2">
@@ -4425,8 +4501,13 @@ export default function App() {
                                </button>
                                <button 
                                  onClick={() => {
-                                   setPollInitialSelectedIds([lastCustomResult.id]);
-                                   setShowPollCreator(true);
+                                   if (!user) {
+                                     setPendingTab('polls');
+                                     setShowLoginModal(true);
+                                   } else {
+                                     setPollInitialSelectedIds([lastCustomResult.id]);
+                                     setShowPollCreator(true);
+                                   }
                                  }}
                                  className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
                                  title="Umfrage erstellen"
@@ -4535,7 +4616,7 @@ export default function App() {
                             </div>
 
                             <ul className="space-y-2">
-                              {["Unbegrenzt Frisuren & Farben testen", "Premium-Bibliothek (12.000+ Styles)", "Monatlich neue Trend-Kollektionen", "Friseur-Guide PDF & HD-Downloads"].map((f, i) => (
+                              {["Unbegrenzt Frisuren & Farben testen", "Premium-Bibliothek (100+ Styles)", "Monatlich neue Trend-Kollektionen", "Friseur-Guide PDF & HD-Downloads"].map((f, i) => (
                                 <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-brand-primary/70">
                                   <Check size={12} className="text-emerald-500 shrink-0" /> {f}
                                 </li>
@@ -4825,7 +4906,7 @@ export default function App() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-[#FF9EBE]">
                       <Star size={20} className="fill-[#FF9EBE]" />
-                      <span className="font-bold text-lg">{selectedResult.rating}/10 Rating</span>
+                      <span className="font-bold text-lg">{selectedResult.rating}% Match</span>
                     </div>
                     <h2 className="text-4xl font-serif font-bold">{selectedResult.name}</h2>
                   </div>
@@ -4921,9 +5002,14 @@ export default function App() {
                       <button 
                         onClick={() => {
                           if (selectedResult) {
-                            setPollInitialSelectedIds([selectedResult.id]);
-                            setShowPollCreator(true);
-                            setSelectedResult(null);
+                            if (!user) {
+                              setPendingTab('polls');
+                              setShowLoginModal(true);
+                            } else {
+                              setPollInitialSelectedIds([selectedResult.id]);
+                              setShowPollCreator(true);
+                              setSelectedResult(null);
+                            }
                           }
                         }}
                         disabled={isCreatingPoll}
@@ -5224,7 +5310,7 @@ export default function App() {
                     </div>
                     
                     <h2 className="text-2xl lg:text-4xl font-bold mb-6 leading-tight">
-                      Wow – diese 3 Styles stehen dir schon unglaublich gut! 😍
+                      Dein stärkster Look wartet noch 😍
                     </h2>
                     
                     <p className="text-white/80 mb-6 text-sm lg:text-base">
@@ -5271,7 +5357,9 @@ export default function App() {
                       <div className="flex items-center justify-center gap-3 py-2 px-4 bg-[#FF9EBE]/5 rounded-xl border border-[#FF9EBE]/10 inline-flex mx-auto">
                         <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Wir akzeptieren:</span>
                         <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-black text-brand-primary/60 bg-white px-2 py-0.5 rounded border border-black/5 shadow-sm">PAYPAL</span>
+                          <span className="text-[10px] font-black text-white bg-[#003087] px-3 py-1 rounded border border-black/5 shadow-md flex items-center gap-1">
+                            <span className="text-white italic">PayPal</span>
+                          </span>
                           <span className="text-[10px] font-black text-brand-primary/60 bg-white px-2 py-0.5 rounded border border-black/5 shadow-sm">KREDITKARTE</span>
                           <span className="text-[10px] font-black text-brand-primary/60 bg-white px-2 py-0.5 rounded border border-black/5 shadow-sm">KLARNA</span>
                         </div>
@@ -5330,49 +5418,56 @@ export default function App() {
                               setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                               return;
                             }
-                            handleCheckout('yearly');
+                            if (selectedPlanId === 'yearly') {
+                              handleCheckout('yearly');
+                            } else {
+                              setSelectedPlanId('yearly');
+                              setError(null);
+                            }
                           }}
                           disabled={isCheckingOut}
-                          className="w-full p-6 lg:p-8 border-4 border-[#FF9EBE] rounded-3xl bg-[#FF9EBE]/5 hover:bg-[#FF9EBE]/10 transition-all text-left group relative overflow-hidden disabled:opacity-50 disabled:grayscale shadow-xl scale-105 z-10"
+                          className={`w-full p-5 lg:p-6 border-4 rounded-[2rem] transition-all text-left group relative overflow-hidden disabled:opacity-50 disabled:grayscale shadow-lg ${selectedPlanId === 'yearly' ? 'border-[#FF9EBE] bg-[#FF9EBE]/10 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white'}`}
                         >
                           <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] lg:text-xs font-black px-3 lg:px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
                             ★ Empfohlen ★
                           </div>
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-black text-xl lg:text-2xl text-brand-primary">Styling-Flatrate</span>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-black text-lg lg:text-xl text-brand-primary">Styling-Flatrate</span>
                             <div className="text-right">
-                              <span className="text-2xl lg:text-3xl font-black text-brand-primary block">39,99 € / Jahr</span>
-                              <span className="text-xs lg:text-sm text-brand-primary/40 line-through">statt 119,88 €</span>
+                              <span className="text-xl lg:text-2xl font-black text-brand-primary block">39,99 € / Jahr</span>
+                              <span className="text-[10px] lg:text-xs text-brand-primary/40 line-through">statt 119,88 €</span>
                             </div>
                           </div>
-                          <div className="space-y-3">
-                            <div className="flex flex-col gap-1">
-                              <p className="text-sm lg:text-base font-bold text-[#FF9EBE]">Spare 66% – entspricht 3,33 € / Monat</p>
-                              <p className="text-[10px] lg:text-xs text-brand-primary/60">Erste Zahlung: 39,99 €, dann 39,99 € jährlich</p>
+                          <div className="space-y-2">
+                            <div className="flex flex-col gap-0.5">
+                              <p className="text-xs lg:text-sm font-bold text-[#FF9EBE]">Spare 66% – entspricht 3,33 € / Monat</p>
+                              <p className="text-[9px] lg:text-[10px] text-brand-primary/60">Erste Zahlung: 39,99 €, dann 39,99 € jährlich</p>
                             </div>
                             
-                            <div className="space-y-1 py-2 border-y border-black/5">
-                              <p className="text-[10px] lg:text-xs text-brand-primary/80 flex items-center gap-2">
-                                <Calendar size={12} className="text-[#FF9EBE]" />
-                                <span>Vertrag läuft 12 Monate, dann automatisch jährlich verlängerbar</span>
+                            <div className="space-y-1 py-1.5 border-y border-black/5">
+                              <p className="text-[9px] lg:text-[10px] text-brand-primary/80 flex items-center gap-2">
+                                <Calendar size={10} className="text-[#FF9EBE]" />
+                                <span>Vertrag läuft 12 Monate</span>
                               </p>
-                              <p className="text-[10px] lg:text-xs text-brand-primary/80 flex items-center gap-2">
-                                <RefreshCw size={12} className="text-[#FF9EBE]" />
+                              <p className="text-[9px] lg:text-[10px] text-brand-primary/80 flex items-center gap-2">
+                                <RefreshCw size={10} className="text-[#FF9EBE]" />
                                 <span>Jederzeit zum Jahresende kündbar</span>
                               </p>
                             </div>
                             
-                            <ul className="space-y-1">
-                              {["Unbegrenzt Frisuren & Farben testen", "Premium-Bibliothek (12.000+ Styles)", "Für alle zukünftigen Analysen"].map((f, i) => (
-                                <li key={i} className="flex items-center gap-2 text-[10px] lg:text-xs text-brand-primary/60">
-                                  <Check size={10} className="text-emerald-500" /> {f}
+                            <ul className="space-y-0.5">
+                              {["Unbegrenzt Frisuren & Farben testen", "Premium-Bibliothek (100+ Styles)", "Für alle zukünftigen Analysen"].map((f, i) => (
+                                <li key={i} className="flex items-center gap-2 text-[9px] lg:text-[10px] text-brand-primary/60">
+                                  <Check size={9} className="text-emerald-500" /> {f}
                                 </li>
                               ))}
                             </ul>
                           </div>
-                          <div className="mt-4 w-full py-3 bg-[#FF9EBE] text-white text-center font-black rounded-xl group-hover:bg-[#FF9EBE]/90 transition-colors uppercase tracking-widest text-sm flex items-center justify-center gap-2">
-                            {isCheckingOut ? <Loader2 className="animate-spin" size={18} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 39,99 €"}
-                          </div>
+                          {selectedPlanId === 'yearly' && (
+                            <div className="mt-3 w-full py-2.5 bg-[#FF9EBE] text-white text-center font-black rounded-xl group-hover:bg-[#FF9EBE]/90 transition-colors uppercase tracking-widest text-xs flex items-center justify-center gap-2">
+                              {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 39,99 €"}
+                            </div>
+                          )}
                         </button>
                       </div>
 
@@ -5383,10 +5478,15 @@ export default function App() {
                             setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                             return;
                           }
-                          handleCheckout('monthly');
+                          if (selectedPlanId === 'monthly') {
+                            handleCheckout('monthly');
+                          } else {
+                            setSelectedPlanId('monthly');
+                            setError(null);
+                          }
                         }}
                         disabled={isCheckingOut}
-                        className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
+                        className={`w-full p-4 lg:p-5 border-2 rounded-2xl transition-all text-left group relative disabled:opacity-50 disabled:grayscale ${selectedPlanId === 'monthly' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white'}`}
                       >
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-base lg:text-lg text-brand-primary">Monatsabo</span>
@@ -5394,11 +5494,13 @@ export default function App() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Flexibel monatlich kündbar. Erste Zahlung: 9,99 €, dann monatlich.</p>
-                          <div className="flex justify-end">
-                            <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
-                              {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 9,99 €"}
+                          {selectedPlanId === 'monthly' && (
+                            <div className="flex justify-end">
+                              <div className="px-4 py-2 bg-[#FF9EBE] text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-2">
+                                {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 9,99 €"}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </button>
 
@@ -5409,10 +5511,15 @@ export default function App() {
                             setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                             return;
                           }
-                          handleCheckout('single');
+                          if (selectedPlanId === 'single') {
+                            handleCheckout('single');
+                          } else {
+                            setSelectedPlanId('single');
+                            setError(null);
+                          }
                         }}
                         disabled={isCheckingOut}
-                        className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
+                        className={`w-full p-4 lg:p-5 border-2 rounded-2xl transition-all text-left group relative disabled:opacity-50 disabled:grayscale ${selectedPlanId === 'single' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white'}`}
                       >
                         <div className="flex justify-between items-center mb-1">
                           <span className="font-bold text-base lg:text-lg text-brand-primary">Einmalige Analyse</span>
@@ -5420,39 +5527,50 @@ export default function App() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Schalte alle 9 Bilder dieser Analyse frei. Keine Folgekosten.</p>
-                          <div className="flex justify-end">
-                            <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
-                              {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 2,99 €"}
+                          {selectedPlanId === 'single' && (
+                            <div className="flex justify-end">
+                              <div className="px-4 py-2 bg-[#FF9EBE] text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-2">
+                                {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 2,99 €"}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </button>
 
-                      {/* Studio Single Unlock */}
-                      <button 
-                        onClick={() => {
-                          if (!agreedToTerms || !agreedToWiderruf) {
-                            setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
-                            return;
-                          }
-                          handleCheckout('studio-single');
-                        }}
-                        disabled={isCheckingOut}
-                        className="w-full p-4 lg:p-5 border-2 border-black/5 rounded-2xl hover:border-[#FF9EBE]/30 hover:bg-[#FF9EBE]/5 transition-all text-left group relative disabled:opacity-50 disabled:grayscale"
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-base lg:text-lg text-brand-primary">Studio Einzel-Look</span>
-                          <span className="text-xl lg:text-2xl font-black text-brand-primary">1,49 €</span>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-xs lg:text-sm text-brand-primary/60">Schalte ein beliebiges Bild im Styling Studio frei. Ideal zum Testen.</p>
-                          <div className="flex justify-end">
-                            <div className="px-4 py-2 bg-black/5 text-brand-primary font-bold rounded-lg text-xs group-hover:bg-brand-primary group-hover:text-white transition-colors flex items-center gap-2">
-                              {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 1,49 €"}
-                            </div>
+                      {/* Studio Single Unlock - ONLY in Styling Studio context */}
+                      {pricingSource === 'styling_studio' && (
+                        <button 
+                          onClick={() => {
+                            if (!agreedToTerms || !agreedToWiderruf) {
+                              setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                              return;
+                            }
+                            if (selectedPlanId === 'studio-single') {
+                              handleCheckout('studio-single');
+                            } else {
+                              setSelectedPlanId('studio-single');
+                              setError(null);
+                            }
+                          }}
+                          disabled={isCheckingOut}
+                          className={`w-full p-4 lg:p-5 border-2 rounded-2xl transition-all text-left group relative disabled:opacity-50 disabled:grayscale ${selectedPlanId === 'studio-single' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white'}`}
+                        >
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="font-bold text-base lg:text-lg text-brand-primary">Studio Einzel-Look</span>
+                            <span className="text-xl lg:text-2xl font-black text-brand-primary">1,49 €</span>
                           </div>
-                        </div>
-                      </button>
+                          <div className="space-y-2">
+                            <p className="text-xs lg:text-sm text-brand-primary/60">Schalte ein beliebiges Bild im Styling Studio frei. Ideal zum Testen.</p>
+                            {selectedPlanId === 'studio-single' && (
+                              <div className="flex justify-end">
+                                <div className="px-4 py-2 bg-[#FF9EBE] text-white font-bold rounded-lg text-xs transition-colors flex items-center gap-2">
+                                  {isCheckingOut ? <Loader2 className="animate-spin" size={14} /> : "ZAHLUNGSPFLICHTIG BESTELLEN – 1,49 €"}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      )}
 
                       <p className="text-[10px] text-center text-brand-primary/40 mt-2">
                         Die Freischaltung der digitalen Inhalte erfolgt sofort nach erfolgreichem Kauf.

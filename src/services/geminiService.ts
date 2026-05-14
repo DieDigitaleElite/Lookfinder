@@ -103,7 +103,7 @@ export const getAIPoweredStylingMetadata = async (
       description: result.description || styleDescription,
       suitabilityReason: result.suitabilityReason || `Dieser Look schmeichelt deiner ${faceShape}en Gesichtsform hervorragend.`,
       barberInstructions: result.barberInstructions || `Schnitt: ${styleName}. Farbe: ${colorName}. ${styleDescription}`,
-      rating: result.rating || 9.5
+      rating: result.rating || 95
     };
   } catch (err) {
     console.error("Failed to get AI metadata via proxy", err);
@@ -111,7 +111,7 @@ export const getAIPoweredStylingMetadata = async (
       description: styleDescription,
       suitabilityReason: `Dieser Look ist eine exzellente Wahl für deine ${faceShape}e Gesichtsform.`,
       barberInstructions: `Schnitt: ${styleName}. Nuance: ${colorName}. ${styleDescription}`,
-      rating: 9.2
+      rating: 92
     };
   }
 };
