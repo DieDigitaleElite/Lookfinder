@@ -116,7 +116,6 @@ export default function StylingStudio({
       await new Promise(r => setTimeout(r, 1500));
       setIsSimulatingPrePaywall(false);
       setShowPaywall(true);
-      onShowPricing?.();
       return;
     }
     
