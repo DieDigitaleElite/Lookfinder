@@ -57,6 +57,11 @@ app.post("/api/gemini", async (req, res) => {
         - Der Fokus liegt zu 100% auf der Erhaltung der Identität der Person.
         - Die Frisuren müssen perfekt zur Gesichtsform passen.
         
+        NEUES FELD "emotionalEnhancer":
+        Erstelle für JEDEN Vorschlag einen kurzen, emotionalen Verstärker (max. 5-7 Wörter), der den User begeistert.
+        Beispiele: "Betont deine Gesichtszüge perfekt", "Verleiht dir einen modernen, frischen Glow", "Bringt deine Augen optimal zur Geltung", "Ein eleganter Statement-Look für dich".
+        Dieser Text wird direkt neben dem Score angezeigt.
+        
         BEWERTUNG (rating):
         Bewerte wie gut diese Frisur zur Person passt. Berücksichtige: Gesichtsform, Proportionen, Harmonie, Trends, Natürlichkeit und Gesamtwirkung.
         Gib eine realistische Bewertung als GANZAHL zwischen 80 und 99 zurück.
@@ -73,7 +78,7 @@ app.post("/api/gemini", async (req, res) => {
         - "description": Fokus auf das "Gute Gefühl" und den Look.
         - "suitabilityReason": Maximal 4 kurze Sätze. Starte positiv, erkläre kurz den Fit zur Gesichtsform, nenne ein optisches Highlight und beschreibe den Vibe.
         
-        Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
+        Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, emotionalEnhancer, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
         const response = await ai.models.generateContent({
           model: "gemini-3-flash-preview",
@@ -130,18 +135,25 @@ app.post("/api/gemini", async (req, res) => {
         let promptSnippet = "";
         if (isSketch) {
           if (payload.isBase) {
-             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a PHOTOREALISTIC, high-end beauty-model portrait of the EXACT face provided. 
-             The image should have a professional studio lighting aesthetic, highly polished skin, and "beauty model" quality.
-             DO NOT ALTER facial features, eye shape, nose structure, or expression. 
-             Render ONLY the head and neck with a clean bald head (hair removed). 
-             Use a pure, solid white background. The goal is to perfectly preserve the person's identity in a high-end beauty-shot form.`;
+             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a stunning, high-contrast black and white fashion sketch of the EXACT face provided. 
+             The style should be a professional high-end charcoal and ink fashion illustration with a massive 'WOW factor'.
+             Focus on elegant, bold lines and artistic shading to create a sophisticated, dramatic look.
+             
+             RECOGNIZABILITY BOOST: Include distinct details from the original photo such as jewelry (necklaces, earrings), a small part of the clothing, or unique facial marks. This is CRITICAL for the user to recognize themselves and feel that "WOW" effect.
+             
+             DO NOT ALTER facial features, eye shape, nose structure, or expression. The person must be 100% recognizable.
+             Render the head and neck. For this specific sketch, use a clean bald head on a pure white background.
+             The result should look like a luxury fashion designer's artistic masterpiece.`;
           } else {
-             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a PHOTOREALISTIC, high-end beauty portrait of the person with the hairstyle: ${styleName}. 
-             You are provided with two images: the original photo for identity verification and a "Beauty Avatar" (bald beauty-model portrait of the same person).
-             USE THE BEAUTY AVATAR (bald image) as the primary face and skin reference. 
-             The aesthetic should be professional fashion photography with high-end retouching quality.
-             The face must remain 100% IDENTICAL to the beauty avatar. DO NOT change the eyes, nose, mouth, face shape, or head orientation. 
-             Only add/change the hair to match the style: ${styleName}. Use a solid, pure white background.`;
+             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a stunning black and white fashion illustration of the person with the hairstyle: ${styleName}.
+             The style must be consistent with a high-end charcoal and ink fashion sketch that has a massive 'WOW factor'.
+             
+             RECOGNIZABILITY BOOST: Include distinct details from the original photo such as jewelry (necklaces, earrings), or a hint of the clothing they are wearing. These elements must be rendered in the same artistic fashion sketch style.
+             
+             The face must remain 100% IDENTICAL to the original. DO NOT change the eyes, nose, mouth, face shape, or head orientation.
+             Only change the hair, rendering it in a detailed, artistic way that complements the fashion sketch style.
+             Use clean bold lines and artistic shading on a pure white background. 
+             The goal is a sophisticated, artistic masterpiece where the user perfectly recognizes themselves instantly.`;
           }
         } else {
           promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 

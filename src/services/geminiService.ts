@@ -48,6 +48,7 @@ export interface HairstyleSuggestion {
   name: string;
   description: string;
   rating: number;
+  emotionalEnhancer?: string;
   barberInstructions: string;
   suitabilityReason: string;
   faceShape?: string;

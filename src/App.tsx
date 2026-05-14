@@ -112,6 +112,7 @@ export default function App() {
   const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
+  const [baseSketch, setBaseSketch] = useState<string | null>(null);
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
   const backgroundGenQueueRef = useRef<boolean>(false);
@@ -257,7 +258,8 @@ export default function App() {
     const hasAtLeastOneSketch = Object.keys(hairstyleSketches).length > 0;
     const isInStudioView = showStylingStudio || (dashboardTab === 'studio' && user);
     
-    if (!avatarSketch || !image || isGeneratingBackground || isGenerating) return;
+    // ONLY generate background sketches if user is registered/logged in
+    if (!user || !baseSketch || !image || isGeneratingBackground || isGenerating) return;
     if (!isInStudioView && hasAtLeastOneSketch) return;
     
     const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
@@ -276,7 +278,7 @@ export default function App() {
 
         try {
           const base64Data = image.split(',')[1];
-          const rawSketch = await generateFashionSketch(base64Data, mimeType, style.name, avatarSketch);
+          const rawSketch = await generateFashionSketch(base64Data, mimeType, style.name, baseSketch);
           
           if (rawSketch) {
             // Compress sketch before saving to save space and bandwidth
@@ -310,7 +312,18 @@ export default function App() {
     };
 
     processQueue();
-  }, [avatarSketch, image, !!user, showStylingStudio, dashboardTab, isGenerating]); // Added dependencies to handle state changes
+  }, [baseSketch, image, !!user, showStylingStudio, dashboardTab, isGenerating]); // Added dependencies to handle state changes
+
+  useEffect(() => {
+    if (user && (avatarSketch || baseSketch)) {
+      const userRef = doc(db, 'users', user.uid);
+      setDoc(userRef, { 
+        avatarSketch, 
+        baseSketch,
+        lastActive: serverTimestamp() 
+      }, { merge: true }).catch(err => console.warn("Failed to sync sketches to new user", err));
+    }
+  }, [user, !!avatarSketch, !!baseSketch]);
 
   // Manage body overflow for full-screen modals
   useEffect(() => {
@@ -744,20 +757,13 @@ export default function App() {
         
         // Initial profile sync
         try {
-          const profileData: any = {
+          setDoc(userDocRef, {
             uid: currentUser.uid,
             email: currentUser.email,
             displayName: currentUser.displayName,
             photoURL: currentUser.photoURL,
-            lastActive: serverTimestamp()
-          };
-          
-          // If we already have an avatar sketch in local state, sync it
-          if (avatarSketch) {
-            profileData.avatarSketch = avatarSketch;
-          }
-          
-          setDoc(userDocRef, profileData, { merge: true });
+            createdAt: serverTimestamp()
+          }, { merge: true });
         } catch (e) {
           console.warn("Initial profile sync failed", e);
         }
@@ -788,6 +794,7 @@ export default function App() {
             setStudioCredits(data.studioCredits || 0);
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
+            if (data.baseSketch) setBaseSketch(data.baseSketch);
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -1145,50 +1152,38 @@ export default function App() {
     }
   }, [user, image]);
 
-  // Sync local results and sketches to Firestore on login or when they change
+  // Sync local results and custom results to Firestore on login or when they change
   useEffect(() => {
-    if (user) {
-      const syncLocalData = async () => {
-        // 1. Sync results
-        if (results.length > 0 || customResults.length > 0) {
-          const allResults = [...results, ...customResults];
-          const unsaved = allResults.filter(res => !savedResults.some(sr => sr.id === res.id));
-          
-          for (const res of unsaved) {
-            if (res.imageUrl || results.some(r => r.id === res.id)) {
-              await saveResult(res, true);
-            }
-          }
-        }
+    if (user && (results.length > 0 || customResults.length > 0)) {
+      const syncLocalResults = async () => {
+        // Combined list of all results to check
+        const allResults = [...results, ...customResults];
         
-        // 2. Sync avatar sketch if missing in Firestore
-        if (avatarSketch && (!userData || !userData.avatarSketch)) {
-          const userDocRef = doc(db, 'users', user.uid);
-          await updateDoc(userDocRef, { avatarSketch }).catch(e => console.warn("Failed to sync avatar sketch", e));
-        }
+        // Find results that are NOT in savedResults
+        const unsaved = allResults.filter(res => 
+          !savedResults.some(sr => sr.id === res.id)
+        );
 
-        // 3. Sync hairstyle sketches
-        const sketchIds = Object.keys(hairstyleSketches);
-        if (sketchIds.length > 0) {
-          for (const id of sketchIds) {
-            const sketchRef = doc(db, 'users', user.uid, 'sketches', id);
-            // We use setDoc to avoid unnecessary reads
-            await setDoc(sketchRef, { 
-              id, 
-              data: hairstyleSketches[id],
-              updatedAt: serverTimestamp() 
-            }, { merge: true }).catch(e => console.warn(`Failed to sync sketch ${id}`, e));
+        if (unsaved.length === 0) return;
+
+        console.log(`Syncing ${unsaved.length} results to Firestore...`);
+        // Use Promise.all to handle sync more efficiently, but be careful with quota
+        // For larger sets, we might want to batch, but usually it's just a few
+        for (const res of unsaved) {
+          if (res.imageUrl || results.some(r => r.id === res.id)) {
+            await saveResult(res, true);
           }
         }
       };
       
+      // Delay slightly to allow state to settle
       const timer = setTimeout(() => {
-        syncLocalData();
-      }, 2000); // Wait a bit longer to ensure data is settled
+        syncLocalResults();
+      }, 1000);
       
       return () => clearTimeout(timer);
     }
-  }, [user?.uid, results.length, customResults.length, savedResults.length, !!avatarSketch, Object.keys(hairstyleSketches).length]);
+  }, [user?.uid, results.length, customResults.length, savedResults.length]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -1742,21 +1737,33 @@ export default function App() {
       const generateSketchDelayed = async () => {
         try {
           await new Promise(resolve => setTimeout(resolve, 2000));
-          const sketch = await generateBaseAvatarSketch(base64Data, mimeType);
-          if (sketch) {
-            setAvatarSketch(sketch);
-            if (auth.currentUser) {
-              const userRef = doc(db, 'users', auth.currentUser.uid);
-              // Use setDoc with merge: true instead of updateDoc
-              await setDoc(userRef, { 
-                avatarSketch: sketch,
-                lastActive: serverTimestamp()
-              }, { merge: true });
-              console.log("Avatar sketch successfully persisted to user profile.");
+          // 1. Generate bald base sketch for consistent background generations
+          const baldSketch = await generateBaseAvatarSketch(base64Data, mimeType);
+          if (baldSketch) {
+            setBaseSketch(baldSketch);
+            
+            // 2. Immediately generate a styled version of the sketch using the first suggestion
+            // This provides the "Wow factor" and avoids showing a bald sketch on the results page
+            const styledSketch = await generateFashionSketch(base64Data, mimeType, suggestions[0].name, baldSketch);
+            
+            if (styledSketch) {
+              setAvatarSketch(styledSketch);
+              
+              if (auth.currentUser) {
+                const userRef = doc(db, 'users', auth.currentUser.uid);
+                await setDoc(userRef, { 
+                  avatarSketch: styledSketch,
+                  baseSketch: baldSketch, // Save the reference base too
+                  lastActive: serverTimestamp()
+                }, { merge: true });
+                console.log("Sketches successfully persisted to user profile.");
+              }
+            } else {
+              setAvatarSketch(baldSketch);
             }
           }
         } catch (err) {
-          console.warn("Avatar sketch failed (likely rate limit), skipping...", err);
+          console.warn("Sketch generation failed (likely rate limit), skipping...", err);
         }
       };
       
@@ -2034,19 +2041,34 @@ export default function App() {
         donts: ['Sehr harter Pony', 'Extrem flaches Volumen', 'Strenge Mittelscheitel']
       });
 
-      // Also generate the base sketch for the studio if not already done
-      if (!avatarSketch) {
+      // Also generate the sketches for the studio if not already done
+      if (!avatarSketch || !baseSketch) {
         setIsGeneratingSketch(true);
         try {
-          const sketch = await generateBaseAvatarSketch(base64Data, mimeType);
-          if (sketch) {
-            setAvatarSketch(sketch);
-            // Also persist to DB if user logged in
-            if (auth.currentUser) {
-              const userRef = doc(db, 'users', auth.currentUser.uid);
-              // Use setDoc with merge: true instead of updateDoc to ensure it works even if doc doesn't exist yet
-              setDoc(userRef, { avatarSketch: sketch, lastActive: serverTimestamp() }, { merge: true })
-                .catch(e => console.warn("Failed to persist avatar sketch to Firestore", e));
+          const baldSketch = await generateBaseAvatarSketch(base64Data, mimeType);
+          if (baldSketch) {
+            setBaseSketch(baldSketch);
+            
+            // If we have an analysis, use the first suggestion to create a styled preview sketch
+            const styleName = analysis[0]?.name || 'Modern Hairstyle';
+            const styledSketch = await generateFashionSketch(base64Data, mimeType, styleName, baldSketch);
+            
+            if (styledSketch) {
+              setAvatarSketch(styledSketch);
+              
+              // Also persist to DB if user logged in
+              if (auth.currentUser) {
+                const userRef = doc(db, 'users', auth.currentUser.uid);
+                setDoc(userRef, { 
+                  avatarSketch: styledSketch, 
+                  baseSketch: baldSketch,
+                  lastActive: serverTimestamp() 
+                }, { merge: true })
+                  .catch(e => console.warn("Failed to persist sketches to Firestore", e));
+              }
+            } else {
+              // Fallback to bald if styled fails
+              setAvatarSketch(baldSketch);
             }
           }
         } catch (sketchErr) {
@@ -2094,16 +2116,29 @@ export default function App() {
 
     try {
       const base64Data = processedImage.split(',')[1];
-      const sketch = await generateBaseAvatarSketch(base64Data, type);
-      if (sketch) {
-        setAvatarSketch(sketch);
-        if (auth.currentUser) {
-          try {
-            const userRef = doc(db, 'users', auth.currentUser.uid);
-            await updateDoc(userRef, { avatarSketch: sketch });
-          } catch (e) {
-            console.warn("Failed to persist sketch on studio upload", e);
+      const baldSketch = await generateBaseAvatarSketch(base64Data, type);
+      if (baldSketch) {
+        setBaseSketch(baldSketch);
+        
+        // Find a suitable style or use default
+        const styleName = results[0]?.name || 'Classic Look';
+        const styledSketch = await generateFashionSketch(base64Data, type, styleName, baldSketch);
+        
+        if (styledSketch) {
+          setAvatarSketch(styledSketch);
+          if (auth.currentUser) {
+            try {
+              const userRef = doc(db, 'users', auth.currentUser.uid);
+              await setDoc(userRef, { 
+                avatarSketch: styledSketch, 
+                baseSketch: baldSketch 
+              }, { merge: true });
+            } catch (e) {
+              console.warn("Failed to persist sketches on studio upload", e);
+            }
           }
+        } else {
+          setAvatarSketch(baldSketch);
         }
       }
     } catch (err) {
@@ -3317,9 +3352,17 @@ export default function App() {
                                     </div>
                                   )}
                                   {result.imageUrl && (
-                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                                      <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
-                                      <span className="text-sm font-bold">{result.rating || 90}% Match</span>
+                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm">
+                                      <div className="flex items-center gap-1">
+                                        <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
+                                        <span className="text-sm font-bold">{result.rating || 90}% Match</span>
+                                      </div>
+                                      {result.emotionalEnhancer && (
+                                        <>
+                                          <div className="w-[1px] h-3 bg-black/10 mx-1" />
+                                          <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-none whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                        </>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -3524,9 +3567,17 @@ export default function App() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                          <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
-                          <span className="text-sm font-bold">{result.rating}% Match</span>
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm">
+                          <div className="flex items-center gap-1">
+                            <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
+                            <span className="text-sm font-bold">{result.rating}% Match</span>
+                          </div>
+                          {result.emotionalEnhancer && (
+                            <>
+                              <div className="w-[1px] h-3 bg-black/10 mx-1" />
+                              <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-none whitespace-nowrap">{result.emotionalEnhancer}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="space-y-1">
@@ -4325,9 +4376,17 @@ export default function App() {
                                     {isSaving === result.id ? <Loader2 className="animate-spin" size={18} /> : isResultSaved(result.id) ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                                   </button>
                                 </div>
-                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                                  <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
-                                  <span className="text-sm font-bold">{result.rating}% Match</span>
+                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm">
+                                  <div className="flex items-center gap-1">
+                                    <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
+                                    <span className="text-sm font-bold">{result.rating}% Match</span>
+                                  </div>
+                                  {result.emotionalEnhancer && (
+                                    <>
+                                      <div className="w-[1px] h-3 bg-black/10 mx-1" />
+                                      <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-none whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                    </>
+                                  )}
                                 </div>
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
                                   <span className="text-white font-medium flex items-center gap-2">
@@ -4361,7 +4420,7 @@ export default function App() {
                           <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
                             <Loader2 className="animate-spin text-[#FF9EBE]" size={32} />
                             <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">Wird generiert...</p>
+                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">Dein perfekter Look wird erstellt und ist gleich fertig.</p>
                               <p className="text-[8px] text-brand-primary/40 leading-tight">Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren.</p>
                             </div>
                           </div>
@@ -4923,9 +4982,16 @@ export default function App() {
               <div className="w-full md:w-1/2 p-8 md:p-12 overflow-y-auto space-y-8">
                 <div className="flex justify-between items-start">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-[#FF9EBE]">
-                      <Star size={20} className="fill-[#FF9EBE]" />
-                      <span className="font-bold text-lg">{selectedResult.rating}% Match</span>
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <div className="flex items-center gap-2 text-[#FF9EBE]">
+                        <Star size={20} className="fill-[#FF9EBE]" />
+                        <span className="font-bold text-lg">{selectedResult.rating}% Match</span>
+                      </div>
+                      {selectedResult.emotionalEnhancer && (
+                        <span className="text-sm font-bold text-[#FF9EBE] italic bg-[#FF9EBE]/10 px-3 py-1 rounded-full line-clamp-1">
+                          {selectedResult.emotionalEnhancer}
+                        </span>
+                      )}
                     </div>
                     <h2 className="text-4xl font-serif font-bold">{selectedResult.name}</h2>
                   </div>
