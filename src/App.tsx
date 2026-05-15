@@ -110,6 +110,7 @@ export default function App() {
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [pricingSource, setPricingSource] = useState<'general' | 'styling_studio'>('general');
   const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
+  const [expandedEnhancerId, setExpandedEnhancerId] = useState<string | null>(null);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
   const [baseSketch, setBaseSketch] = useState<string | null>(null);
@@ -3374,13 +3375,19 @@ export default function App() {
                                     </div>
                                   )}
                                   {result.imageUrl && (
-                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden group-hover:pr-3">
+                                    <div 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedEnhancerId(expandedEnhancerId === (result.id || index.toString()) ? null : (result.id || index.toString()));
+                                      }}
+                                      className={`absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden cursor-pointer ${(expandedEnhancerId === (result.id || index.toString())) ? 'pr-3' : 'group-hover:pr-3'}`}
+                                    >
                                       <div className="flex items-center gap-1 px-3 py-1 shrink-0">
                                         <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
                                         <span className="text-sm font-bold">{result.rating || 90}% Match</span>
                                       </div>
                                       {result.emotionalEnhancer && (
-                                        <div className="flex items-center max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 transition-all duration-500 ease-in-out">
+                                        <div className={`flex items-center transition-all duration-500 ease-in-out ${(expandedEnhancerId === (result.id || index.toString())) ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100'}`}>
                                           <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
                                           <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
                                         </div>
@@ -3589,13 +3596,19 @@ export default function App() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden group-hover:pr-3">
+                        <div 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedEnhancerId(expandedEnhancerId === result.id ? null : result.id);
+                          }}
+                          className={`absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden cursor-pointer ${expandedEnhancerId === result.id ? 'pr-3' : 'group-hover:pr-3'}`}
+                        >
                           <div className="flex items-center gap-1 px-3 py-1 shrink-0">
                             <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
                             <span className="text-sm font-bold">{result.rating}% Match</span>
                           </div>
                           {result.emotionalEnhancer && (
-                            <div className="flex items-center max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 transition-all duration-500 ease-in-out">
+                            <div className={`flex items-center transition-all duration-500 ease-in-out ${expandedEnhancerId === result.id ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100'}`}>
                               <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
                               <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
                             </div>
@@ -4398,13 +4411,19 @@ export default function App() {
                                     {isSaving === result.id ? <Loader2 className="animate-spin" size={18} /> : isResultSaved(result.id) ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                                   </button>
                                 </div>
-                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden group-hover:pr-3">
+                                <div 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedEnhancerId(expandedEnhancerId === result.id ? null : result.id);
+                                  }}
+                                  className={`absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden cursor-pointer ${expandedEnhancerId === result.id ? 'pr-3' : 'group-hover:pr-3'}`}
+                                >
                                   <div className="flex items-center gap-1 px-3 py-1 shrink-0">
                                     <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
                                     <span className="text-sm font-bold">{result.rating}% Match</span>
                                   </div>
                                   {result.emotionalEnhancer && (
-                                    <div className="flex items-center max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 transition-all duration-500 ease-in-out">
+                                    <div className={`flex items-center transition-all duration-500 ease-in-out ${expandedEnhancerId === result.id ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100'}`}>
                                       <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
                                       <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
                                     </div>
@@ -5130,13 +5149,13 @@ export default function App() {
               <div className="w-full md:w-1/2 p-8 md:p-12 overflow-y-auto space-y-8">
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-6">
                   <div className="space-y-2 w-full sm:w-auto">
-                    <div className="flex items-baseline gap-3 flex-wrap">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-2 text-[#FF9EBE] shrink-0">
                         <Star size={20} className="fill-[#FF9EBE]" />
                         <span className="font-bold text-lg">{selectedResult.rating}% Match</span>
                       </div>
                       {selectedResult.emotionalEnhancer && (
-                        <span className="text-sm font-bold text-[#FF9EBE] italic bg-[#FF9EBE]/10 px-3 py-1 rounded-full truncate max-w-full">
+                        <span className="text-sm font-bold text-[#FF9EBE] italic bg-[#FF9EBE]/10 px-3 py-1 rounded-full whitespace-normal">
                           {selectedResult.emotionalEnhancer}
                         </span>
                       )}
