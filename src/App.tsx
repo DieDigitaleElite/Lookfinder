@@ -111,6 +111,7 @@ export default function App() {
   const [pricingSource, setPricingSource] = useState<'general' | 'styling_studio'>('general');
   const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
   const [expandedEnhancerId, setExpandedEnhancerId] = useState<string | null>(null);
+  const savingIdsRef = useRef<Set<string>>(new Set());
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_avatar_sketch'));
   const [baseSketch, setBaseSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_base_sketch'));
@@ -1097,85 +1098,113 @@ export default function App() {
     }
   }, [user, results, customResults, savedResults, userData, avatarSketch, faceAnalysis]);
 
-  // Auto-resume generation of missing images if user becomes premium
-  useEffect(() => {
-    const resumeGeneration = async () => {
-      if (isPremium && results.length > 0 && !isGenerating && image) {
-        const missingIndices = results
-          .map((r, i) => (!r.imageUrl && !r.failed ? i : -1))
-          .filter(i => i !== -1);
+  // Trigger manual generation of missing images for premium users
+  const handleGenerateRemaining = async () => {
+    if (!isPremium || results.length === 0 || isGenerating || !image) return;
+    
+    // Track event
+    ReactGA.event({
+      category: 'User',
+      action: 'click_generate_remaining',
+      value: results.length
+    });
+
+    const missingIndices = results
+      .map((r, i) => (!r.imageUrl && !r.failed ? i : -1))
+      .filter(i => i !== -1);
+      
+    if (missingIndices.length === 0) return;
+    
+    console.log("Starting manual generation for missing premium styles:", missingIndices);
+    setIsGenerating(true);
+    setGenerationProgress(Math.round((results.filter(r => !!r.imageUrl).length / results.length) * 100));
+    
+    const base64Data = image.split(',')[1];
+    const mimeType = image.split(';')[0].split(':')[1] || 'image/jpeg';
+    
+    try {
+      // Generate missing images sequentially
+      for (let idx = 0; idx < missingIndices.length; idx++) {
+        const i = missingIndices[idx];
+        const suggestion = results[i];
         
-        if (missingIndices.length > 0) {
-          console.log("Resuming generation for missing premium styles:", missingIndices);
-          setIsGenerating(true);
+        try {
+          // Moderate delay between requests to be resource friendly and avoid rate limits
+          if (idx > 0) await new Promise(resolve => setTimeout(resolve, 5000));
           
-          const base64Data = image.split(',')[1];
-          const mimeType = image.split(';')[0].split(':')[1] || 'image/jpeg';
+          const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
           
-          // Generate missing images sequentially
-          for (let idx = 0; idx < missingIndices.length; idx++) {
-            const i = missingIndices[idx];
-            const suggestion = results[i];
-            
-            try {
-              // Moderate delay between requests to be resource friendly and avoid rate limits
-              if (idx > 0) await new Promise(resolve => setTimeout(resolve, 3000));
-              
-              const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
-              
-              const updatedResult = imageUrl 
-                ? { ...suggestion, imageUrl, failed: false }
-                : { ...suggestion, failed: true };
+          const updatedResult = imageUrl 
+            ? { ...suggestion, imageUrl, sourceImageUrl: image, failed: false }
+            : { ...suggestion, failed: true };
 
-              setResults(prev => {
-                const newResults = [...prev];
-                newResults[i] = updatedResult;
-                return newResults;
-              });
+          setResults(prev => {
+            const newResults = [...prev];
+            newResults[i] = updatedResult;
+            return newResults;
+          });
 
-              // Auto-save to history for premium users
-              if (user && updatedResult.imageUrl) {
-                saveResultToHistory(updatedResult);
-              }
-              
-              // Update progress
-              const currentCompleted = results.filter(r => !!r.imageUrl || r.failed).length + (idx + 1);
-              setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
-            } catch (err) {
-              console.error(`Failed to resume generation for style ${i}`, err);
-              setResults(prev => {
-                const newResults = [...prev];
-                newResults[i] = { ...newResults[i], failed: true };
-                return newResults;
-              });
-            }
+          // Auto-save to history for premium users
+          if (user && updatedResult.imageUrl) {
+            await saveResult(updatedResult, true);
           }
-
-          setGenerationProgress(100);
-          setIsGenerating(false);
           
-          // Trigger confetti again for the full unlock
-          confetti({
-            particleCount: 100,
-            spread: 60,
-            origin: { y: 0.7 },
-            colors: ['#FF9EBE', '#1a1a1a', '#ffffff']
+          // Update progress
+          const currentCompleted = results.filter(r => !!r.imageUrl || r.failed).length + (idx + 1);
+          setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
+        } catch (err) {
+          console.error(`Failed to generate missing style ${i}`, err);
+          setResults(prev => {
+            const newResults = [...prev];
+            newResults[i] = { ...newResults[i], failed: true };
+            return newResults;
           });
         }
       }
-    };
-
-    resumeGeneration();
-  }, [isPremium, results.length, isGenerating, image]);
+      
+      // Trigger confetti after the full unlock
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#FF9EBE', '#1a1a1a', '#ffffff']
+      });
+    } finally {
+      setIsGenerating(false);
+      setGenerationProgress(100);
+    }
+  };
 
   // Auto-save results when user logs in or results are generated while logged in
   useEffect(() => {
     if (user && (results.length > 0 || customResults.length > 0)) {
-      [...results, ...customResults].forEach(result => {
-        if (result.imageUrl && !isResultSaved(result.id)) {
-          saveResult(result, true);
+      const syncResults = async () => {
+        // Collect all results that have an image but are not saved yet
+        const allPending = [...results, ...customResults].filter(result => 
+          result.imageUrl && 
+          !isResultSaved(result.id) && 
+          !savingIdsRef.current.has(result.id)
+        );
+
+        if (allPending.length === 0) return;
+
+        console.log(`Syncing ${allPending.length} results to Firestore sequentially...`);
+        
+        // Save each one sequentially to ensure stability and wait for state updates
+        for (const result of allPending) {
+          savingIdsRef.current.add(result.id);
+          try {
+            await saveResult(result, true);
+            console.log(`Synced look ${result.id} to user history`);
+          } catch (err) {
+            console.warn(`Sync failed for look ${result.id}`, err);
+            // If it failed, remove from savingIds so it can be retried if needed
+            savingIdsRef.current.delete(result.id);
+          }
         }
-      });
+      };
+
+      syncResults();
     }
   }, [user, results, customResults, savedResults]);
 
@@ -4062,8 +4091,16 @@ export default function App() {
             >
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-4 max-w-2xl">
-                  <h2 className="text-3xl md:text-4xl font-serif font-bold">Das sind deine ersten 3 personalisierten Styles🔥</h2>
-                  <p className="text-brand-primary/80 text-base md:text-lg font-medium">Jeder einzelne wurde speziell für deine Gesichtsform und deinen Typ erstellt.</p>
+                  <h2 className="text-3xl md:text-4xl font-serif font-bold">
+                    {isPremium 
+                      ? "Deine exklusiven Premium-Styles ✨" 
+                      : "Das sind deine ersten 3 personalisierten Styles🔥"}
+                  </h2>
+                  <p className="text-brand-primary/80 text-base md:text-lg font-medium">
+                    {isPremium 
+                      ? "Dein Pro-Zugang ist aktiv! Entdecke jetzt deine volle Typberatung."
+                      : "Jeder einzelne wurde speziell für deine Gesichtsform und deinen Typ erstellt."}
+                  </p>
                   <div className="space-y-2 pt-2">
                     <p className="text-brand-primary/60 font-semibold">Tippe auf einen Look und erhalte sofort:</p>
                     <ul className="text-brand-primary/60 space-y-1 list-disc list-inside ml-1">
@@ -4073,6 +4110,24 @@ export default function App() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
+                  {isPremium && results.some(r => !r.imageUrl && !r.failed) && (
+                    <motion.button 
+                      initial={{ scale: 0.9, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={handleGenerateRemaining}
+                      disabled={isGenerating}
+                      className="px-8 py-5 bg-[#FF9EBE] text-white rounded-2xl font-black shadow-xl shadow-[#FF9EBE]/30 flex flex-col items-center gap-1 group transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        {isGenerating ? <Loader2 className="animate-spin" size={24} /> : <Sparkles className="group-hover:rotate-12 transition-transform" size={24} />}
+                        <span className="text-lg uppercase tracking-widest">Alle 6 weiteren Styles laden</span>
+                      </div>
+                      <span className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Kostenlos in Pro enthalten</span>
+                    </motion.button>
+                  )}
+                  
                   <button 
                     onClick={() => handleCreatePoll(results[0])}
                     disabled={isCreatingPoll || results.filter(r => r.imageUrl).length < 2}
@@ -4094,9 +4149,9 @@ export default function App() {
                     </motion.div>
                   )}
                   {isGenerating && (
-                    <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full">
+                    <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full border border-[#FF9EBE]/20">
                       <Loader2 className="animate-spin" size={18} />
-                      <span className="text-sm">Weitere Styles werden geladen ({results.filter(r => !!r.imageUrl).length}/{isPremium ? 9 : 3})</span>
+                      <span className="text-sm font-bold uppercase tracking-widest">Wird generiert ({results.filter(r => !!r.imageUrl).length}/{results.length})</span>
                     </div>
                   )}
                 </div>
@@ -4523,10 +4578,18 @@ export default function App() {
                           </div>
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
-                            <Loader2 className="animate-spin text-[#FF9EBE]" size={32} />
+                            <Loader2 className={`animate-spin text-[#FF9EBE] ${isGenerating ? 'opacity-100' : 'opacity-20'}`} size={32} />
                             <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">Dein perfekter Look wird erstellt und ist gleich fertig.</p>
-                              <p className="text-[8px] text-brand-primary/40 leading-tight">Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren.</p>
+                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">
+                                {isGenerating ? "Dein exklusiver Look wird erstellt..." : "Bereit zum Generieren ✨"}
+                              </p>
+                              <p className="text-[8px] text-brand-primary/40 leading-tight">
+                                {isGenerating 
+                                  ? "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."
+                                  : isPremium 
+                                    ? "Klicke oben auf 'Alle Styles laden', um deine Premium-Beratung zu vervollständigen."
+                                    : "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."}
+                              </p>
                             </div>
                           </div>
                         )}
