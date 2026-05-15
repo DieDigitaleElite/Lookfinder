@@ -113,6 +113,8 @@ export default function App() {
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
   const [baseSketch, setBaseSketch] = useState<string | null>(null);
+  const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(null);
+  const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(null);
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
   const backgroundGenQueueRef = useRef<boolean>(false);
@@ -258,16 +260,19 @@ export default function App() {
     const hasAtLeastOneSketch = Object.keys(hairstyleSketches).length > 0;
     const isInStudioView = showStylingStudio || (dashboardTab === 'studio' && user);
     
-    // ONLY generate background sketches if user is registered/logged in
-    if (!user || !baseSketch || !image || isGeneratingBackground || isGenerating) return;
-    if (!isInStudioView && hasAtLeastOneSketch) return;
+    // Determine best source for background generation
+    const sourceImage = sketchReferenceImage || image;
+    const sourceMime = sketchReferenceMimeType || mimeType;
+
+    // ONLY generate background sketches if user is registered/logged in and we have a source
+    if (!user || !baseSketch || !sourceImage || isGeneratingBackground || isGenerating) return;
     
     const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
     if (stylesToGenerate.length === 0) return;
 
     const processQueue = async () => {
       setIsGeneratingBackground(true);
-      console.log(`Starting background generation for ${stylesToGenerate.length} styles...`);
+      console.log(`Starting background generation for ${stylesToGenerate.length} styles using ${sketchReferenceImage ? 'reference' : 'current'} image...`);
       
       let localSketches = { ...hairstyleSketches };
 
@@ -277,8 +282,8 @@ export default function App() {
         if (isGenerating) break; // Pause if user starts a new main generation
 
         try {
-          const base64Data = image.split(',')[1];
-          const rawSketch = await generateFashionSketch(base64Data, mimeType, style.name, baseSketch);
+          const base64Data = sourceImage.split(',')[1];
+          const rawSketch = await generateFashionSketch(base64Data, sourceMime, style.name, baseSketch);
           
           if (rawSketch) {
             // Compress sketch before saving to save space and bandwidth
@@ -795,6 +800,8 @@ export default function App() {
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
             if (data.baseSketch) setBaseSketch(data.baseSketch);
+            if (data.sketchReferenceImage) setSketchReferenceImage(data.sketchReferenceImage);
+            if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -1755,10 +1762,14 @@ export default function App() {
                 const userRef = doc(db, 'users', auth.currentUser.uid);
                 await setDoc(userRef, { 
                   avatarSketch: styledSketch,
-                  baseSketch: baldSketch, // Save the reference base too
+                  baseSketch: baldSketch,
+                  sketchReferenceImage: image, // Store the reference image used for sketches
+                  sketchReferenceMimeType: mimeType,
                   lastActive: serverTimestamp()
                 }, { merge: true });
-                console.log("Sketches successfully persisted to user profile.");
+                setSketchReferenceImage(image);
+                setSketchReferenceMimeType(mimeType);
+                console.log("Sketches and reference image successfully persisted to user profile.");
               }
             } else {
               setAvatarSketch(baldSketch);
@@ -2114,7 +2125,12 @@ export default function App() {
     // Resize image immediately to keep memory usage low and prevent API timeouts
     const processedImage = await fastResizeImage(base64, 1024, 0.7);
     setImage(processedImage);
-    setAvatarSketch(null); // Clear previous sketch
+    
+    // Only generate NEW sketches if none exist for this user
+    if (avatarSketch && baseSketch) {
+      console.log("Using existing sketches for studio; skipping regeneration on new upload.");
+      return;
+    }
 
     try {
       const base64Data = processedImage.split(',')[1];
@@ -2133,8 +2149,12 @@ export default function App() {
               const userRef = doc(db, 'users', auth.currentUser.uid);
               await setDoc(userRef, { 
                 avatarSketch: styledSketch, 
-                baseSketch: baldSketch 
+                baseSketch: baldSketch,
+                sketchReferenceImage: processedImage,
+                sketchReferenceMimeType: type
               }, { merge: true });
+              setSketchReferenceImage(processedImage);
+              setSketchReferenceMimeType(type);
             } catch (e) {
               console.warn("Failed to persist sketches on studio upload", e);
             }
@@ -3354,15 +3374,15 @@ export default function App() {
                                     </div>
                                   )}
                                   {result.imageUrl && (
-                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm">
-                                      <div className="flex items-center gap-1">
+                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm max-w-[calc(100%-100px)]">
+                                      <div className="flex items-center gap-1 shrink-0">
                                         <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
                                         <span className="text-sm font-bold">{result.rating || 90}% Match</span>
                                       </div>
                                       {result.emotionalEnhancer && (
                                         <>
-                                          <div className="w-[1px] h-3 bg-black/10 mx-1" />
-                                          <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-none whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                          <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
+                                          <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-tight truncate">{result.emotionalEnhancer}</span>
                                         </>
                                       )}
                                     </div>
@@ -3569,15 +3589,15 @@ export default function App() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm">
-                          <div className="flex items-center gap-1">
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm max-w-[calc(100%-40px)]">
+                          <div className="flex items-center gap-1 shrink-0">
                             <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
                             <span className="text-sm font-bold">{result.rating}% Match</span>
                           </div>
                           {result.emotionalEnhancer && (
                             <>
-                              <div className="w-[1px] h-3 bg-black/10 mx-1" />
-                              <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-none whitespace-nowrap">{result.emotionalEnhancer}</span>
+                              <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
+                              <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-tight truncate">{result.emotionalEnhancer}</span>
                             </>
                           )}
                         </div>
@@ -4378,15 +4398,15 @@ export default function App() {
                                     {isSaving === result.id ? <Loader2 className="animate-spin" size={18} /> : isResultSaved(result.id) ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                                   </button>
                                 </div>
-                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm">
-                                  <div className="flex items-center gap-1">
+                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm max-w-[calc(100%-100px)]">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
                                     <span className="text-sm font-bold">{result.rating}% Match</span>
                                   </div>
                                   {result.emotionalEnhancer && (
                                     <>
-                                      <div className="w-[1px] h-3 bg-black/10 mx-1" />
-                                      <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-none whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                      <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
+                                      <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-tight truncate">{result.emotionalEnhancer}</span>
                                     </>
                                   )}
                                 </div>
@@ -5108,22 +5128,22 @@ export default function App() {
               </div>
 
               <div className="w-full md:w-1/2 p-8 md:p-12 overflow-y-auto space-y-8">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row justify-between items-start gap-6">
+                  <div className="space-y-2 w-full sm:w-auto">
                     <div className="flex items-baseline gap-3 flex-wrap">
-                      <div className="flex items-center gap-2 text-[#FF9EBE]">
+                      <div className="flex items-center gap-2 text-[#FF9EBE] shrink-0">
                         <Star size={20} className="fill-[#FF9EBE]" />
                         <span className="font-bold text-lg">{selectedResult.rating}% Match</span>
                       </div>
                       {selectedResult.emotionalEnhancer && (
-                        <span className="text-sm font-bold text-[#FF9EBE] italic bg-[#FF9EBE]/10 px-3 py-1 rounded-full line-clamp-1">
+                        <span className="text-sm font-bold text-[#FF9EBE] italic bg-[#FF9EBE]/10 px-3 py-1 rounded-full truncate max-w-full">
                           {selectedResult.emotionalEnhancer}
                         </span>
                       )}
                     </div>
-                    <h2 className="text-4xl font-serif font-bold">{selectedResult.name}</h2>
+                    <h2 className="text-3xl md:text-4xl font-serif font-bold break-words">{selectedResult.name}</h2>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 shrink-0">
                     <button 
                       onClick={() => generatePDF(selectedResult)}
                       className="hidden md:flex w-12 h-12 bg-brand-primary/5 text-brand-primary rounded-full items-center justify-center hover:bg-brand-primary/10 transition-colors"

@@ -48,14 +48,17 @@ app.post("/api/gemini", async (req, res) => {
         
         const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor.
         REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (PFLICHT):
-        1. VORSCHLAG: Muss eine MITTELLANGE Frisur sein.
+        - Die ersten 3 Vorschläge MÜSSEN sich deutlich voneinander und von der aktuellen Frisur auf dem Foto unterscheiden.
+        - Es soll eine klare Typveränderung sichtbar sein, während sie dennoch perfekt zur Gesichtsform passen.
+        1. VORSCHLAG: Muss eine MITTELLANGE Frisur sein (z.B. Bob-Varianten).
         2. VORSCHLAG: Muss eine LANGE Frisur sein.
-        3. VORSCHLAG: Muss eine KURZHAARFRISUR sein.
+        3. VORSCHLAG: Muss eine KURZHAARFRISUR sein (z.B. Pixie oder kurzer Shag).
         
         STRICT IDENTITY GUIDELINES:
-        - Die ersten 3 Vorschläge MÜSSEN die Original-Haarfarbe und -Struktur berücksichtigen.
-        - Der Fokus liegt zu 100% auf der Erhaltung der Identität der Person.
-        - Die Frisuren müssen perfekt zur Gesichtsform passen.
+        - Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) zu 100% EXAKT.
+        - Behalte die Original-Haarfarbe des Nutzers so nah wie möglich bei (nur minimale, harmonische Nuancen-Abweichungen erlaubt).
+        - Die Augenfarbe und Blickrichtung dürfen NIEMALS verändert werden.
+        - Der Fokus liegt auf der Erhaltung der Wiedererkennbarkeit.
         
         NEUES FELD "emotionalEnhancer":
         Erstelle für JEDEN Vorschlag einen kurzen, emotionalen Verstärker (max. 5-7 Wörter), der den User begeistert.
@@ -135,25 +138,18 @@ app.post("/api/gemini", async (req, res) => {
         let promptSnippet = "";
         if (isSketch) {
           if (payload.isBase) {
-             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a stunning, high-contrast black and white fashion sketch of the EXACT face provided. 
-             The style should be a professional high-end charcoal and ink fashion illustration with a massive 'WOW factor'.
-             Focus on elegant, bold lines and artistic shading to create a sophisticated, dramatic look.
-             
-             RECOGNIZABILITY BOOST: Include distinct details from the original photo such as jewelry (necklaces, earrings), a small part of the clothing, or unique facial marks. This is CRITICAL for the user to recognize themselves and feel that "WOW" effect.
-             
-             DO NOT ALTER facial features, eye shape, nose structure, or expression. The person must be 100% recognizable.
-             Render the head and neck. For this specific sketch, use a clean bald head on a pure white background.
-             The result should look like a luxury fashion designer's artistic masterpiece.`;
+             promptSnippet = `Mache einen einfachen Schwarz-Weiß-"Bleistift"-Fashion-Sketch von dem Gesicht des hochgeladenen Bildes.
+             Der Fokus liegt zu 100% auf dem Gesicht, um den User sofort wiedererkennbar zu machen.
+             Stil: Minimalistischer Fashion-Sketch mit Bleistift-Schraffuren.
+             Hintergrund: Rein Weiß.
+             WICHTIG: Die Gesichtszüge müssen EXAKT beibehalten werden (Wiedererkennungswert).
+             Für diesen speziellen Sketch: Zeichne das Gesicht ohne Haare (clean bald), aber mit einer ersten, angedeuteten Standard-Frisur.`;
           } else {
-             promptSnippet = `STRICT IDENTITY GUIDELINE: Create a stunning black and white fashion illustration of the person with the hairstyle: ${styleName}.
-             The style must be consistent with a high-end charcoal and ink fashion sketch that has a massive 'WOW factor'.
-             
-             RECOGNIZABILITY BOOST: Include distinct details from the original photo such as jewelry (necklaces, earrings), or a hint of the clothing they are wearing. These elements must be rendered in the same artistic fashion sketch style.
-             
-             The face must remain 100% IDENTICAL to the original. DO NOT change the eyes, nose, mouth, face shape, or head orientation.
-             Only change the hair, rendering it in a detailed, artistic way that complements the fashion sketch style.
-             Use clean bold lines and artistic shading on a pure white background. 
-             The goal is a sophisticated, artistic masterpiece where the user perfectly recognizes themselves instantly.`;
+             promptSnippet = `Erstelle einen Schwarz-Weiß-Fashion-Sketch mit Bleistift-Stil (Pencil Sketch) von dem Gesicht der Person.
+             WICHTIG: Ändere die Frisur zu: ${styleName}. Die Zeichnung MUSS den "${styleName}" exakt und deutlich erkennbar wiedergeben.
+             Stil: Künstlerischer Bleistift-Fashion-Sketch, Fokus auf dem Gesicht und der neuen Frisur.
+             Hintergrund: Rein Weiß.
+             WICHTIG: Die Gesichtszüge müssen identisch zum Originalfoto bleiben, damit der User sich zu 100% wiedererkennt.`;
           }
         } else {
           promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 
