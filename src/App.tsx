@@ -4670,9 +4670,9 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
                        {/* Yearly Option */}
-                       <button 
+                       <div 
                           onClick={() => setSelectedPlanId('yearly')}
-                          className={`bg-white p-8 rounded-[2rem] border-4 transition-all shadow-xl relative overflow-hidden flex flex-col text-left group hover:scale-[1.02] ${selectedPlanId === 'yearly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 hover:border-black/10'}`}
+                          className={`bg-white p-6 md:p-8 rounded-[2rem] border-4 transition-all shadow-xl relative overflow-hidden flex flex-col text-left group cursor-pointer hover:scale-[1.01] ${selectedPlanId === 'yearly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 hover:border-black/10'}`}
                        >
                           <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] font-black px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
                             Empfohlen ★
@@ -4687,20 +4687,63 @@ export default function App() {
                                <p className="text-[10px] font-bold text-[#FF9EBE] uppercase tracking-wider mt-1">Nur 3,33 € / Monat (Spare 66%)</p>
                             </div>
 
-                            <ul className="space-y-2 mt-4">
+                            <ul className="space-y-2 mt-4 flex-1">
                               {["Unbegrenzt Styles testen", "Premium-Bibliothek", "HD-Downloads"].map((f, i) => (
                                 <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-brand-primary/70">
                                   <Check size={12} className="text-emerald-500 shrink-0" /> {f}
                                 </li>
                               ))}
                             </ul>
+
+                            {selectedPlanId === 'yearly' && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="pt-4 mt-4 border-t border-black/5 space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="space-y-2">
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToTerms} 
+                                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                  </label>
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToWiderruf} 
+                                      onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                  </label>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    if (!agreedToTerms || !agreedToWiderruf) {
+                                      alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                      return;
+                                    }
+                                    handleCheckout('yearly');
+                                  }}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF9EBE]/90 transition-all shadow-lg flex items-center justify-center gap-2"
+                                >
+                                  <span>Zahlungspflichtig bestellen</span>
+                                  <Zap size={14} />
+                                </button>
+                              </motion.div>
+                            )}
                           </div>
-                       </button>
+                       </div>
 
                        {/* Monthly Option */}
-                       <button 
+                       <div 
                           onClick={() => setSelectedPlanId('monthly')}
-                          className={`bg-white p-8 rounded-[2rem] border-4 transition-all shadow-sm text-left flex flex-col hover:scale-[1.02] ${selectedPlanId === 'monthly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 hover:border-black/10'}`}
+                          className={`bg-white p-6 md:p-8 rounded-[2rem] border-4 transition-all shadow-sm text-left flex flex-col group cursor-pointer hover:scale-[1.01] ${selectedPlanId === 'monthly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 hover:border-black/10'}`}
                        >
                           <div className="space-y-4 flex-1">
                             <div>
@@ -4712,20 +4755,63 @@ export default function App() {
                                <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider mt-1">Max. Flexibilität</p>
                             </div>
 
-                            <ul className="space-y-2 mt-4">
+                            <ul className="space-y-2 mt-4 flex-1">
                               {["Jederzeit kündbar", "Voller Zugriff", "Regelmäßige Updates"].map((f, i) => (
                                 <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-brand-primary/70">
                                   <Check size={12} className="text-emerald-500 shrink-0" /> {f}
                                 </li>
                               ))}
                             </ul>
+
+                            {selectedPlanId === 'monthly' && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="pt-4 mt-4 border-t border-black/5 space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="space-y-2">
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToTerms} 
+                                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                  </label>
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToWiderruf} 
+                                      onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                  </label>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    if (!agreedToTerms || !agreedToWiderruf) {
+                                      alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                      return;
+                                    }
+                                    handleCheckout('monthly');
+                                  }}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF9EBE]/90 transition-all shadow-lg flex items-center justify-center gap-2"
+                                >
+                                  <span>Zahlungspflichtig bestellen</span>
+                                  <Zap size={14} />
+                                </button>
+                              </motion.div>
+                            )}
                           </div>
-                       </button>
+                       </div>
 
                        {/* Studio Single Look */}
-                       <button 
+                       <div 
                           onClick={() => setSelectedPlanId('studio-single')}
-                          className={`bg-white p-8 rounded-[2rem] border-4 transition-all shadow-sm text-left flex flex-col hover:scale-[1.02] ${selectedPlanId === 'studio-single' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 hover:border-black/10'}`}
+                          className={`bg-white p-6 md:p-8 rounded-[2rem] border-4 transition-all shadow-sm text-left flex flex-col group cursor-pointer hover:scale-[1.01] ${selectedPlanId === 'studio-single' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 hover:border-black/10'}`}
                        >
                           <div className="space-y-4 flex-1">
                             <div>
@@ -4737,76 +4823,61 @@ export default function App() {
                                <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider mt-1">Perfekt zum Starten</p>
                             </div>
 
-                            <ul className="space-y-2 mt-4">
+                            <ul className="space-y-2 mt-4 flex-1">
                               {["1 Premium-Look freischalten", "Kein Abo", "Sofort bereit"].map((f, i) => (
                                 <li key={i} className="flex items-center gap-2 text-[11px] font-medium text-brand-primary/70">
                                   <Check size={12} className="text-emerald-500 shrink-0" /> {f}
                                 </li>
                               ))}
                             </ul>
-                          </div>
-                       </button>
-                    </div>
 
-                    <div className="max-w-md mx-auto mt-8">
-                       <AnimatePresence mode="wait">
-                         {selectedPlanId ? (
-                           <motion.div
-                             key="checkout-button"
-                             initial={{ opacity: 0, scale: 0.95 }}
-                             animate={{ opacity: 1, scale: 1 }}
-                             exit={{ opacity: 0, scale: 0.95 }}
-                             className="space-y-4"
-                           >
-                              <div className="flex flex-col gap-3 p-4 bg-white/50 rounded-2xl border border-black/5 text-left">
-                                <label className="flex items-start gap-2 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={agreedToTerms} 
-                                    onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
-                                  />
-                                  <span className="text-[10px] text-brand-primary/60">Ich akzeptiere die AGB & Datenschutzbestimmungen.</span>
-                                </label>
-                                <label className="flex items-start gap-2 cursor-pointer">
-                                  <input 
-                                    type="checkbox" 
-                                    checked={agreedToWiderruf} 
-                                    onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
-                                  />
-                                  <span className="text-[10px] text-brand-primary/60">Ich stimme dem sofortigen Beginn der Dienstleistung & Verlust des Widerrufsrechts zu.</span>
-                                </label>
-                              </div>
-
-                              <button 
-                                onClick={() => {
-                                  if (!agreedToTerms || !agreedToWiderruf) {
-                                    alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
-                                    return;
-                                  }
-                                  handleCheckout(selectedPlanId as any);
-                                }}
-                                className="w-full py-5 bg-[#FF9EBE] text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-3 active:scale-[0.98]"
+                            {selectedPlanId === 'studio-single' && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="pt-4 mt-4 border-t border-black/5 space-y-4"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <span>Zahlungspflichtig bestellen</span>
-                                <div className="w-[1px] h-4 bg-white/30" />
-                                <span>{selectedPlanId === 'yearly' ? '39,99 €' : selectedPlanId === 'monthly' ? '9,99 €' : '1,49 €'}</span>
-                                <Zap size={18} />
-                              </button>
-                           </motion.div>
-                         ) : (
-                           <motion.p 
-                             key="select-hint"
-                             initial={{ opacity: 0 }}
-                             animate={{ opacity: 0.6 }}
-                             className="text-sm font-bold text-brand-primary/40 uppercase tracking-widest italic"
-                           >
-                             Wähle eine Option aus, um fortzufahren
-                           </motion.p>
-                         )}
-                       </AnimatePresence>
+                                <div className="space-y-2">
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToTerms} 
+                                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                  </label>
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToWiderruf} 
+                                      onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                  </label>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    if (!agreedToTerms || !agreedToWiderruf) {
+                                      alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                      return;
+                                    }
+                                    handleCheckout('studio-single');
+                                  }}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF9EBE]/90 transition-all shadow-lg flex items-center justify-center gap-2"
+                                >
+                                  <span>Zahlungspflichtig bestellen</span>
+                                  <Zap size={14} />
+                                </button>
+                              </motion.div>
+                            )}
+                          </div>
+                       </div>
                     </div>
+
+
 
                     <div className="flex items-center justify-center gap-6 pt-4 grayscale opacity-40">
                       <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" className="h-4" referrerPolicy="no-referrer" />
@@ -5520,47 +5591,16 @@ export default function App() {
                     </div>
 
                     <div className="space-y-3 lg:space-y-4">
-                      {/* Legal Checkboxes */}
-                      <div className={`space-y-3 mb-6 p-4 rounded-2xl border transition-all ${(!agreedToTerms || !agreedToWiderruf) && error ? 'bg-red-50 border-red-200' : 'bg-black/5 border-black/5'}`}>
-                        <label className="flex items-start gap-3 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
-                            checked={agreedToTerms} 
-                            onChange={(e) => {
-                              setAgreedToTerms(e.target.checked);
-                              if (e.target.checked && agreedToWiderruf) setError(null);
-                            }}
-                            className="mt-1 w-4 h-4 rounded border-gray-300 text-[#FF9EBE] focus:ring-[#FF9EBE]"
-                          />
-                          <span className="text-[10px] lg:text-xs text-brand-primary/60 leading-relaxed">
-                            Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.
-                          </span>
-                        </label>
-                        <label className="flex items-start gap-3 cursor-pointer group">
-                          <input 
-                            type="checkbox" 
-                            checked={agreedToWiderruf} 
-                            onChange={(e) => {
-                              setAgreedToWiderruf(e.target.checked);
-                              if (e.target.checked && agreedToTerms) setError(null);
-                            }}
-                            className="mt-1 w-4 h-4 rounded border-gray-300 text-[#FF9EBE] focus:ring-[#FF9EBE]"
-                          />
-                          <span className="text-[10px] lg:text-xs text-brand-primary/60 leading-relaxed">
-                            Ich stimme ausdrücklich zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags über digitale Inhalte beginnt. Mir ist bekannt, dass ich dadurch mit Beginn der Ausführung mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.
-                          </span>
-                        </label>
-                      </div>
+
 
                       {/* Yearly Subscription - BEST DEAL */}
                       <div className="relative">
-                        <button 
+                        <div 
                           onClick={() => {
                             setSelectedPlanId('yearly');
                             setError(null);
                           }}
-                          disabled={isCheckingOut}
-                          className={`w-full p-5 lg:p-6 border-4 rounded-[2rem] transition-all text-left group relative overflow-hidden disabled:opacity-50 disabled:grayscale shadow-lg ${selectedPlanId === 'yearly' ? 'border-[#FF9EBE] bg-[#FF9EBE]/10 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
+                          className={`w-full p-5 lg:p-6 border-4 rounded-[2rem] transition-all text-left flex flex-col group relative overflow-hidden shadow-lg cursor-pointer ${selectedPlanId === 'yearly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
                         >
                           <div className="absolute top-0 right-0 bg-[#FF9EBE] text-white text-[10px] lg:text-xs font-black px-3 lg:px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest animate-pulse">
                             ★ Empfohlen ★
@@ -5572,7 +5612,7 @@ export default function App() {
                               <span className="text-[10px] lg:text-xs text-brand-primary/40 line-through">statt 119,88 €</span>
                             </div>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-4">
                             <div className="flex flex-col gap-0.5">
                               <p className="text-xs lg:text-sm font-bold text-[#FF9EBE]">Spare 66% – entspricht 3,33 € / Monat</p>
                             </div>
@@ -5584,100 +5624,245 @@ export default function App() {
                                 </li>
                               ))}
                             </ul>
+
+                            {selectedPlanId === 'yearly' && (
+                              <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="pt-4 border-t border-black/5 space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="space-y-2">
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToTerms} 
+                                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                  </label>
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToWiderruf} 
+                                      onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                  </label>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    if (!agreedToTerms || !agreedToWiderruf) {
+                                      setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                      return;
+                                    }
+                                    handleCheckout('yearly');
+                                  }}
+                                  disabled={isCheckingOut}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                                >
+                                  {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
+                                </button>
+                              </motion.div>
+                            )}
                           </div>
-                        </button>
+                        </div>
                       </div>
 
                       {/* Monthly Subscription */}
-                      <button 
+                      <div 
                         onClick={() => {
                           setSelectedPlanId('monthly');
                           setError(null);
                         }}
-                        disabled={isCheckingOut}
-                        className={`w-full p-4 lg:p-5 border-2 rounded-2xl transition-all text-left group relative disabled:opacity-50 disabled:grayscale ${selectedPlanId === 'monthly' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
+                        className={`w-full p-5 lg:p-6 border-4 rounded-[2rem] transition-all text-left flex flex-col group relative cursor-pointer ${selectedPlanId === 'monthly' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-base lg:text-lg text-brand-primary">Monatsabo</span>
-                          <span className="text-xl lg:text-2xl font-black text-brand-primary">9,99 €</span>
+                          <div className="flex flex-col">
+                            <span className="font-black text-lg lg:text-xl text-brand-primary">Monatsabo</span>
+                            <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">Max. Flexibilität</p>
+                          </div>
+                          <span className="text-xl lg:text-2xl font-black text-brand-primary">9,99 € / Monat</span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Flexibel monatlich kündbar.</p>
+                          
+                          {selectedPlanId === 'monthly' && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              className="pt-4 border-t border-black/5 space-y-4"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="space-y-2">
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={agreedToTerms} 
+                                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                  />
+                                  <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                </label>
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={agreedToWiderruf} 
+                                    onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                  />
+                                  <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                </label>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  if (!agreedToTerms || !agreedToWiderruf) {
+                                    setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                    return;
+                                  }
+                                  handleCheckout('monthly');
+                                }}
+                                disabled={isCheckingOut}
+                                className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                              >
+                                {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
+                              </button>
+                            </motion.div>
+                          )}
                         </div>
-                      </button>
+                      </div>
 
                       {/* Single Unlock */}
-                      <button 
+                      <div 
                         onClick={() => {
                           setSelectedPlanId('single');
                           setError(null);
                         }}
-                        disabled={isCheckingOut}
-                        className={`w-full p-4 lg:p-5 border-2 rounded-2xl transition-all text-left group relative disabled:opacity-50 disabled:grayscale ${selectedPlanId === 'single' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
+                        className={`w-full p-5 lg:p-6 border-4 rounded-[2rem] transition-all text-left flex flex-col group relative cursor-pointer ${selectedPlanId === 'single' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
                       >
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-base lg:text-lg text-brand-primary">Einmalige Analyse</span>
+                          <div className="flex flex-col">
+                            <span className="font-black text-lg lg:text-xl text-brand-primary">Einmalige Analyse</span>
+                            <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">Perfekt zum Testen</p>
+                          </div>
                           <span className="text-xl lg:text-2xl font-black text-brand-primary">2,99 €</span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-4">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Schalte alle 9 Bilder dieser Analyse frei.</p>
-                        </div>
-                      </button>
 
-                      {/* Studio Single Unlock - ONLY in Styling Studio context */}
+                          {selectedPlanId === 'single' && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              className="pt-4 border-t border-black/5 space-y-4"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="space-y-2">
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={agreedToTerms} 
+                                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                  />
+                                  <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                </label>
+                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <input 
+                                    type="checkbox" 
+                                    checked={agreedToWiderruf} 
+                                    onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                  />
+                                  <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                </label>
+                              </div>
+                              <button 
+                                onClick={() => {
+                                  if (!agreedToTerms || !agreedToWiderruf) {
+                                    setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                    return;
+                                  }
+                                  handleCheckout('single');
+                                }}
+                                disabled={isCheckingOut}
+                                className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                              >
+                                {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
+                              </button>
+                            </motion.div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Studio Single Unlock */}
                       {pricingSource === 'styling_studio' && (
-                        <button 
+                        <div 
                           onClick={() => {
                             setSelectedPlanId('studio-single');
                             setError(null);
                           }}
-                          disabled={isCheckingOut}
-                          className={`w-full p-4 lg:p-5 border-2 rounded-2xl transition-all text-left group relative disabled:opacity-50 disabled:grayscale ${selectedPlanId === 'studio-single' ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
+                          className={`w-full p-5 lg:p-6 border-4 rounded-[2rem] transition-all text-left flex flex-col group relative cursor-pointer ${selectedPlanId === 'studio-single' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-white hover:border-black/10'}`}
                         >
                           <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold text-base lg:text-lg text-brand-primary">Studio Einzel-Look</span>
+                            <div className="flex flex-col">
+                              <span className="font-black text-lg lg:text-xl text-brand-primary">Studio Einzel-Look</span>
+                              <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">Sofort bereit</p>
+                            </div>
                             <span className="text-xl lg:text-2xl font-black text-brand-primary">1,49 €</span>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-4">
                             <p className="text-xs lg:text-sm text-brand-primary/60">Schalte einen Look im Styling Studio frei.</p>
+
+                            {selectedPlanId === 'studio-single' && (
+                              <motion.div 
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="pt-4 border-t border-black/5 space-y-4"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="space-y-2">
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToTerms} 
+                                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                                  </label>
+                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={agreedToWiderruf} 
+                                      onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    />
+                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                                  </label>
+                                </div>
+                                <button 
+                                  onClick={() => {
+                                    if (!agreedToTerms || !agreedToWiderruf) {
+                                      setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                      return;
+                                    }
+                                    handleCheckout('studio-single');
+                                  }}
+                                  disabled={isCheckingOut}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                                >
+                                  {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
+                                </button>
+                              </motion.div>
+                            )}
                           </div>
-                        </button>
+                        </div>
                       )}
 
-                      {/* Unified Checkout Button for Modal */}
-                      <AnimatePresence>
-                        {selectedPlanId && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: 10 }}
-                            className="pt-2"
-                          >
-                            <button
-                              onClick={() => {
-                                if (!agreedToTerms || !agreedToWiderruf) {
-                                  setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
-                                  return;
-                                }
-                                handleCheckout(selectedPlanId as any);
-                              }}
-                              disabled={isCheckingOut}
-                              className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl font-black uppercase tracking-widest text-sm hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-3"
-                            >
-                              {isCheckingOut ? (
-                                <Loader2 className="animate-spin" size={20} />
-                              ) : (
-                                <>
-                                  <span>Zahlungspflichtig bestellen</span>
-                                  <div className="w-[1px] h-4 bg-white/30" />
-                                  <span>{selectedPlanId === 'yearly' ? '39,99 €' : selectedPlanId === 'monthly' ? '9,99 €' : selectedPlanId === 'single' ? '2,99 €' : '1,49 €'}</span>
-                                  <Zap size={18} />
-                                </>
-                              )}
-                            </button>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+
 
                       <p className="text-[10px] text-center text-brand-primary/40 mt-2">
                         Die Freischaltung der digitalen Inhalte erfolgt sofort nach erfolgreichem Kauf.
