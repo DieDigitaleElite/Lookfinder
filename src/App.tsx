@@ -3374,16 +3374,16 @@ export default function App() {
                                     </div>
                                   )}
                                   {result.imageUrl && (
-                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm max-w-[calc(100%-100px)]">
-                                      <div className="flex items-center gap-1 shrink-0">
+                                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden group-hover:pr-3">
+                                      <div className="flex items-center gap-1 px-3 py-1 shrink-0">
                                         <Star size={14} className="text-[#FF9EBE] font-bold fill-[#FF9EBE]" />
                                         <span className="text-sm font-bold">{result.rating || 90}% Match</span>
                                       </div>
                                       {result.emotionalEnhancer && (
-                                        <>
+                                        <div className="flex items-center max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 transition-all duration-500 ease-in-out">
                                           <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
-                                          <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-tight truncate">{result.emotionalEnhancer}</span>
-                                        </>
+                                          <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -3589,16 +3589,16 @@ export default function App() {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                           referrerPolicy="no-referrer"
                         />
-                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm max-w-[calc(100%-40px)]">
-                          <div className="flex items-center gap-1 shrink-0">
+                        <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden group-hover:pr-3">
+                          <div className="flex items-center gap-1 px-3 py-1 shrink-0">
                             <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
                             <span className="text-sm font-bold">{result.rating}% Match</span>
                           </div>
                           {result.emotionalEnhancer && (
-                            <>
+                            <div className="flex items-center max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 transition-all duration-500 ease-in-out">
                               <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
-                              <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-tight truncate">{result.emotionalEnhancer}</span>
-                            </>
+                              <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -4398,16 +4398,16 @@ export default function App() {
                                     {isSaving === result.id ? <Loader2 className="animate-spin" size={18} /> : isResultSaved(result.id) ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
                                   </button>
                                 </div>
-                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-2 shadow-sm max-w-[calc(100%-100px)]">
-                                  <div className="flex items-center gap-1 shrink-0">
+                                <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden group-hover:pr-3">
+                                  <div className="flex items-center gap-1 px-3 py-1 shrink-0">
                                     <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
                                     <span className="text-sm font-bold">{result.rating}% Match</span>
                                   </div>
                                   {result.emotionalEnhancer && (
-                                    <>
+                                    <div className="flex items-center max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 transition-all duration-500 ease-in-out">
                                       <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
-                                      <span className="text-[10px] font-bold text-[#FF9EBE] italic leading-tight truncate">{result.emotionalEnhancer}</span>
-                                    </>
+                                      <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                    </div>
                                   )}
                                 </div>
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
