@@ -112,10 +112,10 @@ export default function App() {
   const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
   const [expandedEnhancerId, setExpandedEnhancerId] = useState<string | null>(null);
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
-  const [avatarSketch, setAvatarSketch] = useState<string | null>(null);
-  const [baseSketch, setBaseSketch] = useState<string | null>(null);
-  const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(null);
-  const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(null);
+  const [avatarSketch, setAvatarSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_avatar_sketch'));
+  const [baseSketch, setBaseSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_base_sketch'));
+  const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_image'));
+  const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_mime'));
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
   const backgroundGenQueueRef = useRef<boolean>(false);
@@ -197,7 +197,17 @@ export default function App() {
   const [authMessage, setAuthMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showStylingStudio, setShowStylingStudio] = useState(false);
-  const [faceAnalysis, setFaceAnalysis] = useState<any>(null);
+  const [faceAnalysis, setFaceAnalysis] = useState<any>(() => {
+    const saved = localStorage.getItem('frisurenai_pending_face_analysis');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [studioCredits, setStudioCredits] = useState(() => {
@@ -217,6 +227,30 @@ export default function App() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
+
+  // Mirror critical state to localStorage for anonymous users
+  useEffect(() => {
+    if (user) return;
+    
+    const timeout = setTimeout(() => {
+      try {
+        if (results.length > 0) localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
+        if (customResults.length > 0) localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
+        if (selectedResult) localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
+        if (image) localStorage.setItem('frisurenai_pending_image', image);
+        if (mimeType) localStorage.setItem('frisurenai_pending_mime_type', mimeType || '');
+        if (avatarSketch) localStorage.setItem('frisurenai_pending_avatar_sketch', avatarSketch);
+        if (baseSketch) localStorage.setItem('frisurenai_pending_base_sketch', baseSketch);
+        if (sketchReferenceImage) localStorage.setItem('frisurenai_pending_sketch_ref_image', sketchReferenceImage);
+        if (sketchReferenceMimeType) localStorage.setItem('frisurenai_pending_sketch_ref_mime', sketchReferenceMimeType || '');
+        if (faceAnalysis) localStorage.setItem('frisurenai_pending_face_analysis', JSON.stringify(faceAnalysis));
+      } catch (e) {
+        // Silently fail if quota exceeded
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeout);
+  }, [user, results, customResults, selectedResult, image, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
 
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -321,15 +355,20 @@ export default function App() {
   }, [baseSketch, image, !!user, showStylingStudio, dashboardTab, isGenerating]); // Added dependencies to handle state changes
 
   useEffect(() => {
-    if (user && (avatarSketch || baseSketch)) {
+    if (user) {
       const userRef = doc(db, 'users', user.uid);
-      setDoc(userRef, { 
-        avatarSketch, 
-        baseSketch,
-        lastActive: serverTimestamp() 
-      }, { merge: true }).catch(err => console.warn("Failed to sync sketches to new user", err));
+      const updateData: any = { lastActive: serverTimestamp() };
+      
+      if (avatarSketch) updateData.avatarSketch = avatarSketch;
+      if (baseSketch) updateData.baseSketch = baseSketch;
+      if (sketchReferenceImage) updateData.sketchReferenceImage = sketchReferenceImage;
+      if (sketchReferenceMimeType) updateData.sketchReferenceMimeType = sketchReferenceMimeType;
+      if (faceAnalysis) updateData.faceAnalysis = faceAnalysis;
+
+      setDoc(userRef, updateData, { merge: true })
+        .catch(err => console.warn("Failed to sync profile data to user", err));
     }
-  }, [user, !!avatarSketch, !!baseSketch]);
+  }, [user, !!avatarSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
 
   // Manage body overflow for full-screen modals
   useEffect(() => {
@@ -1033,8 +1072,16 @@ export default function App() {
 
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
-    if (user && results.length > 0 && results.every(r => (r.imageUrl || r.failed) && isResultSaved(r.id))) {
-      console.log("All results saved to Firestore. Clearing localStorage backup.");
+    // Check if results are synced
+    const resultsSynced = results.length === 0 || results.every(r => (r.imageUrl || r.failed) && isResultSaved(r.id));
+    const customResultsSynced = customResults.length === 0 || customResults.every(r => (r.imageUrl || r.failed) && isResultSaved(r.id));
+    
+    // Check if sketches are synced (by checking if they exist in userData)
+    const sketchesSynced = !avatarSketch || (userData && userData.avatarSketch);
+    const faceAnalysisSynced = !faceAnalysis || (userData && userData.faceAnalysis);
+
+    if (user && resultsSynced && customResultsSynced && sketchesSynced && faceAnalysisSynced) {
+      console.log("All data synced to Firestore. Clearing localStorage backup.");
       localStorage.removeItem('frisurenai_pending_results');
       localStorage.removeItem('frisurenai_pending_selected_result');
       localStorage.removeItem('frisurenai_pending_custom_results');
@@ -1042,8 +1089,13 @@ export default function App() {
       localStorage.removeItem('frisurenai_pending_mime_type');
       localStorage.removeItem('frisurenai_pending_plan');
       localStorage.removeItem('frisurenai_pending_uid');
+      localStorage.removeItem('frisurenai_pending_avatar_sketch');
+      localStorage.removeItem('frisurenai_pending_base_sketch');
+      localStorage.removeItem('frisurenai_pending_sketch_ref_image');
+      localStorage.removeItem('frisurenai_pending_sketch_ref_mime');
+      localStorage.removeItem('frisurenai_pending_face_analysis');
     }
-  }, [user, results, savedResults]);
+  }, [user, results, customResults, savedResults, userData, avatarSketch, faceAnalysis]);
 
   // Auto-resume generation of missing images if user becomes premium
   useEffect(() => {
@@ -2389,30 +2441,42 @@ export default function App() {
         console.log("Redirecting to Stripe:", data.url);
         
         // Save current results to localStorage before redirecting (as backup)
-        // This is fast and local, so we keep it blocking to ensure consistency
         try {
           if (results && results.length > 0) {
-            console.log("Saving results to localStorage for post-payment restoration");
             localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
-            if (selectedResult) {
-              localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
-            }
-            if (customResults && customResults.length > 0) {
-              localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
-            }
-            if (image) {
-              localStorage.setItem('frisurenai_pending_image', image);
-            }
-            if (mimeType) {
-              localStorage.setItem('frisurenai_pending_mime_type', mimeType);
-            }
-            if (metadata) {
-              localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(metadata));
-              setPendingStudioSelection(metadata);
-            }
+          }
+          if (customResults && customResults.length > 0) {
+            localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
+          }
+          if (selectedResult) {
+            localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
+          }
+          if (image) {
+            localStorage.setItem('frisurenai_pending_image', image);
+          }
+          if (mimeType) {
+            localStorage.setItem('frisurenai_pending_mime_type', mimeType);
+          }
+          if (avatarSketch) {
+            localStorage.setItem('frisurenai_pending_avatar_sketch', avatarSketch);
+          }
+          if (baseSketch) {
+            localStorage.setItem('frisurenai_pending_base_sketch', baseSketch);
+          }
+          if (sketchReferenceImage) {
+            localStorage.setItem('frisurenai_pending_sketch_ref_image', sketchReferenceImage);
+          }
+          if (sketchReferenceMimeType) {
+            localStorage.setItem('frisurenai_pending_sketch_ref_mime', sketchReferenceMimeType);
+          }
+          if (faceAnalysis) {
+            localStorage.setItem('frisurenai_pending_face_analysis', JSON.stringify(faceAnalysis));
+          }
+          if (metadata) {
+            localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(metadata));
           }
         } catch (storageError) {
-          console.warn("Could not save all results to localStorage (quota exceeded).", storageError);
+          console.warn("Could not save all data to localStorage.", storageError);
         }
 
         // Fire and forget Firestore save - don't wait for it to avoid popup blocking/delays
