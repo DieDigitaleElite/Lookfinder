@@ -93,7 +93,10 @@ export default function App() {
   const [isPremium, setIsPremium] = useState(() => {
     // Initialize from localStorage if payment success is pending
     const params = new URLSearchParams(window.location.search);
-    return params.get('payment') === 'success' || localStorage.getItem('frisurenai_pending_plan') !== null;
+    const plan = params.get('plan');
+    const isSuccess = params.get('payment') === 'success';
+    if (isSuccess && plan === 'studio-single') return false;
+    return isSuccess || localStorage.getItem('frisurenai_pending_plan') !== null;
   });
   const [userPlan, setUserPlan] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -215,7 +218,8 @@ export default function App() {
     const pending = localStorage.getItem('frisurenai_pending_studio_credits');
     return pending ? parseInt(pending) : 0;
   });
-  const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) || studioCredits > 0;
+  const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly'));
+  const canUseStudio = isPro || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
 
   const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account' | null>(null);
@@ -373,12 +377,12 @@ export default function App() {
 
   // Manage body overflow for full-screen modals
   useEffect(() => {
-    if (showStylingStudio || showGallery || showProfileModal || showDeleteConfirm || showPricingModal || showUpsellModal || activeLegalModal || needsApiKey) {
+    if (showStylingStudio || showGallery || showProfileModal || showDeleteConfirm || showPricingModal || showUpsellModal || activeLegalModal || needsApiKey || selectedResult) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
     }
-  }, [showStylingStudio, showGallery, showProfileModal, showDeleteConfirm, showPricingModal, showUpsellModal, activeLegalModal, needsApiKey]);
+  }, [showStylingStudio, showGallery, showProfileModal, showDeleteConfirm, showPricingModal, showUpsellModal, activeLegalModal, needsApiKey, selectedResult]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -951,7 +955,9 @@ export default function App() {
       }
       
       // Set local state immediately for better UX
-      setIsPremium(true);
+      if (plan && plan !== 'studio-single') {
+        setIsPremium(true);
+      }
       
       if (isPaymentSuccess) {
         let message = "Zahlung erfolgreich! Dein Premium-Zugang ist jetzt aktiv.";
@@ -999,10 +1005,13 @@ export default function App() {
         }
         
         const updateData: any = { 
-          isPremium: true,
           plan: pendingPayment.plan === 'upsell' ? 'monthly' : pendingPayment.plan,
           premiumSince: serverTimestamp()
         };
+
+        if (pendingPayment.plan !== 'studio-single') {
+          updateData.isPremium = true;
+        }
 
         if (pendingPayment.plan === 'studio-single') {
           updateData.studioCredits = (userData?.studioCredits || 0) + 1;
@@ -2267,6 +2276,10 @@ export default function App() {
 
   const handleCustomTryOn = async () => {
     if (!image || !selectedLibraryStyle || !selectedColor) return;
+    if (!canUseStudio) {
+      setShowPricingModal(true);
+      return;
+    }
     
     setIsGeneratingCustom(true);
     setLastCustomResult(null);
@@ -2324,8 +2337,8 @@ export default function App() {
           setSavedResults(prev => [newResult, ...prev]);
         }
         
-        // Only open popup if NOT Pro, otherwise show inline
-        if (!isPro) {
+        // Only open popup if NOT Pro/Credit, otherwise show inline
+        if (!canUseStudio) {
           setSelectedResult(newResult);
         }
         
@@ -3104,7 +3117,11 @@ export default function App() {
                               </div>
                               <div>
                                 <p className="text-[10px] uppercase tracking-[0.2em] font-black opacity-60">Aktueller Tarif</p>
-                                <h4 className="text-xl font-bold font-serif">{isPremium ? (userPlan === 'single' ? 'Premium' : 'Pro Mitglied') : 'Kostenloser Account'}</h4>
+                                <h4 className="text-xl font-bold font-serif">
+                                  {isPremium ? (
+                                    (userPlan === 'monthly' || userPlan === 'yearly') ? 'Pro Mitglied' : 'Premium'
+                                  ) : 'Kostenloser Account'}
+                                </h4>
                               </div>
                            </div>
                            {isPremium && (
@@ -4610,8 +4627,8 @@ export default function App() {
               })}
               </div>
 
-              {/* Premium Feature: Style Library & Color Picker - ONLY FOR PRO USERS */}
-              {isPro ? (
+              {/* Premium Feature: Style Library & Color Picker - ONLY FOR PRO OR CREDIT USERS */}
+              {canUseStudio ? (
                 <motion.div 
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -4714,8 +4731,8 @@ export default function App() {
                         </p>
                       </div>
 
-                      {/* Display Latest Result Inline for Pro users */}
-                      {isPro && lastCustomResult && (
+                      {/* Display Latest Result Inline for Pro/Credit users */}
+                      {canUseStudio && lastCustomResult && (
                         <motion.div 
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
