@@ -199,8 +199,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false);
   const [authInitializing, setAuthInitializing] = useState(true);
   const [authMessage, setAuthMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showStylingStudio, setShowStylingStudio] = useState(false);
   const [faceAnalysis, setFaceAnalysis] = useState<any>(() => {
     const saved = localStorage.getItem('frisurenai_pending_face_analysis');
     if (saved) {
@@ -311,7 +309,6 @@ export default function App() {
     // Only generate background sketches when NOT doing main generation 
     // We allow ONE sketch to be generated even outside studio view for the preview card
     const hasAtLeastOneSketch = Object.keys(hairstyleSketches).length > 0;
-    const isInStudioView = showStylingStudio || (dashboardTab === 'studio' && user);
     
     // Determine best source for background generation
     const sourceImage = sketchReferenceImage || image;
@@ -370,7 +367,7 @@ export default function App() {
     };
 
     processQueue();
-  }, [baseSketch, image, !!user, showStylingStudio, dashboardTab, isGenerating]); // Added dependencies to handle state changes
+  }, [baseSketch, image, !!user, dashboardTab, isGenerating]); // Added dependencies to handle state changes
 
   useEffect(() => {
     if (user) {
@@ -388,14 +385,28 @@ export default function App() {
     }
   }, [user, !!avatarSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
 
-  // Manage body overflow for full-screen modals
+  // Manage body overflow for full-screen modals - only for actual fixed overlays
   useEffect(() => {
-    if (showStylingStudio || showGallery || showProfileModal || showDeleteConfirm || showPricingModal || showUpsellModal || activeLegalModal || needsApiKey || selectedResult) {
+    const isModalOpen = 
+      showLoginModal || 
+      showPricingModal || 
+      showUpsellModal || 
+      showAdminDashboard || 
+      showDeleteConfirm || 
+      activeLegalModal || 
+      selectedResult;
+
+    if (isModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
     }
-  }, [showStylingStudio, showGallery, showProfileModal, showDeleteConfirm, showPricingModal, showUpsellModal, activeLegalModal, needsApiKey, selectedResult]);
+
+    // Cleanup: always restore overflow when component unmounts
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [showLoginModal, showPricingModal, showUpsellModal, showAdminDashboard, showDeleteConfirm, activeLegalModal, selectedResult]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -930,7 +941,6 @@ export default function App() {
         setIsPremium(false);
         setUserPlan(null);
         setUserData(null);
-        setShowStylingStudio(false);
       }
     });
 
@@ -1062,7 +1072,6 @@ export default function App() {
             
             if (style && color) {
               setDashboardTab('studio');
-              setShowStylingStudio(true);
               setIsAutoGeneratingFromStripe(true);
               setStripeGenerationError(null);
               
@@ -1591,7 +1600,6 @@ export default function App() {
     try {
       await signOut(auth);
       setShowGallery(false);
-      setShowStylingStudio(false);
       setDashboardTab('overview');
       setIsPremium(false);
       setUserPlan(null);
@@ -2308,7 +2316,6 @@ export default function App() {
     setAvatarSketch(null);
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
-    setShowStylingStudio(false);
     setShowGallery(false);
   };
 
@@ -2690,7 +2697,6 @@ export default function App() {
               reset();
               setShowGallery(false);
               setDashboardTab('overview');
-              setShowStylingStudio(false);
               setActivePoll(null);
               setVotedId(null);
               setIsPollSyncing(false);
