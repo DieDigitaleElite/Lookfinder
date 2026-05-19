@@ -2088,20 +2088,20 @@ export default function App() {
       const lightingPrompt = lighting.prompt || '';
       const customPrompt = `${style.name}, ${style.description}. ${colorAndTechText}. Lighting: ${lightingPrompt}. Ensure hyper-realistic photo quality with precise high-end hair salon results. The hair color must look completely natural, with realistic depth, texture, and light reflection. Maintain perfect facial consistency and professional photography style.`;
       
-      // Consume credit if user is not on a subscription plan
-      if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { 
-          studioCredits: studioCredits - 1 
-        }).catch(err => {
-          handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
-          throw err;
-        });
-        setStudioCredits(prev => Math.max(0, prev - 1));
-      }
-
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
+        // Only consume credit if generation was successful
+        if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, { 
+            studioCredits: studioCredits - 1 
+          }).catch(err => {
+            console.error("Failed to deduct studio credit after success", err);
+            // We don't throw here to not block the user from seeing the result
+          });
+          setStudioCredits(prev => Math.max(0, prev - 1));
+        }
+
         // Generate a more emotional and face-shape specific metadata using AI
         const stylingMetadata = await getAIPoweredStylingMetadata(
           faceAnalysis?.faceShape || 'oval',
@@ -2313,21 +2313,20 @@ export default function App() {
       const styleWithColor = `${selectedLibraryStyle.name} in der Farbe ${selectedColor.name}`;
       const descriptionWithColor = `${selectedLibraryStyle.description} Die Haarfarbe soll ein realistisches ${selectedColor.name} sein.`;
 
-      // Consume credit if user is not on a subscription plan
-      if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
-        const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { 
-          studioCredits: studioCredits - 1 
-        }).catch(err => {
-          handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
-          throw err;
-        });
-        setStudioCredits(prev => Math.max(0, prev - 1));
-      }
-      
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, styleWithColor, descriptionWithColor);
       
       if (imageUrl) {
+        // Only consume credit if generation was successful
+        if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, { 
+            studioCredits: studioCredits - 1 
+          }).catch(err => {
+            console.error("Failed to deduct credit after custom success", err);
+          });
+          setStudioCredits(prev => Math.max(0, prev - 1));
+        }
+
         // Generate a more emotional and face-shape specific metadata using AI
         const stylingMetadata = await getAIPoweredStylingMetadata(
           results[0]?.faceShape || faceAnalysis?.faceShape || 'oval',

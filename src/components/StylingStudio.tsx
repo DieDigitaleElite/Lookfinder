@@ -558,7 +558,11 @@ export default function StylingStudio({
                                 setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                 return;
                               }
-                              onCheckout?.('yearly');
+                              onCheckout?.('yearly', {
+                                styleId: selectedStyleId,
+                                colorId: selectedColorId,
+                                techId: selectedTechId
+                              });
                             }}
                             className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
                           >
@@ -633,7 +637,11 @@ export default function StylingStudio({
                                   setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                   return;
                                 }
-                                onCheckout?.('monthly');
+                                onCheckout?.('monthly', {
+                                  styleId: selectedStyleId,
+                                  colorId: selectedColorId,
+                                  techId: selectedTechId
+                                });
                               }}
                               className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
                             >
