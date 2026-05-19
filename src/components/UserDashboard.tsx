@@ -25,6 +25,8 @@ interface UserDashboardProps {
   avatarSketch?: string | null;
   studioCredits?: number;
   isCheckingOut?: boolean;
+  isPremium?: boolean;
+  isPro?: boolean;
 }
 
 export default function UserDashboard({ 
@@ -36,7 +38,9 @@ export default function UserDashboard({
   onManageSubscription,
   avatarSketch,
   studioCredits = 0,
-  isCheckingOut = false
+  isCheckingOut = false,
+  isPremium = false,
+  isPro = false
 }: UserDashboardProps) {
   const navItems = [
     { id: 'overview', name: 'Übersicht', icon: LayoutDashboard },
@@ -61,7 +65,9 @@ export default function UserDashboard({
             )}
             <div className="min-w-0">
               <p className="font-bold text-brand-primary truncate">{user.displayName || 'Gast'}</p>
-              <p className="text-[10px] text-brand-primary/40 uppercase tracking-widest font-black">Premium Mitglied</p>
+              <p className="text-[10px] text-brand-primary/40 uppercase tracking-widest font-black">
+                {isPro ? 'Pro Mitglied' : isPremium ? 'Premium Mitglied' : 'Basis Account'}
+              </p>
             </div>
           </div>
 
@@ -110,7 +116,9 @@ export default function UserDashboard({
            <h4 className="text-xl font-serif font-black flex items-baseline gap-0.5">
              <span>Frisuren</span>
              <span className="font-sans font-extralight italic text-white/70">.ai</span>
-             <span className="ml-2 px-2 py-0.5 bg-white/20 rounded text-[9px] uppercase tracking-widest font-sans not-italic border border-white/10 shadow-sm transition-colors group-hover:bg-[#FF9EBE] group-hover:text-white">Pro</span>
+             {isPro && (
+               <span className="ml-2 px-2 py-0.5 bg-white/20 rounded text-[9px] uppercase tracking-widest font-sans not-italic border border-white/10 shadow-sm transition-colors group-hover:bg-[#FF9EBE] group-hover:text-white">Pro</span>
+             )}
            </h4>
            
            {studioCredits > 0 && (
@@ -123,7 +131,9 @@ export default function UserDashboard({
              </div>
            )}
 
-           <p className="text-xs opacity-80 leading-relaxed font-medium">Unbegrenzte Analysen & High-Res Downloads freigeschaltet.</p>
+           <p className="text-xs opacity-80 leading-relaxed font-medium">
+             {isPro ? 'Unbegrenzte Analysen & High-Res Downloads freigeschaltet.' : 'Upgrade für unbegrenzte Analysen & High-Res Features.'}
+           </p>
            <button 
              onClick={() => setActiveTab('studio')}
              className="w-full py-3 bg-white text-[#FF9EBE] rounded-xl text-xs font-black uppercase tracking-widest shadow-lg"

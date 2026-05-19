@@ -272,6 +272,19 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         setSubscriptionStatus(data);
+
+        // LAZY SYNC: If backend says subscription is NOT active, but frontend thinks user is Pro (monthly/yearly),
+        // we must downgrade them in Firestore.
+        if (!data.active && isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) {
+          console.log("Lazy Sync: Downgrading user as subscription is no longer active in Stripe");
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, {
+            isPremium: false,
+            plan: null,
+            premiumExpiresAt: null
+          });
+          // State will be updated via the onSnapshot listener in App.tsx
+        }
       }
     } catch (err) {
       console.error("Failed to fetch subscription status:", err);
@@ -2987,6 +3000,8 @@ export default function App() {
                 avatarSketch={avatarSketch}
                 studioCredits={studioCredits}
                 isCheckingOut={isCheckingOut}
+                isPremium={isPremium}
+                isPro={isPro}
               >
                 {dashboardTab === 'overview' && (
                   <div className="space-y-8">
@@ -3140,7 +3155,7 @@ export default function App() {
                                 const now = new Date();
                                 const diffDays = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
                                 return subscriptionStatus?.cancel_at_period_end 
-                                  ? `Abo endet am ${expiryDate.toLocaleDateString('de-DE')}`
+                                  ? `Gekündigt zum ${expiryDate.toLocaleDateString('de-DE')}`
                                   : `Nächste Abrechnung am ${expiryDate.toLocaleDateString('de-DE')} (in ${diffDays} Tagen)`;
                               })()}
                             </p>

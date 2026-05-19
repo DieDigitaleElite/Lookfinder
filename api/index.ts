@@ -302,20 +302,31 @@ app.get("/api/subscription-status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const stripeClient = getStripe();
+    
+    // Search for subscriptions that are either active or trialing for this user
+    // Subscriptions that are 'active' but 'cancel_at_period_end' are still returned here
     const searchResult = await stripeClient.subscriptions.search({
-      query: `metadata['userId']:'${userId}' AND status:'active'`,
+      query: `metadata['userId']:'${userId}' AND (status:'active' OR status:'trialing')`,
     });
-    if (searchResult.data.length === 0) return res.json({ active: false });
+
+    if (searchResult.data.length === 0) {
+      return res.json({ 
+        active: false,
+        status: 'none'
+      });
+    }
+
     const sub = searchResult.data[0];
     res.json({
       active: true,
       id: sub.id,
       cancel_at_period_end: sub.cancel_at_period_end,
       current_period_end: sub.current_period_end,
-      plan: sub.metadata.plan || 'unknown',
+      plan: sub.metadata.plan || 'monthly',
       status: sub.status
     });
   } catch (error: any) {
+    console.error("Subscription Status Fetch Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
