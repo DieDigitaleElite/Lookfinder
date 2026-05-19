@@ -788,6 +788,8 @@ export default function App() {
     }
     return null;
   });
+  const [isAutoGeneratingFromStripe, setIsAutoGeneratingFromStripe] = useState(false);
+  const [stripeGenerationError, setStripeGenerationError] = useState<string | null>(null);
   const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
 
   const unsubsRef = useRef<(() => void)[]>([]);
@@ -1061,10 +1063,23 @@ export default function App() {
             if (style && color) {
               setDashboardTab('studio');
               setShowStylingStudio(true);
-              handleStudioTryOn(style, color, tech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0]);
-              // Clear selection state and storage
-              setPendingStudioSelection(null);
-              localStorage.removeItem('frisurenai_pending_studio_selection');
+              setIsAutoGeneratingFromStripe(true);
+              setStripeGenerationError(null);
+              
+              handleStudioTryOn(style, color, tech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0])
+                .then(() => {
+                  setIsAutoGeneratingFromStripe(false);
+                  setPendingStudioSelection(null);
+                  localStorage.removeItem('frisurenai_pending_studio_selection');
+                })
+                .catch(err => {
+                  console.error("Auto-generation failed:", err);
+                  setIsAutoGeneratingFromStripe(false);
+                  setStripeGenerationError("Dein Look konnte leider nicht automatisch erstellt werden. Bitte versuche es oben erneut.");
+                  // Clear pending selection anyway so it doesn't try again on reload
+                  setPendingStudioSelection(null);
+                  localStorage.removeItem('frisurenai_pending_studio_selection');
+                });
             }
           }
 
@@ -3430,6 +3445,9 @@ export default function App() {
                         onCheckout={handleCheckout}
                         onShowPricing={() => handleShowPricing('styling_studio')}
                         onOpenLegalModal={setActiveLegalModal}
+                        isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
+                        stripeGenerationError={stripeGenerationError}
+                        onClearStripeError={() => setStripeGenerationError(null)}
                       />
                     </div>
                   </div>

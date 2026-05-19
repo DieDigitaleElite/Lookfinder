@@ -39,6 +39,9 @@ interface StylingStudioProps {
   onCheckout?: (plan: 'single' | 'monthly' | 'yearly' | 'studio-single', metadata?: any) => void;
   onShowPricing?: () => void;
   onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
+  isAutoGeneratingFromStripe?: boolean;
+  stripeGenerationError?: string | null;
+  onClearStripeError?: () => void;
 }
 
 export default function StylingStudio({ 
@@ -52,7 +55,10 @@ export default function StylingStudio({
   isGeneratingBackground = false,
   onCheckout,
   onShowPricing,
-  onOpenLegalModal
+  onOpenLegalModal,
+  isAutoGeneratingFromStripe = false,
+  stripeGenerationError = null,
+  onClearStripeError
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
   const [selectedWorld, setSelectedWorld] = useState(COLOR_WORLDS[0].id);
@@ -127,6 +133,56 @@ export default function StylingStudio({
 
   return (
     <div className="h-full w-full bg-white overflow-y-auto overflow-x-hidden scroll-smooth font-sans text-brand-primary flex flex-col relative custom-scrollbar overscroll-contain">
+      {/* Auto-Generation Overlay after Stripe */}
+      <AnimatePresence>
+        {(isAutoGeneratingFromStripe || stripeGenerationError) && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] bg-white/90 backdrop-blur-xl flex items-center justify-center p-6 text-center"
+          >
+            <div className="max-w-md w-full space-y-8">
+              {isAutoGeneratingFromStripe ? (
+                <>
+                  <div className="relative mx-auto w-24 h-24">
+                    <div className="absolute inset-0 bg-brand-primary/10 rounded-full animate-ping" />
+                    <div className="relative flex items-center justify-center w-full h-full bg-white border-2 border-brand-primary/20 rounded-full shadow-lg">
+                      <Sparkles className="text-brand-primary animate-pulse" size={40} />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <h2 className="text-2xl font-serif font-black italic">Deine Verwandlung startet...</h2>
+                    <p className="text-brand-primary/60 font-medium italic">Zahlung bestätigt! Wir erstellen gerade automatisch deinen ausgewählten Look. Das dauert nur wenige Sekunden.</p>
+                  </div>
+                  <div className="flex justify-center gap-2">
+                    <div className="w-2 h-2 bg-brand-primary/30 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-2 h-2 bg-brand-primary/30 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-2 h-2 bg-brand-primary/30 rounded-full animate-bounce" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mx-auto w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center">
+                    <X className="text-red-500" size={32} />
+                  </div>
+                  <div className="space-y-3">
+                    <h2 className="text-2xl font-serif font-black italic">Hoppla!</h2>
+                    <p className="text-brand-primary/60 font-medium">{stripeGenerationError}</p>
+                  </div>
+                  <button
+                    onClick={onClearStripeError}
+                    className="w-full py-4 bg-brand-primary text-white rounded-xl font-black uppercase tracking-widest text-[10px] shadow-lg active:scale-[0.98] transition-all"
+                  >
+                    Verstanden
+                  </button>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="flex-1 min-h-0">
         <div className="max-w-4xl mx-auto px-6 py-8 md:py-12 space-y-16 pb-32">
           
