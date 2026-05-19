@@ -935,10 +935,11 @@ export default function App() {
     // Check for payment success in URL or pending restoration
     const params = new URLSearchParams(window.location.search);
     const isPaymentSuccess = params.get('payment') === 'success';
+    const pendingPlan = localStorage.getItem('frisurenai_pending_plan');
     const hasPendingData = localStorage.getItem('frisurenai_pending_results') !== null;
 
-    if (isPaymentSuccess || hasPendingData) {
-      const plan = params.get('plan') || localStorage.getItem('frisurenai_pending_plan') || 'single';
+    if (isPaymentSuccess || (hasPendingData && pendingPlan)) {
+      const plan = params.get('plan') || pendingPlan || 'single';
       const uid = params.get('uid') || localStorage.getItem('frisurenai_pending_uid');
       
       if (isPaymentSuccess) {
@@ -960,7 +961,7 @@ export default function App() {
           localStorage.setItem('frisurenai_pending_studio_credits', '1');
         }
         if (uid) localStorage.setItem('frisurenai_pending_uid', uid);
-      } else if (hasPendingData && !pendingPayment) {
+      } else if (pendingPlan && !pendingPayment) {
         // Restore pending payment state from localStorage if URL params are gone
         console.log("Restoring pending payment state from localStorage. Plan:", plan, "UID:", uid);
         isPaymentProcessingRef.current = true;
@@ -987,6 +988,9 @@ export default function App() {
           colors: ['#FF9EBE', '#1a1a1a', '#ffffff']
         });
       }
+    } else if (hasPendingData && !pendingPayment && !user) {
+      // Just show a generic reminder if they have unsaved results but didn't just pay
+      // This avoids showing "Payment successful" to every anonymous user on reload
     }
 
     return () => {
@@ -1086,9 +1090,15 @@ export default function App() {
         console.warn("Payment UID mismatch. URL UID:", pendingPayment.uid, "Current User UID:", user.uid);
       }
     } else if (!user && pendingPayment) {
-      console.log("Payment success detected but user not logged in yet. Showing results from localStorage.");
-      if (!authMessage) {
+      const isFreshPayment = new URLSearchParams(window.location.search).get('payment') === 'success';
+      const hasPlan = localStorage.getItem('frisurenai_pending_plan') !== null;
+      
+      if ((isFreshPayment || hasPlan) && !authMessage) {
+        console.log("Payment success detected but user not logged in yet. Showing message.");
         setAuthMessage({ type: 'info', text: "Zahlung erfolgreich! Bitte logge dich ein, um deine Ergebnisse dauerhaft in deinem Profil zu speichern." });
+      } else if (!authMessage && results.length > 0) {
+        // Optional: show a message if they have results but no payment
+        // setAuthMessage({ type: 'info', text: "Melde dich an, um deine Analyse-Ergebnisse zu speichern." });
       }
     }
   }, [user, pendingPayment, showLoginModal]);
