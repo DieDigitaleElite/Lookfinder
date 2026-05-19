@@ -6134,7 +6134,7 @@ export default function App() {
           </div>
         )}
 
-        {/* Post-Purchase Upsell Modal */}
+        {/* Post-Purchase Upsell Modal - Redesigned as Schnuppermonat Upgrade */}
         {showUpsellModal && (
           <div className="fixed inset-0 z-[110] overflow-y-auto flex items-start justify-center p-4 bg-black/80 backdrop-blur-md">
             <motion.div 
@@ -6148,7 +6148,7 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-white rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden p-8 sm:p-12 text-center space-y-8 my-auto"
+              className="relative w-full max-w-lg bg-white rounded-[2rem] md:rounded-[2.5rem] shadow-2xl overflow-hidden p-8 md:p-10 text-center space-y-6 my-auto"
             >
               <button 
                 onClick={() => setShowUpsellModal(false)}
@@ -6157,45 +6157,101 @@ export default function App() {
                 <X size={20} />
               </button>
 
-              <div className="w-20 h-20 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-3xl flex items-center justify-center mx-auto animate-bounce">
-                <Sparkles size={40} />
+              <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl flex items-center justify-center mx-auto animate-bounce">
+                <Sparkles size={32} />
               </div>
 
-              <div className="space-y-4">
-                <h2 className="text-3xl font-serif font-bold leading-tight">
-                  Du hast gerade 6 Styles freigeschaltet 🎉
+              <div className="space-y-3">
+                <h2 className="text-2xl md:text-3xl font-serif font-bold leading-tight">
+                  Upgrade auf Pro 🎉
                 </h2>
-                <p className="text-brand-primary/60 text-lg">
-                  Hol dir jetzt unbegrenzte Looks + Premium Styles
+                <p className="text-brand-primary/60 text-base md:text-lg px-4">
+                  Sichere dir unbegrenzte Looks & Premium Styles zum Schnupperpreis!
                 </p>
-                <div className="flex items-center gap-2 justify-center py-1.5 px-3 bg-black/5 border border-black/5 rounded-xl w-fit mx-auto">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-brand-primary/40">Inkl. PayPal & Klarna</span>
-                </div>
               </div>
 
-              <div className="p-6 bg-[#FF9EBE]/5 rounded-[2rem] border-2 border-dashed border-[#FF9EBE]/30 space-y-4">
-                <p className="text-sm font-bold uppercase tracking-widest text-[#FF9EBE]">Exklusives Upgrade-Angebot</p>
+              <div className="p-6 bg-[#FF9EBE]/5 rounded-3xl border-2 border-dashed border-[#FF9EBE]/30 space-y-4">
                 <div className="space-y-1">
-                  <p className="text-4xl font-black text-brand-primary">+4,00€</p>
-                  <p className="text-sm text-brand-primary/60">auf Unlimited für einen Monat</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="text-lg line-through text-brand-primary/30">9,99€</span>
+                    <span className="text-4xl font-black text-brand-primary">4,99€</span>
+                  </div>
+                  <p className="text-sm font-bold text-brand-primary/60 text-center uppercase tracking-widest">Für den ersten Monat</p>
+                </div>
+
+                <div className="pt-4 border-t border-[#FF9EBE]/20">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] mb-2">Nutze diesen Gutscheincode:</p>
+                  <div 
+                    onClick={() => {
+                      navigator.clipboard.writeText('UPGRADE');
+                      setAuthMessage({ type: 'success', text: "Code UPGRADE kopiert! 📋" });
+                      setTimeout(() => setAuthMessage(null), 3000);
+                    }}
+                    className="bg-white border-2 border-[#FF9EBE] rounded-xl py-3 px-4 flex items-center justify-between cursor-pointer hover:bg-[#FF9EBE] hover:text-white transition-all group"
+                  >
+                    <span className="font-mono font-black text-xl tracking-widest">UPGRADE</span>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tighter">
+                      <span>Klicken zum kopieren</span>
+                      <Plus size={12} />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-4 text-left max-w-sm mx-auto pt-2">
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={agreedToTerms} 
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-1 w-3.5 h-3.5 rounded text-[#FF9EBE] border-gray-300 focus:ring-[#FF9EBE]" 
+                    />
+                    <span className="text-[10px] leading-relaxed text-brand-primary/60 group-hover:text-brand-primary transition-colors">
+                      Ich akzeptiere die <button onClick={(e) => { e.stopPropagation(); setActiveLegalModal('agb'); }} className="text-[#FF9EBE] underline font-bold">AGB</button> und habe die <button onClick={(e) => { e.stopPropagation(); setActiveLegalModal('datenschutz'); }} className="text-[#FF9EBE] underline font-bold">Datenschutz-erklärung</button> gelesen.
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer group">
+                    <input 
+                      type="checkbox" 
+                      checked={agreedToWiderruf} 
+                      onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                      className="mt-1 w-3.5 h-3.5 rounded text-[#FF9EBE] border-gray-300 focus:ring-[#FF9EBE]" 
+                    />
+                    <span className="text-[10px] leading-relaxed text-brand-primary/60 group-hover:text-brand-primary transition-colors">
+                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={(e) => { e.stopPropagation(); setActiveLegalModal('widerruf'); }} className="text-[#FF9EBE] underline font-bold">Widerrufsrecht</button> verliere.
+                    </span>
+                  </label>
+                </div>
+
                 <button 
-                  onClick={() => handleCheckout('upsell')}
+                  onClick={() => {
+                    if (!agreedToTerms || !agreedToWiderruf) {
+                      setAuthMessage({ type: 'error', text: "Bitte akzeptiere die AGB und die Widerrufsbelehrung." });
+                      setTimeout(() => setAuthMessage(null), 3000);
+                      return;
+                    }
+                    handleCheckout('monthly');
+                  }}
                   disabled={isCheckingOut}
-                  className="w-full py-5 bg-[#FF9EBE] text-white rounded-2xl font-black text-lg hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-3 group"
+                  className="w-full py-5 bg-[#FF9EBE] text-white rounded-2xl font-black text-lg hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-3 group active:scale-95"
                 >
                   {isCheckingOut ? <Loader2 className="animate-spin" /> : <Zap size={24} className="group-hover:scale-125 transition-transform" />}
-                  Upgrade jetzt sichern
+                  <span>Upgrade einlösen</span>
                 </button>
+                
                 <button 
                   onClick={() => setShowUpsellModal(false)}
-                  className="text-brand-primary/40 text-sm font-bold hover:text-brand-primary transition-colors"
+                  className="w-full text-brand-primary/40 text-sm font-bold hover:text-brand-primary transition-colors text-center"
                 >
-                  Nein danke, ich bleibe bei meinen 6 Styles
+                  Vielleicht später
                 </button>
+              </div>
+
+              <div className="flex items-center justify-center gap-4 opacity-30 grayscale pt-2 border-t border-black/5">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" className="h-3" referrerPolicy="no-referrer" />
+                <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" className="h-2" referrerPolicy="no-referrer" />
+                <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" className="h-4" referrerPolicy="no-referrer" />
               </div>
             </motion.div>
           </div>
