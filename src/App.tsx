@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, XCircle, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink, AlertTriangle, Save } from 'lucide-react';
+import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, XCircle, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink, AlertTriangle, Save, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
@@ -15,6 +15,7 @@ import StylingStudio from './components/StylingStudio';
 import UserDashboard from './components/UserDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import PollCreator from './components/PollCreator';
+import SupportModal from './components/SupportModal';
 
 declare global {
   interface Window {
@@ -116,6 +117,8 @@ export default function App() {
   const [expandedEnhancerId, setExpandedEnhancerId] = useState<string | null>(null);
   const savingIdsRef = useRef<Set<string>>(new Set());
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportInitialCategory, setSupportInitialCategory] = useState<'general' | 'payment' | 'bug' | 'feedback'>('general');
   const [avatarSketch, setAvatarSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_avatar_sketch'));
   const [baseSketch, setBaseSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_base_sketch'));
   const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_image'));
@@ -4133,13 +4136,24 @@ export default function App() {
                         <AlertCircle size={16} className="mt-0.5 shrink-0" />
                         <span>{error}</span>
                       </div>
-                      {needsApiKey && (
+                      {needsApiKey ? (
                         <button 
                           onClick={handleOpenSelectKey}
                           className="w-full py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                         >
                           <Lock size={14} />
                           API-Key auswählen
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={() => {
+                            setSupportInitialCategory('bug');
+                            setShowSupportModal(true);
+                          }}
+                          className="text-xs font-bold underline text-red-600/70 hover:text-red-755 hover:scale-[1.01] flex items-center justify-start gap-1 w-fit transition-all pl-6"
+                        >
+                          <HelpCircle size={12} />
+                          Support kontaktieren
                         </button>
                       )}
                     </div>
@@ -5142,6 +5156,7 @@ export default function App() {
           </div>
           
           <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+            <button onClick={() => { setSupportInitialCategory('general'); setShowSupportModal(true); }} className="text-xs font-bold uppercase tracking-widest text-[#FF9EBE] hover:underline transition-colors shrink-0">Support & Kontakt</button>
             <button onClick={() => setActiveLegalModal('about')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Über uns</button>
             <button onClick={() => setActiveLegalModal('impressum')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Impressum</button>
             <button onClick={() => setActiveLegalModal('datenschutz')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Datenschutz</button>
@@ -5286,6 +5301,18 @@ export default function App() {
           >
             <AdminDashboard onClose={() => setShowAdminDashboard(false)} />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Support & Kontakt Modal */}
+      <AnimatePresence>
+        {showSupportModal && (
+          <SupportModal 
+            onClose={() => setShowSupportModal(false)} 
+            user={user}
+            userData={userData}
+            initialCategory={supportInitialCategory}
+          />
         )}
       </AnimatePresence>
 
@@ -5813,10 +5840,22 @@ export default function App() {
                         <motion.div 
                           initial={{ opacity: 0, y: -10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="mt-4 p-3 bg-red-50 text-red-600 rounded-xl text-xs border border-red-100 flex items-center gap-2 justify-center"
+                          className="mt-4 p-4 bg-red-50 text-red-600 rounded-xl text-xs border border-red-100 flex flex-col gap-2 items-center justify-center"
                         >
-                          <AlertCircle size={14} />
-                          <span>{error}</span>
+                          <div className="flex items-center gap-2">
+                            <AlertCircle size={14} />
+                            <span>{error}</span>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              setSupportInitialCategory('payment');
+                              setShowSupportModal(true);
+                            }}
+                            className="text-[10px] font-bold underline text-red-600/70 hover:text-red-700 flex items-center justify-center gap-1 w-full"
+                          >
+                            <HelpCircle size={10} />
+                            Hier Hilfe erhalten (Support kontaktieren)
+                          </button>
                         </motion.div>
                       )}
                     </div>

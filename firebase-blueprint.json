@@ -87,12 +87,34 @@
         "lastUsed": { "type": "string", "format": "date-time" }
       },
       "required": ["count", "lastUsed"]
+    },
+    "SupportTicket": {
+      "title": "Support Ticket",
+      "description": "A support ticket submitted by a user.",
+      "type": "object",
+      "properties": {
+        "ticketId": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "category": { "type": "string", "enum": ["general", "payment", "bug", "feedback"] },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status360": { "type": "string", "enum": ["open", "in_progress", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userAgent": { "type": "string" }
+      },
+      "required": ["ticketId", "userId", "name", "email", "category", "subject", "message", "status360", "createdAt"]
     }
   },
   "firestore": {
     "/usage/{usageId}": {
       "schema": "Usage",
       "description": "Tracks usage limits per UID or IP address"
+    },
+    "/support_tickets/{ticketId}": {
+      "schema": "SupportTicket",
+      "description": "Collection of submitted support tickets"
     },
     "/users/{userId}": {
       "schema": "User",

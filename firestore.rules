@@ -69,6 +69,19 @@ service cloud.firestore {
              data.count is number;
     }
 
+    function isValidSupportTicket(data) {
+      return data.keys().hasAll(['ticketId', 'userId', 'name', 'email', 'category', 'subject', 'message', 'status360', 'createdAt']) &&
+             data.ticketId is string && data.ticketId.size() <= 128 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.category is string && data.category.size() <= 64 &&
+             data.subject is string && data.subject.size() <= 200 &&
+             data.message is string && data.message.size() <= 10000 &&
+             data.status360 is string && data.status360.size() <= 32 &&
+             data.createdAt == request.time;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -118,6 +131,14 @@ service cloud.firestore {
       allow create: if isValidId(usageId) && isValidUsage(incoming());
       allow update: if isValidId(usageId) && isValidUsage(incoming()) && 
                     incoming().diff(existing()).affectedKeys().hasOnly(['count', 'lastUsed', 'isUser', 'updatedAt']);
+    }
+
+    // Support Tickets
+    match /support_tickets/{ticketId} {
+      allow list, get: if isAdmin();
+      allow create: if isValidId(ticketId) && isValidSupportTicket(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // Test Connection

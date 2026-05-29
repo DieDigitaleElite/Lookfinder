@@ -12,11 +12,15 @@ import {
   Package,
   Activity,
   ArrowUpRight,
-  Filter
+  Filter,
+  MessageSquare,
+  Check,
+  RotateCcw,
+  Mail
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
 
 interface UserData {
   uid: string;
@@ -37,9 +41,48 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     conversionRate: 0
   });
 
+  const [activeTab, setActiveTab] = useState<'users' | 'tickets'>('users');
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketsSearch, setTicketsSearch] = useState('');
+  const [ticketsFilter, setTicketsFilter] = useState<'all' | 'open' | 'resolved'>('all');
+
   useEffect(() => {
     fetchUsers();
+    fetchTickets();
   }, []);
+
+  const fetchTickets = async () => {
+    setTicketsLoading(true);
+    const path = 'support_tickets';
+    try {
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'), limit(150));
+      const querySnapshot = await getDocs(q);
+      const fetched = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setTickets(fetched);
+    } catch (err) {
+      console.error("Error loading tickets", err);
+      handleFirestoreError(err, OperationType.LIST, path);
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  const toggleTicketStatus = async (ticketId: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'resolved' ? 'open' : 'resolved';
+    const path = `support_tickets/${ticketId}`;
+    try {
+      const docRef = doc(db, 'support_tickets', ticketId);
+      await updateDoc(docRef, { status360: newStatus });
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status360: newStatus } : t));
+    } catch (err) {
+      console.error("Error setting ticket status", err);
+      handleFirestoreError(err, OperationType.UPDATE, path);
+    }
+  };
 
   const fetchUsers = async () => {
     const path = 'users';
@@ -70,6 +113,23 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const filteredTickets = tickets.filter(t => {
+    const matchSearch = 
+      t.ticketId?.toLowerCase().includes(ticketsSearch.toLowerCase()) ||
+      t.name?.toLowerCase().includes(ticketsSearch.toLowerCase()) ||
+      t.email?.toLowerCase().includes(ticketsSearch.toLowerCase()) ||
+      t.subject?.toLowerCase().includes(ticketsSearch.toLowerCase()) ||
+      t.message?.toLowerCase().includes(ticketsSearch.toLowerCase());
+
+    if (ticketsFilter === 'open') {
+      return matchSearch && t.status360 === 'open';
+    }
+    if (ticketsFilter === 'resolved') {
+      return matchSearch && t.status360 === 'resolved';
+    }
+    return matchSearch;
+  });
 
   return (
     <div className="fixed inset-0 z-[300] bg-white flex flex-col font-sans text-brand-primary">
@@ -117,94 +177,273 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
-          {/* User List & Search */}
-          <section className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
-                <Activity size={24} className="text-[#FF9EBE]" />
-                Nutzer Verwaltung
-              </h2>
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
-                <input 
-                  type="text" 
-                  placeholder="Nutzer suchen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-12 pr-6 py-3 bg-white border border-black/5 rounded-2xl text-sm font-medium w-full md:w-80 shadow-sm focus:ring-2 focus:ring-[#FF9EBE]/20 outline-none transition-all"
-                />
-              </div>
-            </div>
+          {/* Segmented Tab Selector */}
+          <div className="flex border-b border-black/5 pb-1 gap-8">
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`pb-4 text-sm font-black uppercase tracking-widest relative transition-all ${
+                activeTab === 'users' ? 'text-[#FF9EBE]' : 'text-brand-primary/40 hover:text-brand-primary/60'
+              }`}
+            >
+              Nutzer-Datenbank
+              {activeTab === 'users' && (
+                <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-1 bg-[#FF9EBE] rounded-full" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('tickets')}
+              className={`pb-4 text-sm font-black uppercase tracking-widest relative transition-all ${
+                activeTab === 'tickets' ? 'text-[#FF9EBE]' : 'text-brand-primary/40 hover:text-brand-primary/60'
+              }`}
+            >
+              Support Tickets ({tickets.filter(t => t.status360 === 'open').length} offen)
+              {activeTab === 'tickets' && (
+                <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-1 bg-[#FF9EBE] rounded-full" />
+              )}
+            </button>
+          </div>
 
-            <div className="bg-white rounded-[2.5rem] border border-black/5 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-black/5 bg-black/[0.01]">
-                      <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Nutzer</th>
-                      <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Status</th>
-                      <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Registrierung</th>
-                      <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Aktionen</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      [1,2,3].map(i => (
-                        <tr key={i} className="animate-pulse">
-                          <td colSpan={4} className="px-8 py-4"><div className="h-12 bg-black/5 rounded-xl w-full" /></td>
-                        </tr>
-                      ))
-                    ) : filteredUsers.length > 0 ? (
-                      filteredUsers.map(user => (
-                        <tr key={user.uid} className="border-b border-black/5 hover:bg-black/[0.01] transition-colors">
-                          <td className="px-8 py-6">
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-brand-primary/5 flex items-center justify-center font-bold text-brand-primary">
-                                {user.email?.[0].toUpperCase()}
-                              </div>
-                              <div>
-                                <p className="text-sm font-bold">{user.displayName || 'Unbekannt'}</p>
-                                <p className="text-[10px] text-brand-primary/40 font-medium">{user.email}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            {user.isPremium ? (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-full text-[9px] font-black uppercase tracking-widest">
-                                <Package size={10} />
-                                {user.plan || 'Premium'}
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-black/5 text-brand-primary/40 rounded-full text-[9px] font-black uppercase tracking-widest">
-                                Free
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-8 py-6">
-                            <div className="text-[10px] font-bold text-brand-primary/60 flex items-center gap-2">
-                              <Calendar size={12} />
-                              {user.createdAt?.toDate().toLocaleDateString('de-DE')}
-                            </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <button className="p-2 bg-black/5 rounded-lg text-brand-primary/40 hover:bg-[#FF9EBE]/10 hover:text-[#FF9EBE] transition-all">
-                              <FileText size={16} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={4} className="px-8 py-12 text-center text-brand-primary/40 font-bold uppercase tracking-widest text-xs">
-                          Keine Nutzer gefunden
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+          {activeTab === 'users' ? (
+            /* User List & Search */
+            <section className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
+                  <Activity size={24} className="text-[#FF9EBE]" />
+                  Nutzer Verwaltung
+                </h2>
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Nutzer suchen..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-12 pr-6 py-3 bg-white border border-black/5 rounded-2xl text-sm font-medium w-full md:w-80 shadow-sm focus:ring-2 focus:ring-[#FF9EBE]/20 outline-none transition-all"
+                  />
+                </div>
               </div>
-            </div>
-          </section>
+
+              <div className="bg-white rounded-[2.5rem] border border-black/5 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-black/5 bg-black/[0.01]">
+                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Nutzer</th>
+                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Status</th>
+                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Registrierung</th>
+                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Aktionen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        [1,2,3].map(i => (
+                          <tr key={i} className="animate-pulse">
+                            <td colSpan={4} className="px-8 py-4"><div className="h-12 bg-black/5 rounded-xl w-full" /></td>
+                          </tr>
+                        ))
+                      ) : filteredUsers.length > 0 ? (
+                        filteredUsers.map(user => (
+                          <tr key={user.uid} className="border-b border-black/5 hover:bg-black/[0.01] transition-colors">
+                            <td className="px-8 py-6">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-brand-primary/5 flex items-center justify-center font-bold text-brand-primary">
+                                  {user.email?.[0].toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="text-sm font-bold">{user.displayName || 'Unbekannt'}</p>
+                                  <p className="text-[10px] text-brand-primary/40 font-medium">{user.email}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-8 py-6">
+                              {user.isPremium ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-full text-[9px] font-black uppercase tracking-widest">
+                                  <Package size={10} />
+                                  {user.plan || 'Premium'}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-black/5 text-brand-primary/40 rounded-full text-[9px] font-black uppercase tracking-widest">
+                                  Free
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-8 py-6">
+                              <div className="text-[10px] font-bold text-brand-primary/60 flex items-center gap-2">
+                                <Calendar size={12} />
+                                {user.createdAt?.toDate().toLocaleDateString('de-DE')}
+                              </div>
+                            </td>
+                            <td className="px-8 py-6">
+                              <button className="p-2 bg-black/5 rounded-lg text-brand-primary/40 hover:bg-[#FF9EBE]/10 hover:text-[#FF9EBE] transition-all">
+                                <FileText size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="px-8 py-12 text-center text-brand-primary/40 font-bold uppercase tracking-widest text-xs">
+                            Keine Nutzer gefunden
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          ) : (
+            /* Support Tickets Section */
+            <section className="space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-wrap items-center gap-4">
+                  <h2 className="text-xl font-black uppercase tracking-widest flex items-center gap-3">
+                    <MessageSquare size={24} className="text-[#FF9EBE]" />
+                    Support-Anfragen
+                  </h2>
+                  
+                  {/* Status filter pills */}
+                  <div className="flex bg-black/5 p-1 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                    {(['all', 'open', 'resolved'] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => setTicketsFilter(filter)}
+                        className={`px-3 py-1.5 rounded-lg transition-all ${
+                          ticketsFilter === filter ? 'bg-white text-brand-primary shadow-sm' : 'text-brand-primary/45 hover:text-brand-primary/70'
+                        }`}
+                      >
+                        {filter === 'all' ? 'Alle' : filter === 'open' ? 'Offen' : 'Erledigt'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="relative">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
+                  <input 
+                    type="text" 
+                    placeholder="Tickets durchsuchen..."
+                    value={ticketsSearch}
+                    onChange={(e) => setTicketsSearch(e.target.value)}
+                    className="pl-12 pr-6 py-3 bg-white border border-black/5 rounded-2xl text-sm font-medium w-full md:w-80 shadow-sm focus:ring-2 focus:ring-[#FF9EBE]/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6">
+                {ticketsLoading ? (
+                  [1,2,3].map(i => (
+                    <div key={i} className="animate-pulse bg-white p-8 rounded-[2rem] border border-black/5 h-44 w-full" />
+                  ))
+                ) : filteredTickets.length > 0 ? (
+                  filteredTickets.map(ticket => (
+                    <div 
+                      key={ticket.id} 
+                      className={`bg-white p-6 md:p-8 rounded-[2rem] border transition-all duration-300 shadow-sm flex flex-col gap-5 ${
+                        ticket.status360 === 'open' ? 'border-[#FF9EBE]/20 hover:border-[#FF9EBE]/40 bg-white' : 'border-black/5 opacity-80 bg-black/[0.01]'
+                      }`}
+                    >
+                      {/* Ticket Header Metadata */}
+                      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-black/5 pb-4">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="font-mono font-black text-xs px-3 py-1 bg-black/5 rounded-lg text-brand-primary">
+                            {ticket.ticketId}
+                          </span>
+                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                            ticket.category === 'payment' ? 'bg-[#FF9EBE]/10 text-[#FF9EBE]' :
+                            ticket.category === 'bug' ? 'bg-red-50 text-red-500' :
+                            ticket.category === 'feedback' ? 'bg-emerald-50 text-emerald-500' :
+                            'bg-blue-50 text-blue-500'
+                          }`}>
+                            {ticket.category === 'payment' ? 'Zahlung / Abo' :
+                             ticket.category === 'bug' ? 'Fehler / Tech' :
+                             ticket.category === 'feedback' ? 'Wünsche / Lob' :
+                             'Allgemein'}
+                          </span>
+                          {ticket.status360 === 'open' ? (
+                            <span className="px-2.5 py-1 bg-amber-50 text-amber-600 rounded-full text-[9px] font-black uppercase tracking-widest">
+                              Offen
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-full text-[9px] font-black uppercase tracking-widest">
+                              Erledigt
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="text-[10px] font-bold text-brand-primary/45 flex items-center gap-2">
+                          <Calendar size={12} />
+                          {ticket.createdAt?.toDate ? ticket.createdAt.toDate().toLocaleString('de-DE') : new Date(ticket.createdAt).toLocaleString('de-DE')}
+                        </div>
+                      </div>
+
+                      {/* Ticket Body Content */}
+                      <div className="space-y-3 text-left">
+                        <div className="font-bold text-base text-brand-primary">{ticket.subject}</div>
+                        <div className="text-sm text-brand-primary/70 leading-relaxed whitespace-pre-wrap bg-black/[0.01] p-4 rounded-2xl border border-black/[0.02]">
+                          {ticket.message}
+                        </div>
+                        {ticket.userAgent && (
+                          <div className="text-[9px] text-brand-primary/30 font-mono tracking-tight pt-1">
+                            System-Info: {ticket.userAgent}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sender Details & Action triggers */}
+                      <div className="flex flex-wrap items-center justify-between gap-4 pt-2 border-t border-black/5">
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-brand-primary/60">
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-6 h-6 rounded-md bg-black/5 flex items-center justify-center font-bold text-[10px] text-brand-primary">
+                              {ticket.name ? ticket.name[0].toUpperCase() : '?'}
+                            </span>
+                            <span>{ticket.name}</span>
+                          </div>
+                          <span className="text-brand-primary/20">|</span>
+                          <a 
+                            href={`mailto:${ticket.email}?subject=Frisuren.ai%20Support:%20${encodeURIComponent(ticket.subject)}%20(${ticket.ticketId})`}
+                            className="flex items-center gap-1 hover:text-[#FF9EBE] transition-colors"
+                          >
+                            <Mail size={12} />
+                            {ticket.email}
+                          </a>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleTicketStatus(ticket.id, ticket.status360)}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all ${
+                              ticket.status360 === 'open' 
+                                ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
+                                : 'bg-black/5 text-brand-primary/40 hover:bg-black/10'
+                            }`}
+                          >
+                            {ticket.status360 === 'open' ? (
+                              <>
+                                <Check size={14} />
+                                Erledigen
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw size={14} />
+                                Reaktivieren
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="bg-white rounded-[2.5rem] border border-black/5 shadow-sm p-12 text-center text-brand-primary/40 font-bold uppercase tracking-widest text-xs w-full">
+                    Keine Support Tickets gefunden
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Billing & Invoices Section */}
           <section className="space-y-6">
