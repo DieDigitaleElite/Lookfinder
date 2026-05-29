@@ -90,6 +90,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
       const q = query(collection(db, path), orderBy('createdAt', 'desc'), limit(100));
       const querySnapshot = await getDocs(q);
       const fetchedUsers = querySnapshot.docs.map(doc => ({
+        uid: doc.id,
         ...doc.data()
       })) as UserData[];
       
