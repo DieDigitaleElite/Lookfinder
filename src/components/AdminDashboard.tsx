@@ -16,11 +16,12 @@ import {
   MessageSquare,
   Check,
   RotateCcw,
-  Mail
+  Mail,
+  Image
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, getDocs, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, getDocs, orderBy, limit, doc, updateDoc, getCountFromServer } from 'firebase/firestore';
 
 interface UserData {
   uid: string;
@@ -41,7 +42,38 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
     conversionRate: 0
   });
 
+  const [imageCounts, setImageCounts] = useState<Record<string, number>>({});
+  const [countsLoading, setCountsLoading] = useState<Record<string, boolean>>({});
+
   const [activeTab, setActiveTab] = useState<'users' | 'tickets'>('users');
+
+  const fetchImageCounts = async (userList: UserData[]) => {
+    // Initialisiere Ladestatus für alle geladenen Nutzer
+    const initialLoading: Record<string, boolean> = {};
+    userList.forEach(u => {
+      initialLoading[u.uid] = true;
+    });
+    setCountsLoading(initialLoading);
+
+    // In Chunks laden, um Datenbank-Rate-Limits zu schonen
+    for (let i = 0; i < userList.length; i += 5) {
+      const chunk = userList.slice(i, i + 5);
+      await Promise.all(chunk.map(async (u) => {
+        try {
+          const resultsRef = collection(db, 'users', u.uid, 'results');
+          const countSnapshot = await getCountFromServer(resultsRef);
+          const count = countSnapshot.data().count;
+          
+          setImageCounts(prev => ({ ...prev, [u.uid]: count }));
+        } catch (err) {
+          console.error(`Error loading results count for ${u.uid}:`, err);
+          setImageCounts(prev => ({ ...prev, [u.uid]: 0 }));
+        } finally {
+          setCountsLoading(prev => ({ ...prev, [u.uid]: false }));
+        }
+      }));
+    }
+  };
   const [tickets, setTickets] = useState<any[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [ticketsSearch, setTicketsSearch] = useState('');
@@ -104,6 +136,9 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
       });
       
       setLoading(false);
+      
+      // Berechnung der Bild-Zahlen im Hintergrund anstoßen
+      fetchImageCounts(fetchedUsers);
     } catch (err) {
       handleFirestoreError(err, OperationType.LIST, path);
       setLoading(false);
@@ -157,11 +192,12 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
         <div className="max-w-6xl mx-auto p-8 space-y-12 pb-24">
           
           {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
               { label: 'Benutzer Gesamt', value: stats.totalUsers, icon: Users, color: 'text-blue-500' },
               { label: 'Premium Abonnenten', value: stats.premiumUsers, icon: CreditCard, color: 'text-[#FF9EBE]' },
-              { label: 'Conversion Rate', value: `${stats.conversionRate.toFixed(1)}%`, icon: TrendingUp, color: 'text-emerald-500' }
+              { label: 'KI-Bilder Gesamt (geladen)', value: loading ? '...' : (Object.values(imageCounts) as number[]).reduce((a: number, b: number) => a + b, 0), icon: Image, color: 'text-purple-500' },
+              { label: 'KI-Kosten Gesamt (ca.)', value: loading ? '...' : `${((Object.values(imageCounts) as number[]).reduce((a: number, b: number) => a + b, 0) * 0.03).toFixed(2)} €`, icon: TrendingUp, color: 'text-amber-500' }
             ].map((stat, i) => (
               <div key={i} className="bg-white p-8 rounded-[2rem] border border-black/5 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
@@ -231,6 +267,8 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                       <tr className="border-b border-black/5 bg-black/[0.01]">
                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Nutzer</th>
                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Status</th>
+                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">KI-Bilder</th>
+                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">KI-Kosten (ca.)</th>
                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Registrierung</th>
                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-brand-primary/40">Aktionen</th>
                       </tr>
@@ -239,7 +277,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                       {loading ? (
                         [1,2,3].map(i => (
                           <tr key={i} className="animate-pulse">
-                            <td colSpan={4} className="px-8 py-4"><div className="h-12 bg-black/5 rounded-xl w-full" /></td>
+                            <td colSpan={6} className="px-8 py-4"><div className="h-12 bg-black/5 rounded-xl w-full" /></td>
                           </tr>
                         ))
                       ) : filteredUsers.length > 0 ? (
@@ -269,6 +307,26 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                               )}
                             </td>
                             <td className="px-8 py-6">
+                              {countsLoading[user.uid] ? (
+                                <span className="inline-flex items-center gap-1.5 text-[10px] font-bold text-brand-primary/30 animate-pulse">
+                                  Lädt...
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-purple-50 text-purple-600 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                  {imageCounts[user.uid] ?? 0} Bilder
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-8 py-6">
+                              {countsLoading[user.uid] ? (
+                                <span className="text-[10px] font-bold text-brand-primary/30 animate-pulse">...</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                                  {((imageCounts[user.uid] ?? 0) * 0.03).toFixed(2)} €
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-8 py-6">
                               <div className="text-[10px] font-bold text-brand-primary/60 flex items-center gap-2">
                                 <Calendar size={12} />
                                 {user.createdAt?.toDate().toLocaleDateString('de-DE')}
@@ -283,7 +341,7 @@ export default function AdminDashboard({ onClose }: { onClose: () => void }) {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="px-8 py-12 text-center text-brand-primary/40 font-bold uppercase tracking-widest text-xs">
+                          <td colSpan={6} className="px-8 py-12 text-center text-brand-primary/40 font-bold uppercase tracking-widest text-xs">
                             Keine Nutzer gefunden
                           </td>
                         </tr>
