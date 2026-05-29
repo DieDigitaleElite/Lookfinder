@@ -284,6 +284,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
     const session = await stripeClient.checkout.sessions.create({
       line_items: lineItems,
       mode: mode,
+      allow_promotion_codes: true,
       customer_email: email || undefined,
       client_reference_id: userId,
       success_url: `${baseUrl}/?payment=success&plan=${plan || 'single'}&uid=${userId}`,
