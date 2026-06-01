@@ -165,12 +165,22 @@ app.post("/api/gemini", async (req, res) => {
              }
           }
         } else {
-          promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 
-          ${description}. 
-          CRITICAL: The face and environment MUST be 100% identical to the source image. 
-          KEEP UNCHANGED: Eyes (color, shape, position), Nose, Mouth, Chin, Skin tone, Lighting on the face, Head tilt, and the EXACT BACKGROUND. 
-          The ONLY change allowed is the hairstyle. The transition from hair to skin (hairline) must be seamless and photorealistic. 
-          DO NOT manipulate or 'beautify' the original face or background. Identity and environment preservation is the absolute priority.`;
+          promptSnippet = `### TASK: PHOTOREALISTIC HAIRSTYLE SWAP
+You must generate a photorealistic image where the person in the source photo has their hairstyle professionally swapped to: "${styleName}".
+
+### STYLING SPECIFICATIONS (THE ONLY ALLOWED CHANGES):
+- Target Hairstyle: ${styleName}
+- Style Description: ${description}
+- Seamless Blend: The hair must blend seamlessly, photorealistically, and naturally with the forehead, temples, and neck of the original person.
+
+### STRICT PRESERVATION BOUNDARIES (MUST REMAIN 100% UNTOUCHED):
+- Face Identity: Absolutely do not modify, beautify, alter, or re-generate the person's face. The eyes (color, size, shape, double eyelids, direction of gaze), nose (shape, nostrils), mouth, teeth, ears, jawline, chin, wrinkles, blemishes, moles, and unique skin details must be preserved with pixel-perfect, 100% identical accuracy to the original photo.
+- Expression & Pose: Keep the identical facial expression, gaze, smile, head tilt, body posture, and camera angle.
+- Environment & Extras: The background scenery, furniture, lighting direction, contrast, shadows on the shoulders/neck, clothing, and any accessories (glasses, jewelry) must remain completely identical without any hallucinated details.
+
+### MODEL INSTRUCTIONS:
+- The absolute top priority is preserving the subject's precise visual identity and facial details so they instantly recognize themselves.
+- Only modify the hair region to depict the requested "${styleName}". Every other pixel from the source image must be preserved as closely as physically possible.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
