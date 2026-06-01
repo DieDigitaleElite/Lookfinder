@@ -309,17 +309,15 @@ export default function App() {
 
   // Background sketch generation for all library styles
   useEffect(() => {
-    // Only generate background sketches when NOT doing main generation 
-    // We allow ONE sketch to be generated even outside studio view for the preview card
-    const hasAtLeastOneSketch = Object.keys(hairstyleSketches).length > 0;
-    
+    let active = true;
+
     // Determine best source for background generation
     const sourceImage = sketchReferenceImage || image;
     const sourceMime = sketchReferenceMimeType || mimeType;
 
     // ONLY generate background sketches if user is registered/logged in and we have a source
-    if (!user || !baseSketch || !sourceImage || isGeneratingBackground || isGenerating) return;
-    
+    if (!user || !baseSketch || !sourceImage || isGenerating) return;
+
     const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
     if (stylesToGenerate.length === 0) return;
 
@@ -330,6 +328,7 @@ export default function App() {
       let localSketches = { ...hairstyleSketches };
 
       for (const style of stylesToGenerate) {
+        if (!active) break;
         // Double check conditions inside the loop
         if (localSketches[style.id]) continue;
         if (isGenerating) break; // Pause if user starts a new main generation
@@ -338,9 +337,12 @@ export default function App() {
           const base64Data = sourceImage.split(',')[1];
           const rawSketch = await generateFashionSketch(base64Data, sourceMime, style.name, baseSketch);
           
+          if (!active) break;
+
           if (rawSketch) {
             // Compress sketch before saving to save space and bandwidth
             const compressed = await fastResizeImage(rawSketch, 512, 0.6);
+            if (!active) break;
             
             localSketches = { ...localSketches, [style.id]: compressed };
             setHairstyleSketches(localSketches);
@@ -358,18 +360,32 @@ export default function App() {
         } catch (err) {
           console.error(`Background gen failed for ${style.name}`, err);
           if (String(err).includes('429')) {
-             await new Promise(r => setTimeout(r, 60000));
+             // wait 60 seconds with active check
+             for (let delay = 0; delay < 60; delay++) {
+               if (!active) break;
+               await new Promise(r => setTimeout(r, 1000));
+             }
           }
         }
         
         // Wait longer between background tasks to be extremely gentle on the API
-        await new Promise(r => setTimeout(r, 4500));
+        for (let delay = 0; delay < 5; delay++) {
+          if (!active) break;
+          await new Promise(r => setTimeout(r, 1000));
+        }
       }
       
-      setIsGeneratingBackground(false);
+      if (active) {
+        setIsGeneratingBackground(false);
+      }
     };
 
     processQueue();
+
+    return () => {
+      active = false;
+      setIsGeneratingBackground(false);
+    };
   }, [baseSketch, image, !!user, dashboardTab, isGenerating]); // Added dependencies to handle state changes
 
   useEffect(() => {
@@ -2250,7 +2266,7 @@ export default function App() {
     if (!image) return null;
     try {
       const base64Data = image.split(',')[1];
-      return await generateFashionSketch(base64Data, mimeType, styleName, avatarSketch);
+      return await generateFashionSketch(base64Data, mimeType, styleName, baseSketch || avatarSketch);
     } catch (err) {
       console.error("Fashion sketch generation failed", err);
       return null;

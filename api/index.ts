@@ -145,11 +145,24 @@ app.post("/api/gemini", async (req, res) => {
              WICHTIG: Die Gesichtszüge müssen EXAKT beibehalten werden (Wiedererkennungswert).
              Für diesen speziellen Sketch: Zeichne das Gesicht ohne Haare (clean bald), aber mit einer ersten, angedeuteten Standard-Frisur.`;
           } else {
-             promptSnippet = `Erstelle einen Schwarz-Weiß-Fashion-Sketch mit Bleistift-Stil (Pencil Sketch) von dem Gesicht der Person.
-             WICHTIG: Ändere die Frisur zu: ${styleName}. Die Zeichnung MUSS den "${styleName}" exakt und deutlich erkennbar wiedergeben.
-             Stil: Künstlerischer Bleistift-Fashion-Sketch, Fokus auf dem Gesicht und der neuen Frisur.
-             Hintergrund: Rein Weiß.
-             WICHTIG: Die Gesichtszüge müssen identisch zum Originalfoto bleiben, damit der User sich zu 100% wiedererkennt.`;
+             if (baseSketch) {
+                promptSnippet = `Du erhältst zwei Bilder als Input:
+                1. Das Originalfoto des Benutzers (zur Referenz der Gesichtszüge und Identität).
+                2. Eine fertige Schwarz-Weiß-Basis-Skizze (Glatze / Base-Sketch) desselben Gesichts.
+                
+                DEINE AUFGABE:
+                Nimm exakt das Gesicht und die Struktur aus der Schwarz-Weiß-Basis-Skizze (Bild 2) als deine 100% identische Arbeitsgrundlage.
+                Zeichne nun auf dieses Gesicht aus der Basis-Skizze die neue Frisur: "${styleName}".
+                Die neue Frisur "${styleName}" muss extrem sauber, detailliert und erkennbar als Bleistift-Schraffur eingezeichnet werden.
+                WICHTIG: Das Gesicht, die Augen, die Nase, der Mund und alle Schattierungen des Gesichts aus der Basis-Skizze (Bild 2) MÜSSEN zu 100% absolut unverändert, identisch und deckungsgleich bleiben. Zeichne ausschließlich das neue Haar um/auf diesen präzisen Kopf.
+                Hintergrund: Rein weiß.`;
+             } else {
+                promptSnippet = `Erstelle einen Schwarz-Weiß-Fashion-Sketch mit Bleistift-Stil (Pencil Sketch) von dem Gesicht der Person.
+                WICHTIG: Ändere die Frisur zu: ${styleName}. Die Zeichnung MUSS den "${styleName}" exakt und deutlich erkennbar wiedergeben.
+                Stil: Künstlerischer Bleistift-Fashion-Sketch, Fokus auf dem Gesicht und der neuen Frisur.
+                Hintergrund: Rein Weiß.
+                WICHTIG: Die Gesichtszüge müssen identisch zum Originalfoto bleiben, damit der User sich zu 100% wiedererkennt.`;
+             }
           }
         } else {
           promptSnippet = `ULTRA-REALISTIC HAIRSTYLE SWAP: Photograph of the person with the new hairstyle: ${styleName}. 
