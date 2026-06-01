@@ -2247,41 +2247,49 @@ export default function App() {
         donts: ['Sehr harter Pony', 'Extrem flaches Volumen', 'Strenge Mittelscheitel']
       });
 
-      // Also generate the sketches for the studio if not already done
+      // Also generate the sketches for the studio if not already done - asynchronously in the background (Option A)
       if (!avatarSketch || !baseSketch) {
-        setIsGeneratingSketch(true);
-        try {
-          const baldSketch = await generateBaseAvatarSketch(base64Data, mimeType);
-          if (baldSketch) {
-            setBaseSketch(baldSketch);
+        // Run as a background task to immediately free the main UI face shape analysis spinner
+        (async () => {
+          setIsGeneratingSketch(true);
+          try {
+            // Option B: Speed up the sketch drawing dramatically by using a highly optimized 512px max dimension copy
+            // This reduces payload transit and Gemini token generation time by up to 80%
+            const sketchBase64Url = await fastResizeImage(image, 512, 0.7);
+            const sketchBase64Data = sketchBase64Url.split(',')[1];
             
-            // If we have an analysis, use the first suggestion to create a styled preview sketch
-            const styleName = analysis[0]?.name || 'Modern Hairstyle';
-            const styledSketch = await generateFashionSketch(base64Data, mimeType, styleName, baldSketch);
-            
-            if (styledSketch) {
-              setAvatarSketch(styledSketch);
+            const baldSketch = await generateBaseAvatarSketch(sketchBase64Data, mimeType);
+            if (baldSketch) {
+              setBaseSketch(baldSketch);
               
-              // Also persist to DB if user logged in
-              if (auth.currentUser) {
-                const userRef = doc(db, 'users', auth.currentUser.uid);
-                setDoc(userRef, { 
-                  avatarSketch: styledSketch, 
-                  baseSketch: baldSketch,
-                  lastActive: serverTimestamp() 
-                }, { merge: true })
-                  .catch(e => console.warn("Failed to persist sketches to Firestore", e));
+              // If we have an analysis, use the first suggestion to create a styled preview sketch
+              const styleName = analysis[0]?.name || 'Modern Hairstyle';
+              const styledSketch = await generateFashionSketch(sketchBase64Data, mimeType, styleName, baldSketch);
+              
+              if (styledSketch) {
+                setAvatarSketch(styledSketch);
+                
+                // Also persist to DB if user logged in
+                if (auth.currentUser) {
+                  const userRef = doc(db, 'users', auth.currentUser.uid);
+                  await setDoc(userRef, { 
+                    avatarSketch: styledSketch, 
+                    baseSketch: baldSketch,
+                    lastActive: serverTimestamp() 
+                  }, { merge: true })
+                    .catch(e => console.warn("Failed to persist sketches to Firestore", e));
+                }
+              } else {
+                // Fallback to bald if styled fails
+                setAvatarSketch(baldSketch);
               }
-            } else {
-              // Fallback to bald if styled fails
-              setAvatarSketch(baldSketch);
             }
+          } catch (sketchErr) {
+            console.error("Background sketch generation failed", sketchErr);
+          } finally {
+            setIsGeneratingSketch(false);
           }
-        } catch (sketchErr) {
-          console.error("Sketch generation failed", sketchErr);
-        } finally {
-          setIsGeneratingSketch(false);
-        }
+        })();
       }
     } catch (err: any) {
       console.error("Face analysis failed", err);
@@ -2326,14 +2334,17 @@ export default function App() {
     }
 
     try {
-      const base64Data = processedImage.split(',')[1];
-      const baldSketch = await generateBaseAvatarSketch(base64Data, type);
+      // Option B: Resize to 512px max dimension to speed up the pencil sketch drawing model dramatically
+      const sketchBase64Url = await fastResizeImage(processedImage, 512, 0.7);
+      const sketchBase64Data = sketchBase64Url.split(',')[1];
+      
+      const baldSketch = await generateBaseAvatarSketch(sketchBase64Data, type);
       if (baldSketch) {
         setBaseSketch(baldSketch);
         
         // Find a suitable style or use default
         const styleName = results[0]?.name || 'Classic Look';
-        const styledSketch = await generateFashionSketch(base64Data, type, styleName, baldSketch);
+        const styledSketch = await generateFashionSketch(sketchBase64Data, type, styleName, baldSketch);
         
         if (styledSketch) {
           setAvatarSketch(styledSketch);
