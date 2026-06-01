@@ -42,6 +42,7 @@ interface StylingStudioProps {
   isAutoGeneratingFromStripe?: boolean;
   stripeGenerationError?: string | null;
   onClearStripeError?: () => void;
+  onCategoryChange?: (category: string) => void;
 }
 
 export default function StylingStudio({ 
@@ -58,9 +59,14 @@ export default function StylingStudio({
   onOpenLegalModal,
   isAutoGeneratingFromStripe = false,
   stripeGenerationError = null,
-  onClearStripeError
+  onClearStripeError,
+  onCategoryChange
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
+
+  React.useEffect(() => {
+    onCategoryChange?.(selectedCategory);
+  }, [selectedCategory, onCategoryChange]);
   const [selectedWorld, setSelectedWorld] = useState(COLOR_WORLDS[0].id);
   const [selectedStyleId, setSelectedStyleId] = useState<string | null>(null);
   const [selectedColorId, setSelectedColorId] = useState<string | null>(null);

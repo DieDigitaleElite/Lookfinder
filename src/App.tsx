@@ -233,6 +233,7 @@ export default function App() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
+  const [activeCategory, setActiveCategory] = useState<string>('short');
 
   // Mirror critical state to localStorage for anonymous users
   useEffect(() => {
@@ -318,16 +319,52 @@ export default function App() {
     // ONLY generate background sketches if user is registered/logged in and we have a source
     if (!user || !baseSketch || !sourceImage || isGenerating) return;
 
-    const stylesToGenerate = HAIRSTYLE_LIBRARY.filter(s => !hairstyleSketches[s.id]);
-    if (stylesToGenerate.length === 0) return;
+    const getNextStyleToGenerate = (currentSketches: Record<string, string>, activeCat: string) => {
+      const pendingStyles = HAIRSTYLE_LIBRARY.filter(s => !currentSketches[s.id]);
+      if (pendingStyles.length === 0) return null;
+
+      const categories = ['short', 'medium', 'long', 'trends', 'men'];
+      const levelAIds = new Set<string>();
+      
+      for (const cat of categories) {
+        const catStyles = HAIRSTYLE_LIBRARY.filter(s => s.category === cat);
+        catStyles.slice(0, 2).forEach(s => levelAIds.add(s.id));
+      }
+
+      const pendingLevelA = pendingStyles.filter(s => levelAIds.has(s.id));
+      const pendingLevelB = pendingStyles.filter(s => !levelAIds.has(s.id));
+
+      if (pendingLevelA.length > 0) {
+        const activeCatLevelA = pendingLevelA.filter(s => s.category === activeCat);
+        if (activeCatLevelA.length > 0) {
+          return activeCatLevelA[0];
+        }
+        return pendingLevelA[0];
+      }
+
+      if (pendingLevelB.length > 0) {
+        const activeCatLevelB = pendingLevelB.filter(s => s.category === activeCat);
+        if (activeCatLevelB.length > 0) {
+          return activeCatLevelB[0];
+        }
+        return pendingLevelB[0];
+      }
+
+      return null;
+    };
 
     const processQueue = async () => {
+      if (!getNextStyleToGenerate(hairstyleSketches, activeCategory)) return;
+
       setIsGeneratingBackground(true);
-      console.log(`Starting background generation for ${stylesToGenerate.length} styles using ${sketchReferenceImage ? 'reference' : 'current'} image...`);
+      console.log(`Starting background generation... Active Category Priority: ${activeCategory}`);
       
       let localSketches = { ...hairstyleSketches };
 
-      for (const style of stylesToGenerate) {
+      while (active) {
+        const style = getNextStyleToGenerate(localSketches, activeCategory);
+        if (!style) break;
+        if (isGenerating) break; // Pause if user starts a new main generation
         if (!active) break;
         // Double check conditions inside the loop
         if (localSketches[style.id]) continue;
@@ -386,7 +423,7 @@ export default function App() {
       active = false;
       setIsGeneratingBackground(false);
     };
-  }, [baseSketch, image, !!user, dashboardTab, isGenerating]); // Added dependencies to handle state changes
+  }, [baseSketch, image, !!user, dashboardTab, isGenerating, activeCategory]); // Added dependencies to handle state changes
 
   useEffect(() => {
     if (user) {
@@ -3466,6 +3503,7 @@ export default function App() {
                         avatarSketch={avatarSketch}
                         isPremium={isPro}
                         preGeneratedSketches={hairstyleSketches}
+                        onCategoryChange={setActiveCategory}
                         isGeneratingBackground={isGeneratingBackground}
                         onCheckout={handleCheckout}
                         onShowPricing={() => handleShowPricing('styling_studio')}
@@ -4295,7 +4333,7 @@ export default function App() {
                              />
                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
                                 <Palette size={48} className="text-brand-primary/20 mb-4" />
-                                <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Jetzt freischalten</button>
+                                <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Jetzt entdecken</button>
                              </div>
                           </div>
 
