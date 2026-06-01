@@ -2731,6 +2731,77 @@ export default function App() {
     doc.save(`${result.name.toLowerCase().replace(/\s+/g, '-')}-guide.pdf`);
   };
 
+  const renderStylingStudioCard = () => {
+    if (isPro) return null;
+    
+    return (
+      <motion.div
+        key="styling-studio-teaser"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        onClick={() => {
+          if (!user) {
+            setPendingTab('studio');
+            setIsRegistering(true);
+            setShowLoginModal(true);
+          } else {
+            setDashboardTab('studio');
+          }
+        }}
+        className="group relative bg-white p-6 rounded-[2.5rem] border-2 border-[#FF9EBE] shadow-xl hover:shadow-2xl transition-all cursor-pointer flex flex-col items-center justify-between overflow-hidden"
+      >
+        <div className="absolute top-0 right-0 p-3 bg-[#FF9EBE] text-white text-[8px] font-black uppercase tracking-widest rounded-bl-2xl">
+           NEU: Studio
+        </div>
+        
+        <div className="text-center space-y-2 mb-6">
+           <h4 className="font-serif font-black italic text-[#FF9EBE]">Dein persönliches Styling Studio</h4>
+           <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Alle Looks an dir testen</p>
+        </div>
+
+        <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group-hover:scale-105 transition-transform duration-500">
+           {(Object.values(hairstyleSketches)[0] || avatarSketch) ? (
+              <motion.img 
+                key={Object.keys(hairstyleSketches)[0] || 'sketch'}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.6 }}
+                src={Object.values(hairstyleSketches)[0] || avatarSketch || undefined} 
+                className="w-full h-full object-cover grayscale" 
+                referrerPolicy="no-referrer" 
+              />
+           ) : image ? (
+              <div className="absolute inset-0 bg-brand-primary/5 flex items-center justify-center">
+                <motion.img 
+                  src={image} 
+                  className="w-full h-full object-cover grayscale opacity-20 blur-[2px]" 
+                  referrerPolicy="no-referrer" 
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                  <Loader2 className="animate-spin text-[#FF9EBE] mb-2" size={24} />
+                  <span className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-widest">Wird vorbereitet...</span>
+                </div>
+              </div>
+           ) : (
+              <div className="absolute inset-0 bg-brand-primary/5 flex flex-col items-center justify-center">
+                <Palette size={48} className="text-brand-primary/10 mb-2" />
+                <span className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-widest">Wird geladen...</span>
+              </div>
+           )}
+           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+              <Palette size={48} className="text-brand-primary/20 mb-4" />
+              <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Jetzt entdecken</button>
+           </div>
+        </div>
+
+        <div className="mt-6 text-center">
+           <p className="text-[11px] font-bold text-brand-primary/60 italic leading-tight">
+             "Unsere KI hat deine Gesichtsform analysiert. In deinem persönlichen Styling Studio findest du alle perfekt zu dir passenden Frisuren! ✨"
+           </p>
+        </div>
+      </motion.div>
+    );
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       {needsApiKey && (
@@ -4298,52 +4369,7 @@ export default function App() {
                   return (
                     <React.Fragment key={result.id}>
                       {/* Miniatur Studio Preview (Hingucker) as 4th card for free/single users */}
-                      {index === 3 && !isPro && avatarSketch && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          onClick={() => {
-                            if (!user) {
-                              setPendingTab('studio');
-                              setIsRegistering(true);
-                              setShowLoginModal(true);
-                            } else {
-                              setDashboardTab('studio');
-                            }
-                          }}
-                          className="group relative bg-white p-6 rounded-[2.5rem] border-2 border-[#FF9EBE] shadow-xl hover:shadow-2xl transition-all cursor-pointer flex flex-col items-center justify-between overflow-hidden"
-                        >
-                          <div className="absolute top-0 right-0 p-3 bg-[#FF9EBE] text-white text-[8px] font-black uppercase tracking-widest rounded-bl-2xl">
-                             NEU: Studio
-                          </div>
-                          
-                          <div className="text-center space-y-2 mb-6">
-                             <h4 className="font-serif font-black italic text-[#FF9EBE]">Dein persönliches Styling Studio</h4>
-                             <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40">Alle Looks an dir testen</p>
-                          </div>
-
-                          <div className="aspect-[3/4] w-full rounded-2xl overflow-hidden shadow-inner bg-black/5 relative group-hover:scale-105 transition-transform duration-500">
-                             <motion.img 
-                               key={Object.keys(hairstyleSketches)[0] || 'bald'}
-                               initial={{ opacity: 0 }}
-                               animate={{ opacity: 0.6 }}
-                               src={(Object.values(hairstyleSketches)[0] || avatarSketch) || undefined} 
-                               className="w-full h-full object-cover grayscale" 
-                               referrerPolicy="no-referrer" 
-                             />
-                             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-                                <Palette size={48} className="text-brand-primary/20 mb-4" />
-                                <button className="px-4 py-2 bg-brand-primary text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg">Jetzt entdecken</button>
-                             </div>
-                          </div>
-
-                          <div className="mt-6 text-center">
-                             <p className="text-[11px] font-bold text-brand-primary/60 italic leading-tight">
-                               "Unsere KI hat deine Gesichtsform analysiert. In deinem persönlichen Styling Studio findest du alle perfekt zu dir passenden Frisuren! ✨"
-                             </p>
-                          </div>
-                        </motion.div>
-                      )}
+                      {index === 3 && renderStylingStudioCard()}
 
                       {index === 4 && !isPremium && (
                         <motion.div 
@@ -4741,6 +4767,7 @@ export default function App() {
                   </React.Fragment>
                 );
               })}
+              {results.length < 4 && renderStylingStudioCard()}
               </div>
 
               {/* Premium Feature: Style Library & Color Picker - ONLY FOR PRO OR CREDIT USERS */}
