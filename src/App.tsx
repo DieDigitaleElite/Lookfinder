@@ -332,7 +332,6 @@ export default function App() {
       }
 
       const pendingLevelA = pendingStyles.filter(s => levelAIds.has(s.id));
-      const pendingLevelB = pendingStyles.filter(s => !levelAIds.has(s.id));
 
       if (pendingLevelA.length > 0) {
         const activeCatLevelA = pendingLevelA.filter(s => s.category === activeCat);
@@ -340,14 +339,6 @@ export default function App() {
           return activeCatLevelA[0];
         }
         return pendingLevelA[0];
-      }
-
-      if (pendingLevelB.length > 0) {
-        const activeCatLevelB = pendingLevelB.filter(s => s.category === activeCat);
-        if (activeCatLevelB.length > 0) {
-          return activeCatLevelB[0];
-        }
-        return pendingLevelB[0];
       }
 
       return null;
@@ -1263,16 +1254,27 @@ export default function App() {
     const mimeType = image.split(';')[0].split(':')[1] || 'image/jpeg';
     
     try {
-      // Generate missing images sequentially
-      for (let idx = 0; idx < missingIndices.length; idx++) {
-        const i = missingIndices[idx];
+      const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+          )
+        ]);
+      };
+
+      const generateMissingParallel = async (i: number, idx: number) => {
         const suggestion = results[i];
-        
         try {
-          // Moderate delay between requests to be resource friendly and avoid rate limits
-          if (idx > 0) await new Promise(resolve => setTimeout(resolve, 5000));
-          
-          const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
+          // Stagger starting times slightly to prevent bottlenecking API
+          await new Promise(resolve => setTimeout(resolve, idx * 600));
+          console.log(`Generating manual premium style ${i + 1}: ${suggestion.name}`);
+
+          const imageUrl = await withTimeout(
+            generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
+            20000,
+            "Timeout"
+          );
           
           const updatedResult = imageUrl 
             ? { ...suggestion, imageUrl, sourceImageUrl: image, failed: false }
@@ -1281,26 +1283,32 @@ export default function App() {
           setResults(prev => {
             const newResults = [...prev];
             newResults[i] = updatedResult;
+            
+            // Auto-save to history for premium users
+            if (user && updatedResult.imageUrl) {
+              saveResult(updatedResult, true).catch(err => console.warn("Failed auto-save to history", err));
+            }
+            
+            // Update progress
+            const currentCompleted = newResults.filter(r => !!r.imageUrl || r.failed).length;
+            setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
             return newResults;
           });
-
-          // Auto-save to history for premium users
-          if (user && updatedResult.imageUrl) {
-            await saveResult(updatedResult, true);
-          }
-          
-          // Update progress
-          const currentCompleted = results.filter(r => !!r.imageUrl || r.failed).length + (idx + 1);
-          setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
         } catch (err) {
           console.error(`Failed to generate missing style ${i}`, err);
           setResults(prev => {
             const newResults = [...prev];
             newResults[i] = { ...newResults[i], failed: true };
+            
+            const currentCompleted = newResults.filter(r => !!r.imageUrl || r.failed).length;
+            setGenerationProgress(Math.round((Math.min(currentCompleted, results.length) / results.length) * 100));
             return newResults;
           });
         }
-      }
+      };
+
+      const promises = missingIndices.map((i, idx) => generateMissingParallel(i, idx));
+      await Promise.all(promises);
       
       // Trigger confetti after the full unlock
       confetti({
@@ -1998,15 +2006,30 @@ export default function App() {
       
       generateSketchDelayed();
 
-      for (let i = 0; i < maxToGenerate; i++) {
+      // Parallelize image generation with stagger delays and timeouts for 3x speedup!
+      const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(errorMsg)), timeoutMs)
+          )
+        ]);
+      };
+
+      const generateWithStaggerAndTimeout = async (i: number) => {
         const suggestion = suggestions[i];
-        console.log(`Generating image ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
         try {
-          // Increased delay between requests to avoid overlapping limits (15 RPM = 1 req / 4s)
-          // We use 5 seconds to be safe, especially on mobile networks
-          if (i > 0) await new Promise(resolve => setTimeout(resolve, 5000));
+          // Stagger starting times: index 0 (0ms), index 1 (600ms), index 2 (1200ms)
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, i * 600));
+          }
+          console.log(`Generating image in parallel slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
-          const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
+          const imageUrl = await withTimeout(
+            generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
+            18000,
+            "Timeout"
+          );
           
           setResults(prev => {
             const newResults = [...prev];
@@ -2014,7 +2037,6 @@ export default function App() {
               const updatedResult = { ...newResults[i], imageUrl, sourceImageUrl: image, failed: false };
               newResults[i] = updatedResult;
               
-              // NEW: Auto-save to history for premium users
               if (isPremium && user) {
                 saveResultToHistory(updatedResult);
               }
@@ -2023,18 +2045,29 @@ export default function App() {
             }
             return newResults;
           });
-          
-          // Update progress after each image
-          setGenerationProgress(Math.round(((i + 1) / maxToGenerate) * 100));
         } catch (err) {
-          console.error(`Failed to generate image for style ${i}`, err);
+          console.error(`Failed/Timeout generating parallel image for style ${i}`, err);
           setResults(prev => {
             const newResults = [...prev];
             newResults[i] = { ...newResults[i], failed: true };
             return newResults;
           });
+        } finally {
+          // Update progress bar based on completed counts
+          setResults(prev => {
+            const completed = prev.filter(r => r.imageUrl || r.failed).length;
+            setGenerationProgress(Math.min(100, Math.round((completed / maxToGenerate) * 100)));
+            return prev;
+          });
         }
+      };
+
+      const promises = [];
+      for (let i = 0; i < maxToGenerate; i++) {
+        promises.push(generateWithStaggerAndTimeout(i));
       }
+
+      await Promise.all(promises);
 
       setGenerationProgress(100);
 
@@ -2088,7 +2121,14 @@ export default function App() {
       const base64Data = image.split(',')[1];
       const suggestion = results[index];
       
-      const imageUrl = await generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description);
+      const timeoutPromise = new Promise<null>((_, reject) => 
+        setTimeout(() => reject(new Error("Timeout")), 18000)
+      );
+      
+      const imageUrl = await Promise.race([
+        generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
+        timeoutPromise
+      ]);
       
       setResults(prev => {
         const newResults = [...prev];
@@ -2331,6 +2371,40 @@ export default function App() {
       console.error("Fashion sketch generation failed", err);
       return null;
     }
+  };
+
+  const handleGenerateSingleSketch = async (styleId: string, styleName: string): Promise<string | null> => {
+    const sourceImage = sketchReferenceImage || image;
+    const sourceMime = sketchReferenceMimeType || mimeType;
+
+    if (!sourceImage) return null;
+
+    try {
+      const base64Data = sourceImage.split(',')[1];
+      const rawSketch = await generateFashionSketch(base64Data, sourceMime, styleName, baseSketch || avatarSketch);
+      if (rawSketch) {
+        const compressed = await fastResizeImage(rawSketch, 512, 0.6);
+        
+        setHairstyleSketches(prev => {
+          const updated = { ...prev, [styleId]: compressed };
+          return updated;
+        });
+
+        // Save to Firestore subcollection if user is logged in
+        if (auth.currentUser) {
+          const sketchRef = doc(db, 'users', auth.currentUser.uid, 'sketches', styleId);
+          await setDoc(sketchRef, { 
+            id: styleId, 
+            data: compressed,
+            updatedAt: serverTimestamp() 
+          }, { merge: true }).catch(e => console.warn(`Failed to save sketch ${styleId}`, e));
+        }
+        return compressed;
+      }
+    } catch (err) {
+      console.error(`Failed on-demand sketch generation for ${styleName}`, err);
+    }
+    return null;
   };
 
   const handleStylingStudioImageUpload = async (base64: string, type: string) => {
@@ -3605,6 +3679,7 @@ export default function App() {
                         isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
                         stripeGenerationError={stripeGenerationError}
                         onClearStripeError={() => setStripeGenerationError(null)}
+                        onGenerateSketch={handleGenerateSingleSketch}
                       />
                     </div>
                   </div>
@@ -4739,24 +4814,25 @@ export default function App() {
                             )}
                           </>
                         ) : result.failed ? (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center bg-red-50/50">
-                            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-500">
-                              <AlertCircle size={24} />
+                          <div 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              retryStyle(index);
+                            }}
+                            className="w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center bg-amber-50/30 hover:bg-amber-50/60 active:scale-[0.98] transition-all cursor-pointer border border-[#FF9EBE]/20 rounded-3xl"
+                          >
+                            <div className="w-12 h-12 rounded-full bg-[#FF9EBE]/10 flex items-center justify-center text-[#FF9EBE]">
+                              <Sparkles size={24} className="animate-pulse" />
                             </div>
-                            <div className="space-y-1">
-                              <p className="text-sm font-bold text-red-900">Fehlgeschlagen</p>
-                              <p className="text-[10px] text-red-600 leading-tight">Die KI braucht gerade eine kurze Verschnaufpause ✨ Bitte versuche es in ein paar Sekunden erneut.</p>
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium text-brand-primary leading-snug">
+                                Unsere KI ist gerade schwer am arbeiten;)
+                              </p>
+                              <div className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#FF9EBE] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md shadow-[#FF9EBE]/20 hover:bg-[#FF9EBE]/90 transition-colors">
+                                <RefreshCcw size={10} />
+                                Tippe hier zum Neuladen
+                              </div>
                             </div>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                retryStyle(index);
-                              }}
-                              className="px-4 py-2 bg-white border border-red-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50 transition-colors flex items-center gap-2"
-                            >
-                              <RefreshCcw size={14} />
-                              Erneut versuchen
-                            </button>
                           </div>
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">

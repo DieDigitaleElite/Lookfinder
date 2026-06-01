@@ -43,6 +43,7 @@ interface StylingStudioProps {
   stripeGenerationError?: string | null;
   onClearStripeError?: () => void;
   onCategoryChange?: (category: string) => void;
+  onGenerateSketch?: (styleId: string, styleName: string) => Promise<string | null>;
 }
 
 export default function StylingStudio({ 
@@ -60,9 +61,11 @@ export default function StylingStudio({
   isAutoGeneratingFromStripe = false,
   stripeGenerationError = null,
   onClearStripeError,
-  onCategoryChange
+  onCategoryChange,
+  onGenerateSketch
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
+  const [generatingSketches, setGeneratingSketches] = useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     onCategoryChange?.(selectedCategory);
@@ -264,11 +267,20 @@ export default function StylingStudio({
               {filteredStyles.map(s => {
                 const sketchUrl = preGeneratedSketches[s.id];
                 const hasSketch = !!sketchUrl;
+                const isLocalGenerating = generatingSketches[s.id];
 
                 return (
                   <button
                     key={s.id}
-                    onClick={() => setSelectedStyleId(s.id)}
+                    onClick={() => {
+                      setSelectedStyleId(s.id);
+                      if (!hasSketch && !isLocalGenerating && onGenerateSketch) {
+                        setGeneratingSketches(prev => ({ ...prev, [s.id]: true }));
+                        onGenerateSketch(s.id, s.name).finally(() => {
+                          setGeneratingSketches(prev => ({ ...prev, [s.id]: false }));
+                        });
+                      }
+                    }}
                     className={`group relative p-3 rounded-[1.5rem] border-2 transition-all overflow-hidden ${
                       selectedStyleId === s.id ? 'border-[#FF9EBE] bg-[#FF9EBE]/5 ring-4 ring-[#FF9EBE]/5' : 'border-black/5 bg-white'
                     }`}
@@ -296,16 +308,17 @@ export default function StylingStudio({
                             </div>
                           )}
                           
-                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                             {isGeneratingBackground ? (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-4 bg-white/40 group-hover:bg-white/20 transition-all backdrop-blur-[1px]">
+                             {isLocalGenerating ? (
                                <>
-                                 <Loader2 className="animate-spin text-brand-primary/40" size={24} />
-                                 <p className="text-[8px] font-black uppercase tracking-widest text-brand-primary/20">Wird gezeichnet...</p>
+                                 <Loader2 className="animate-spin text-[#FF9EBE]" size={24} />
+                                 <p className="text-[9px] font-black uppercase tracking-widest text-brand-primary animate-pulse">Wird gezeichnet...</p>
                                </>
                              ) : (
-                               !hasSketch && avatarSketch && (
-                                 <div className="w-2 h-2 rounded-full bg-brand-primary/10 animate-pulse" />
-                               )
+                               <div className="px-3 py-2 bg-white/95 border border-[#FF9EBE]/30 shadow-sm rounded-xl text-[9px] font-black uppercase tracking-widest text-brand-primary group-hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 whitespace-nowrap">
+                                 <Sparkles size={10} className="text-[#FF9EBE] animate-pulse" />
+                                 <span>Skizze entdecken</span>
+                               </div>
                              )}
                           </div>
                         </div>
