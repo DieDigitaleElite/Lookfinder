@@ -1320,13 +1320,8 @@ export default function App() {
       const generateMissingParallel = async (i: number, idx: number) => {
         const suggestion = results[i];
         try {
-          // Stagger starting times slightly to prevent bottlenecking API; use 1.5s delay on mobile devices to prevent network congestion
-          const isMobileDevice = typeof window !== 'undefined' && (
-            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-            (window.innerWidth > 0 && window.innerWidth < 768)
-          );
-          const delayMs = isMobileDevice ? 1500 : 600;
-          await new Promise(resolve => setTimeout(resolve, idx * delayMs));
+          // Stagger starting times slightly to prevent bottlenecking API
+          await new Promise(resolve => setTimeout(resolve, idx * 600));
           console.log(`Generating manual premium style ${i + 1}: ${suggestion.name}`);
 
           const imageUrl = await withTimeout(
@@ -2019,11 +2014,7 @@ export default function App() {
       const sourceImageToUse = hdImage || image;
       if (!sourceImageToUse) return;
       const base64Data = sourceImageToUse.split(',')[1];
-      
-      // Face shape and feature analysis does not need an HD image. Scale to 450px with medium quality to reduce file size.
-      const faceAnalysisImage = await fastResizeImage(sourceImageToUse, 450, 0.65);
-      const faceAnalysisBase64 = faceAnalysisImage.split(',')[1];
-      const suggestions = await analyzeFaceAndSuggestStyles(faceAnalysisBase64, mimeType);
+      const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       if (suggestions.length === 0) {
         throw new Error("Keine Frisuren-Vorschläge erhalten. Bitte versuche es mit einem anderen Bild.");
@@ -2089,14 +2080,8 @@ export default function App() {
         const suggestion = suggestions[i];
         try {
           // Stagger starting times: index 0 (0ms), index 1 (600ms), index 2 (1200ms)
-          // On mobile, increase stagger delay to 1.5s to prevent concurrent upload bottlenecks.
           if (i > 0) {
-            const isMobileDevice = typeof window !== 'undefined' && (
-              /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-              (window.innerWidth > 0 && window.innerWidth < 768)
-            );
-            const delayMs = isMobileDevice ? 1500 : 600;
-            await new Promise(resolve => setTimeout(resolve, i * delayMs));
+            await new Promise(resolve => setTimeout(resolve, i * 600));
           }
           console.log(`Generating image in parallel slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
@@ -2381,11 +2366,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     try {
       const sourceImageToUse = hdImage || image;
       const base64Data = sourceImageToUse.split(',')[1];
-      
-      // Face shape and feature analysis does not need an HD image. Scale to 450px with medium quality to reduce file size.
-      const faceAnalysisImage = await fastResizeImage(sourceImageToUse, 450, 0.65);
-      const faceAnalysisBase64 = faceAnalysisImage.split(',')[1];
-      const analysis = await analyzeFaceAndSuggestStyles(faceAnalysisBase64, mimeType);
+      const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       const faceShape = analysis[0]?.faceShape || 'Oval';
       setFaceAnalysis({
