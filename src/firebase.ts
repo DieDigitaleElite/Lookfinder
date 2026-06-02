@@ -129,6 +129,10 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Test connection
 async function testConnection() {
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "PLACEHOLDER") {
+    // Skip testing if configuration is not active/set up
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
