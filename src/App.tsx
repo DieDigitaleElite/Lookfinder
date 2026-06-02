@@ -222,9 +222,6 @@ export default function App() {
   const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly'));
   const canUseStudio = isPro || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
-  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
-  const [hasPushedHistoryState, setHasPushedHistoryState] = useState(false);
-  const ignorePopStateRef = useRef(false);
 
   const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account' | null>(null);
   const [activePoll, setActivePoll] = useState<any>(null);
@@ -237,6 +234,34 @@ export default function App() {
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
   const [activeCategory, setActiveCategory] = useState<string>('short');
+
+  const [showExitConfirmation, setShowExitConfirmation] = useState(false);
+  const isExitingRef = useRef(false);
+
+  // Verlaufssperre (Prevent exits of results page and prompt saving)
+  useEffect(() => {
+    if (results.length > 0 && !isExitingRef.current) {
+      const handlePopState = (event: PopStateEvent) => {
+        if (isExitingRef.current) return;
+        
+        // Push dummy state back onto the stack to lock back behavior
+        window.history.pushState({ isResults: true }, '', window.location.href);
+        
+        // Open custom confirmation dialog
+        setShowExitConfirmation(true);
+      };
+
+      // Ensure we have a dummy state on top of the stack
+      if (!window.history.state || !window.history.state.isResults) {
+        window.history.pushState({ isResults: true }, '', window.location.href);
+      }
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+      };
+    }
+  }, [results.length]);
 
   // Mirror critical state to localStorage for anonymous users
   useEffect(() => {
@@ -482,7 +507,7 @@ export default function App() {
       showDeleteConfirm || 
       activeLegalModal || 
       selectedResult ||
-      showLeaveWarning;
+      showExitConfirmation;
 
     if (isModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -494,7 +519,7 @@ export default function App() {
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [showLoginModal, showPricingModal, showUpsellModal, showAdminDashboard, showDeleteConfirm, activeLegalModal, selectedResult]);
+  }, [showLoginModal, showPricingModal, showUpsellModal, showAdminDashboard, showDeleteConfirm, activeLegalModal, selectedResult, showExitConfirmation]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1377,40 +1402,6 @@ export default function App() {
       return () => clearInterval(timer);
     }
   }, [results.length, isPremium]);
-
-  // custom back button lock & history push state management
-  useEffect(() => {
-    if (results.length > 0 && !user) {
-      if (!hasPushedHistoryState) {
-        window.history.pushState({ view: 'results' }, '');
-        setHasPushedHistoryState(true);
-      }
-    } else {
-      if (hasPushedHistoryState) {
-        setHasPushedHistoryState(false);
-      }
-    }
-  }, [results.length, user, hasPushedHistoryState]);
-
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      if (ignorePopStateRef.current) {
-        ignorePopStateRef.current = false;
-        return;
-      }
-      if (results.length > 0 && !user) {
-        // Prevent default browser back action by re-pushing the state
-        window.history.pushState({ view: 'results' }, '');
-        // Show our warning modal
-        setShowLeaveWarning(true);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [results.length, user]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -2485,14 +2476,6 @@ export default function App() {
     setShowGallery(false);
   };
 
-  const handleExitAnyway = () => {
-    setShowLeaveWarning(false);
-    setHasPushedHistoryState(false);
-    reset();
-    ignorePopStateRef.current = true;
-    window.history.back();
-  };
-
   const handleCustomTryOn = async () => {
     if (!image || !selectedLibraryStyle || !selectedColor) return;
     if (!canUseStudio) {
@@ -2939,6 +2922,10 @@ export default function App() {
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <button 
             onClick={() => {
+              if (results.length > 0) {
+                setShowExitConfirmation(true);
+                return;
+              }
               reset();
               setShowGallery(false);
               setDashboardTab('overview');
@@ -3007,7 +2994,13 @@ export default function App() {
           <div className="flex items-center gap-3 md:gap-4">
             {image && (
               <button 
-                onClick={reset}
+                onClick={() => {
+                  if (results.length > 0) {
+                    setShowExitConfirmation(true);
+                    return;
+                  }
+                  reset();
+                }}
                 className="text-xs md:text-sm font-medium flex items-center gap-1.5 md:gap-2 hover:text-[#FF9EBE] transition-colors"
               >
                 <RefreshCcw size={14} className="md:hidden" />
@@ -6508,62 +6501,97 @@ export default function App() {
             initialSelectedIds={pollInitialSelectedIds}
           />
         )}
+      </AnimatePresence>
 
-        {/* Elegantes In-App Bestätigungs-Modal (Verlaufssperre) */}
-        {showLeaveWarning && (
+      {/* Exit Confirmation Modal */}
+      <AnimatePresence>
+        {showExitConfirmation && (
           <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setShowLeaveWarning(false)}
+              onClick={() => setShowExitConfirmation(false)}
               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
             <motion.div 
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl flex flex-col p-8 sm:p-10 space-y-8 z-10 text-center"
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-black/5"
             >
-              <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl flex items-center justify-center mx-auto mb-2">
-                <AlertTriangle size={32} />
-              </div>
-              
-              <div className="space-y-3">
-                <h3 className="text-2xl font-serif font-bold text-brand-primary">
-                  Ergebnisse wirklich verlassen?
-                </h3>
-                <p className="text-brand-primary/60 text-sm leading-relaxed px-1">
-                  Deine aktuelle Analyse und die generierten Frisuren gehen dabei verloren. Möchtest du deine Ergebnisse jetzt in deinem kostenlosen Profil speichern?
-                </p>
-              </div>
+              <button 
+                onClick={() => setShowExitConfirmation(false)}
+                className="absolute top-6 right-6 p-2 hover:bg-black/5 rounded-full transition-colors z-20 bg-white/80 backdrop-blur-sm"
+              >
+                <X size={20} />
+              </button>
 
-              <div className="flex flex-col gap-3">
-                <button 
-                  onClick={() => {
-                    setShowLeaveWarning(false);
-                    setIsRegistering(true);
-                    setShowLoginModal(true);
-                  }}
-                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl font-bold hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-2 group active:scale-[0.98] cursor-pointer"
-                >
-                  <Save size={18} />
-                  <span>Jetzt speichern & sichern</span>
-                </button>
-                
-                <button 
-                  onClick={handleExitAnyway}
-                  className="w-full py-3 text-red-500 hover:text-red-655 font-semibold text-sm transition-all rounded-xl hover:bg-red-50/50 cursor-pointer"
-                >
-                  Trotzdem verlassen
-                </button>
+              <div className="overflow-y-auto p-8 sm:p-10 space-y-6">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-3xl flex items-center justify-center mx-auto mb-2 animate-pulse">
+                    <AlertTriangle size={32} />
+                  </div>
+                  <h3 className="text-2xl font-serif font-bold text-brand-primary">
+                    Ergebnisse wirklich verlassen?
+                  </h3>
+                  <p className="text-brand-primary/70 text-sm leading-relaxed">
+                    Deine aktuelle Analyse und die generierten Frisuren gehen dabei verloren. Möchtest du deine Ergebnisse jetzt in deinem kostenlosen Profil speichern?
+                  </p>
+                </div>
 
-                <button 
-                  onClick={() => setShowLeaveWarning(false)}
-                  className="w-full py-3 text-brand-primary/40 hover:text-brand-primary font-bold tracking-widest uppercase text-xs transition-colors cursor-pointer"
-                >
-                  Abbrechen
-                </button>
+                <div className="flex flex-col gap-3 pt-2">
+                  <button 
+                    onClick={() => {
+                      if (user) {
+                        setAuthMessage({ type: 'success', text: "Deine Ergebnisse sind bereits sicher in deinem kostenlosen Profil gespeichert! 🛡️" });
+                        setShowExitConfirmation(false);
+                      } else {
+                        setIsRegistering(true);
+                        setShowLoginModal(true);
+                        setShowExitConfirmation(false);
+                      }
+                    }}
+                    className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-2"
+                  >
+                    <Save size={16} />
+                    Jetzt speichern & sichern
+                  </button>
+
+                  <button 
+                    onClick={() => {
+                      isExitingRef.current = true;
+                      setShowExitConfirmation(false);
+                      reset();
+                      setShowGallery(false);
+                      setDashboardTab('overview');
+                      setActivePoll(null);
+                      setVotedId(null);
+                      setIsPollSyncing(false);
+                      const url = new URL(window.location.href);
+                      url.searchParams.delete('poll');
+                      window.history.replaceState({}, '', url.toString());
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      
+                      // Go back once in history to clean up the dummy state
+                      window.history.back();
+                      
+                      setTimeout(() => {
+                        isExitingRef.current = false;
+                      }, 500);
+                    }}
+                    className="w-full py-3 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl font-bold text-xs transition-colors text-center"
+                  >
+                    Trotzdem verlassen
+                  </button>
+
+                  <button 
+                    onClick={() => setShowExitConfirmation(false)}
+                    className="w-full py-3 bg-black/5 hover:bg-black/10 text-brand-primary rounded-2xl font-bold text-xs transition-colors text-center"
+                  >
+                    Abbrechen
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
