@@ -2013,11 +2013,7 @@ export default function App() {
     try {
       const sourceImageToUse = hdImage || image;
       if (!sourceImageToUse) return;
-      
-      // Optimize face analysis payload: downscale specifically for the initial text analysis
-      // to 600px width. This avoids API/gateway timeouts on large uploads while keeping HD sketches untouched.
-      const analysisImage = await fastResizeImage(sourceImageToUse, 600, 0.7);
-      const base64Data = analysisImage.split(',')[1];
+      const base64Data = sourceImageToUse.split(',')[1];
       const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       if (suggestions.length === 0) {
@@ -2369,11 +2365,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setError(null);
     try {
       const sourceImageToUse = hdImage || image;
-      
-      // Optimize face analysis payload: downscale specifically for the initial text analysis
-      // to 600px width. This avoids API/gateway timeouts on large uploads while keeping HD sketches untouched.
-      const analysisImage = await fastResizeImage(sourceImageToUse, 600, 0.7);
-      const base64Data = analysisImage.split(',')[1];
+      const base64Data = sourceImageToUse.split(',')[1];
       const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       const faceShape = analysis[0]?.faceShape || 'Oval';
