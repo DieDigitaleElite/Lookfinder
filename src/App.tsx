@@ -106,7 +106,6 @@ export default function App() {
     }
     return null;
   });
-  const [fullscreenImageUrl, setFullscreenImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isPremium, setIsPremium] = useState(() => {
@@ -309,21 +308,6 @@ export default function App() {
     
     return () => clearTimeout(timeout);
   }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
-
-  // Schließe Fullscreen-Bild mit Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setFullscreenImageUrl(null);
-      }
-    };
-    if (fullscreenImageUrl) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [fullscreenImageUrl]);
 
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -5651,25 +5635,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-5xl bg-white rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto"
             >
-              <div 
-                className="w-full md:w-1/2 h-64 md:h-[500px] lg:h-auto relative group cursor-zoom-in overflow-hidden"
-                onClick={() => setFullscreenImageUrl(selectedResult.imageUrl)}
-              >
+              <div className="w-full md:w-1/2 h-64 md:h-auto relative">
                 <img 
                   src={selectedResult.imageUrl || undefined} 
                   alt={selectedResult.name} 
-                  className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" 
+                  className="w-full h-full object-cover" 
                   referrerPolicy="no-referrer"
                 />
-                
-                {/* Click animation overlay hint */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-all duration-300 flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transform scale-95 group-hover:scale-100 transition-all duration-300 bg-black/70 backdrop-blur-md text-white font-medium text-xs px-4 py-2.5 rounded-full flex items-center gap-2 shadow-lg">
-                    <Maximize2 size={14} className="text-[#FF9EBE]" />
-                    <span>Bild vergrößern</span>
-                  </div>
-                </div>
-
                 <div className="absolute top-6 right-6 flex gap-3 md:hidden">
                   <button 
                     onClick={(e) => {
@@ -5681,20 +5653,14 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     <Download size={20} />
                   </button>
                   <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedResult(null);
-                    }}
+                    onClick={() => setSelectedResult(null)}
                     className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors"
                   >
                     <RefreshCcw className="rotate-45" size={20} />
                   </button>
                 </div>
                 <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedResult(null);
-                  }}
+                  onClick={() => setSelectedResult(null)}
                   className="absolute top-6 left-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors md:hidden"
                 >
                   <ChevronRight className="rotate-180" size={24} />
@@ -5865,46 +5831,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   )}
                 </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Fullscreen Image Lightbox Modal */}
-      <AnimatePresence>
-        {fullscreenImageUrl && (
-          <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 backdrop-blur-md">
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setFullscreenImageUrl(null)}
-              className="fixed inset-0 cursor-zoom-out"
-            />
-            
-            {/* Close Button */}
-            <button
-              onClick={() => setFullscreenImageUrl(null)}
-              className="absolute top-6 right-6 z-10 w-12 h-12 bg-white/10 hover:bg-white/20 active:scale-95 text-white rounded-full flex items-center justify-center transition-all shadow-lg cursor-pointer"
-              title="Schließen"
-            >
-              <X size={24} />
-            </button>
-
-            {/* Main Image content */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              onClick={() => setFullscreenImageUrl(null)}
-              className="relative max-w-full max-h-full flex items-center justify-center z-10 cursor-zoom-out"
-            >
-              <img 
-                src={fullscreenImageUrl} 
-                alt="Fullscreen Look" 
-                className="max-w-[95vw] max-h-[85vh] md:max-h-[92vh] rounded-2xl object-contain shadow-2xl border border-white/10" 
-                referrerPolicy="no-referrer"
-              />
             </motion.div>
           </div>
         )}
