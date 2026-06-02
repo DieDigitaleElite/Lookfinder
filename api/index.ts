@@ -84,7 +84,7 @@ app.post("/api/gemini", async (req, res) => {
         Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, emotionalEnhancer, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-3-flash-preview",
           contents: {
             parts: [
               { inlineData: { data: base64Image, mimeType } },
@@ -121,7 +121,7 @@ app.post("/api/gemini", async (req, res) => {
         Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-3-flash-preview",
           contents: prompt,
           config: {
             responseMimeType: "application/json"

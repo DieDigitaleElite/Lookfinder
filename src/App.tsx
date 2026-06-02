@@ -2000,10 +2000,7 @@ export default function App() {
     localStorage.removeItem('frisurenai_pending_avatar_sketch');
     
     try {
-      // Compress the image to 512px max dimension for fast analysis to prevent timeouts
-      console.log("Compressing image to 512px for initial face analysis...");
-      const compressedForAnalysis = await fastResizeImage(image, 512, 0.6);
-      const base64Data = compressedForAnalysis.split(',')[1];
+      const base64Data = image.split(',')[1];
       const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       if (suggestions.length === 0) {
@@ -2349,10 +2346,7 @@ export default function App() {
     setIsGenerating(true);
     setError(null);
     try {
-      // Compress the image to 512px max dimension for fast analysis to prevent timeouts
-      console.log("Compressing image to 512px for face analysis...");
-      const compressedForAnalysis = await fastResizeImage(image, 512, 0.6);
-      const base64Data = compressedForAnalysis.split(',')[1];
+      const base64Data = image.split(',')[1];
       const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       const faceShape = analysis[0]?.faceShape || 'Oval';
