@@ -4980,7 +4980,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         </h3>
                         <p className={`text-sm text-brand-primary/60 line-clamp-2 ${isLocked ? 'opacity-30' : ''}`}>
                           {isLocked || isBlurred 
-                            ? `${result.suitabilityReason.substring(0, 40)}... [Inkl. Makeup- & Accessoire-Tipps freischalten]` 
+                            ? `${result.suitabilityReason.substring(0, 40)}...` 
                             : result.suitabilityReason}
                         </p>
                       </div>
