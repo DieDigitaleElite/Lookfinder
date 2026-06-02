@@ -65,6 +65,22 @@ import {
 export default function App() {
   const [image, setImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_image'));
   const [hdImage, setHdImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_hd_image'));
+
+  const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null} | null>(null);
+  const [pendingStudioSelection, setPendingStudioSelection] = useState<{styleId: string, colorId: string, techId: string} | null>(() => {
+    const saved = localStorage.getItem('frisurenai_pending_studio_selection');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [isAutoGeneratingFromStripe, setIsAutoGeneratingFromStripe] = useState(false);
+  const [stripeGenerationError, setStripeGenerationError] = useState<string | null>(null);
+  const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
   const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('frisurenai_pending_mime_type') || '');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -350,8 +366,8 @@ export default function App() {
     const sourceImage = sketchReferenceImage || image;
     const sourceMime = sketchReferenceMimeType || mimeType;
 
-    // ONLY generate background sketches if user is registered/logged in and we have a source
-    if (!user || !sourceImage || isGenerating) return;
+    // ONLY generate background sketches if user is registered/logged in and we have a source, and we are NOT currently generating or auto-generating from Stripe
+    if (!user || !sourceImage || isGenerating || isAutoGeneratingFromStripe || !!pendingStudioSelection) return;
 
     const getNextStyleToGenerate = (currentSketches: Record<string, string>, activeCat: string) => {
       const pendingStyles = HAIRSTYLE_LIBRARY.filter(s => !currentSketches[s.id]);
@@ -485,7 +501,7 @@ export default function App() {
       active = false;
       setIsGeneratingBackground(false);
     };
-  }, [baseSketch, image, !!user, dashboardTab, isGenerating, activeCategory]); // Added dependencies to handle state changes
+  }, [baseSketch, image, !!user, dashboardTab, isGenerating, isAutoGeneratingFromStripe, pendingStudioSelection, activeCategory]); // Added dependencies to handle state changes
 
   useEffect(() => {
     if (user) {
@@ -905,22 +921,6 @@ export default function App() {
       alert("Bild konnte nicht erstellt werden. Bitte versuche es erneut.");
     }
   };
-
-  const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null} | null>(null);
-  const [pendingStudioSelection, setPendingStudioSelection] = useState<{styleId: string, colorId: string, techId: string} | null>(() => {
-    const saved = localStorage.getItem('frisurenai_pending_studio_selection');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  });
-  const [isAutoGeneratingFromStripe, setIsAutoGeneratingFromStripe] = useState(false);
-  const [stripeGenerationError, setStripeGenerationError] = useState<string | null>(null);
-  const [pendingCheckoutPlan, setPendingCheckoutPlan] = useState<'single' | 'monthly' | 'yearly' | 'upsell' | null>(null);
 
   const unsubsRef = useRef<(() => void)[]>([]);
 
@@ -1905,7 +1905,7 @@ export default function App() {
         setMimeType(file.type);
         
         // Keep high-quality HD Image
-        const processedHD = await fastResizeImage(base64, 1920, 0.85);
+        const processedHD = await fastResizeImage(base64, 1200, 0.75);
         setHdImage(processedHD);
  
         // Resize image immediately - using smaller size for mobile/web upload to save tokens/bandwidth
@@ -2282,15 +2282,18 @@ export default function App() {
       if (isOriginalColor) {
         colorAndTechText = 'natürliche Haarfarbe beibehalten (KEEP NATURAL HAIR COLOR)';
       } else {
-        colorAndTechText = `Farbe: ${color.name}`;
+        colorAndTechText = `Haarfarbe: ${color.name} (${color.description || ''})`;
       }
 
       if (isCustomTech) {
-        colorAndTechText += ` applied with ${tech.name} technique (${tech.description})`;
+        colorAndTechText += ` gefärbt mit ${tech.name}-Technik (${tech.description})`;
       }
 
-      const lightingPrompt = lighting.prompt || '';
-      const customPrompt = `${style.name}, ${style.description}. ${colorAndTechText}. Lighting: ${lightingPrompt}. Ensure hyper-realistic photo quality with precise high-end hair salon results. The hair color must look completely natural, with realistic depth, texture, and light reflection. Maintain perfect facial consistency and professional photography style.`;
+      const customPrompt = `Gewünschte Frisur: ${style.name}. Beschreibung der Frisur: ${style.description}. Gewünschte Haarfarbe/Färbetechnik: ${colorAndTechText}. 
+WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
+1. KEINE NEUEN LICHTEFFEKTE ODER BELICHTUNGSÄNDERUNGEN: Füge keine künstlichen Lichteffekte, Studio-Blitze, Linsenreflexionen oder veränderte Schattierungen hinzu. Behalte die originale Beleuchtung, Lichtquellen, Schatten, Kleidung und den Hintergrund des Originalbildes exakt zu 100% bei.
+2. ABSOLUTER ERHALT DES GESICHTS UND DER IDENTITÄT: Das Gesicht der Person darf absolut NICHT verändert, verschönert oder neu generiert werden. Die Augen (inklusive Augenfarbe, Augenform, Wimpern, Blickrichtung), Nase, Mund, Gesichtsform, Hautstruktur und Mimik MÜSSEN zu 100% identisch und pixelgenau wie auf dem Originalfoto beibehalten werden. Die Person muss sich sofort und perfekt wiedererkennen.
+3. PRÄZISE FRISURENANPASSUNG: Passe ausschließlich die Frisur sowie die Haarfarbe und Färbetechnik exakt nach den Vorgaben an und blende diese fotorealistisch und nahtlos in das originale Foto ein.`;
       
       const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
       if (imageUrl) {
@@ -2443,7 +2446,7 @@ export default function App() {
     setMimeType(type);
     
     // Keep high-quality HD Image
-    const processedHD = await fastResizeImage(base64, 1920, 0.85);
+    const processedHD = await fastResizeImage(base64, 1200, 0.75);
     setHdImage(processedHD);
  
     // Resize image immediately to keep memory usage low and prevent API timeouts

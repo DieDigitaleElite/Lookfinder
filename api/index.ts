@@ -166,21 +166,21 @@ app.post("/api/gemini", async (req, res) => {
           }
         } else {
           promptSnippet = `### TASK: PHOTOREALISTIC HAIRSTYLE SWAP
-You must generate a photorealistic image where the person in the source photo has their hairstyle professionally swapped to: "${styleName}".
+Generate a photorealistic image where the person in the source photo has their hairstyle professionally swapped and replaced.
 
-### STYLING SPECIFICATIONS (THE ONLY ALLOWED CHANGES):
+### CHOSEN HAIRSTYLE, COLOR & DYEING TECHNIQUE:
 - Target Hairstyle: ${styleName}
-- Style Description: ${description}
-- Seamless Blend: The hair must blend seamlessly, photorealistically, and naturally with the forehead, temples, and neck of the original person.
+- Details & Color/Technique Specifications: ${description}
 
-### STRICT PRESERVATION BOUNDARIES (MUST REMAIN 100% UNTOUCHED):
-- Face Identity: Absolutely do not modify, beautify, alter, or re-generate the person's face. The eyes (color, size, shape, double eyelids, direction of gaze), nose (shape, nostrils), mouth, teeth, ears, jawline, chin, wrinkles, blemishes, moles, and unique skin details must be preserved with pixel-perfect, 100% identical accuracy to the original photo.
-- Expression & Pose: Keep the identical facial expression, gaze, smile, head tilt, body posture, and camera angle.
-- Environment & Extras: The background scenery, furniture, lighting direction, contrast, shadows on the shoulders/neck, clothing, and any accessories (glasses, jewelry) must remain completely identical without any hallucinated details.
+### NO LIGHTING EFFECTS / MAINTAIN ORIGINAL LIGHTING:
+- Absolutely DO NOT add any extra lighting effects, studio lamps, glow, lens flares, or professional studio artificial lighting.
+- Preserve the exact environment, shadows, background, clothing, and illumination/lighting of the original photo. Do not distort or modify the environment or original light source.
 
-### MODEL INSTRUCTIONS:
-- The absolute top priority is preserving the subject's precise visual identity and facial details so they instantly recognize themselves.
-- Only modify the hair region to depict the requested "${styleName}". Every other pixel from the source image must be preserved as closely as physically possible.`;
+### STRICT PERSON & FACE PRESERVATION (CRITICAL DIRECTION):
+- Maintain 100% identical face, facial structure, skin texture, wrinkles, mouth, teeth, and pose of the subject.
+- Keep the eyes (exact shape, eyelids, wrinkles, gaze direction) and EYES COLOR (exact natural shade) 100% identical. Under no circumstances should the eyes, eye color, eye iris, or look of the person be changed. We need 100% realistic recognition.
+- Keep the exact facial shape and lines.
+- Only modify the hair region to depict the requested style "${styleName}" with the specified color and dyeing technique. Everything else must remain completely unchanged.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
