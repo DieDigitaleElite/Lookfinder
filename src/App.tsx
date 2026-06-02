@@ -222,6 +222,9 @@ export default function App() {
   const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly'));
   const canUseStudio = isPro || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
+  const [showLeaveWarning, setShowLeaveWarning] = useState(false);
+  const [hasPushedHistoryState, setHasPushedHistoryState] = useState(false);
+  const ignorePopStateRef = useRef(false);
 
   const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account' | null>(null);
   const [activePoll, setActivePoll] = useState<any>(null);
@@ -332,6 +335,7 @@ export default function App() {
       }
 
       const pendingLevelA = pendingStyles.filter(s => levelAIds.has(s.id));
+      const pendingLevelB = pendingStyles.filter(s => !levelAIds.has(s.id));
 
       if (pendingLevelA.length > 0) {
         const activeCatLevelA = pendingLevelA.filter(s => s.category === activeCat);
@@ -339,6 +343,14 @@ export default function App() {
           return activeCatLevelA[0];
         }
         return pendingLevelA[0];
+      }
+
+      if (pendingLevelB.length > 0) {
+        const activeCatLevelB = pendingLevelB.filter(s => s.category === activeCat);
+        if (activeCatLevelB.length > 0) {
+          return activeCatLevelB[0];
+        }
+        return pendingLevelB[0];
       }
 
       return null;
@@ -469,7 +481,8 @@ export default function App() {
       showAdminDashboard || 
       showDeleteConfirm || 
       activeLegalModal || 
-      selectedResult;
+      selectedResult ||
+      showLeaveWarning;
 
     if (isModalOpen) {
       document.body.style.overflow = 'hidden';
@@ -1364,6 +1377,40 @@ export default function App() {
       return () => clearInterval(timer);
     }
   }, [results.length, isPremium]);
+
+  // custom back button lock & history push state management
+  useEffect(() => {
+    if (results.length > 0 && !user) {
+      if (!hasPushedHistoryState) {
+        window.history.pushState({ view: 'results' }, '');
+        setHasPushedHistoryState(true);
+      }
+    } else {
+      if (hasPushedHistoryState) {
+        setHasPushedHistoryState(false);
+      }
+    }
+  }, [results.length, user, hasPushedHistoryState]);
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (ignorePopStateRef.current) {
+        ignorePopStateRef.current = false;
+        return;
+      }
+      if (results.length > 0 && !user) {
+        // Prevent default browser back action by re-pushing the state
+        window.history.pushState({ view: 'results' }, '');
+        // Show our warning modal
+        setShowLeaveWarning(true);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [results.length, user]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -2373,40 +2420,6 @@ export default function App() {
     }
   };
 
-  const handleGenerateSingleSketch = async (styleId: string, styleName: string): Promise<string | null> => {
-    const sourceImage = sketchReferenceImage || image;
-    const sourceMime = sketchReferenceMimeType || mimeType;
-
-    if (!sourceImage) return null;
-
-    try {
-      const base64Data = sourceImage.split(',')[1];
-      const rawSketch = await generateFashionSketch(base64Data, sourceMime, styleName, baseSketch || avatarSketch);
-      if (rawSketch) {
-        const compressed = await fastResizeImage(rawSketch, 512, 0.6);
-        
-        setHairstyleSketches(prev => {
-          const updated = { ...prev, [styleId]: compressed };
-          return updated;
-        });
-
-        // Save to Firestore subcollection if user is logged in
-        if (auth.currentUser) {
-          const sketchRef = doc(db, 'users', auth.currentUser.uid, 'sketches', styleId);
-          await setDoc(sketchRef, { 
-            id: styleId, 
-            data: compressed,
-            updatedAt: serverTimestamp() 
-          }, { merge: true }).catch(e => console.warn(`Failed to save sketch ${styleId}`, e));
-        }
-        return compressed;
-      }
-    } catch (err) {
-      console.error(`Failed on-demand sketch generation for ${styleName}`, err);
-    }
-    return null;
-  };
-
   const handleStylingStudioImageUpload = async (base64: string, type: string) => {
     setResults([]);
     setError(null);
@@ -2470,6 +2483,14 @@ export default function App() {
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
     setShowGallery(false);
+  };
+
+  const handleExitAnyway = () => {
+    setShowLeaveWarning(false);
+    setHasPushedHistoryState(false);
+    reset();
+    ignorePopStateRef.current = true;
+    window.history.back();
   };
 
   const handleCustomTryOn = async () => {
@@ -3679,7 +3700,6 @@ export default function App() {
                         isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
                         stripeGenerationError={stripeGenerationError}
                         onClearStripeError={() => setStripeGenerationError(null)}
-                        onGenerateSketch={handleGenerateSingleSketch}
                       />
                     </div>
                   </div>
@@ -6487,6 +6507,66 @@ export default function App() {
             isCreating={isCreatingPoll}
             initialSelectedIds={pollInitialSelectedIds}
           />
+        )}
+
+        {/* Elegantes In-App Bestätigungs-Modal (Verlaufssperre) */}
+        {showLeaveWarning && (
+          <div className="fixed inset-0 z-[160] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLeaveWarning(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl flex flex-col p-8 sm:p-10 space-y-8 z-10 text-center"
+            >
+              <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl flex items-center justify-center mx-auto mb-2">
+                <AlertTriangle size={32} />
+              </div>
+              
+              <div className="space-y-3">
+                <h3 className="text-2xl font-serif font-bold text-brand-primary">
+                  Ergebnisse wirklich verlassen?
+                </h3>
+                <p className="text-brand-primary/60 text-sm leading-relaxed px-1">
+                  Deine aktuelle Analyse und die generierten Frisuren gehen dabei verloren. Möchtest du deine Ergebnisse jetzt in deinem kostenlosen Profil speichern?
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => {
+                    setShowLeaveWarning(false);
+                    setIsRegistering(true);
+                    setShowLoginModal(true);
+                  }}
+                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl font-bold hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-2 group active:scale-[0.98] cursor-pointer"
+                >
+                  <Save size={18} />
+                  <span>Jetzt speichern & sichern</span>
+                </button>
+                
+                <button 
+                  onClick={handleExitAnyway}
+                  className="w-full py-3 text-red-500 hover:text-red-655 font-semibold text-sm transition-all rounded-xl hover:bg-red-50/50 cursor-pointer"
+                >
+                  Trotzdem verlassen
+                </button>
+
+                <button 
+                  onClick={() => setShowLeaveWarning(false)}
+                  className="w-full py-3 text-brand-primary/40 hover:text-brand-primary font-bold tracking-widest uppercase text-xs transition-colors cursor-pointer"
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
