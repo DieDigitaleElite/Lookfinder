@@ -64,6 +64,7 @@ import {
 
 export default function App() {
   const [image, setImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_image'));
+  const [hdImage, setHdImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_hd_image'));
   const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('frisurenai_pending_mime_type') || '');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -273,6 +274,11 @@ export default function App() {
         if (customResults.length > 0) localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
         if (selectedResult) localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
         if (image) localStorage.setItem('frisurenai_pending_image', image);
+        if (hdImage) {
+          fastResizeImage(hdImage, 1200, 0.75)
+            .then(resized => localStorage.setItem('frisurenai_pending_hd_image', resized))
+            .catch(() => {});
+        }
         if (mimeType) localStorage.setItem('frisurenai_pending_mime_type', mimeType || '');
         if (avatarSketch) localStorage.setItem('frisurenai_pending_avatar_sketch', avatarSketch);
         if (baseSketch) localStorage.setItem('frisurenai_pending_base_sketch', baseSketch);
@@ -285,7 +291,7 @@ export default function App() {
     }, 500);
     
     return () => clearTimeout(timeout);
-  }, [user, results, customResults, selectedResult, image, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
+  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
 
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -1188,20 +1194,25 @@ export default function App() {
               setIsAutoGeneratingFromStripe(true);
               setStripeGenerationError(null);
               
-              handleStudioTryOn(style, color, tech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0])
-                .then(() => {
+              const triggerTryOn = async () => {
+                try {
+                  console.log("Pre-loading HD draft from Firestore for UID:", user.uid);
+                  await loadStudioDraftFromFirestore(user.uid);
+                  
+                  await handleStudioTryOn(style, color, tech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0]);
                   setIsAutoGeneratingFromStripe(false);
                   setPendingStudioSelection(null);
                   localStorage.removeItem('frisurenai_pending_studio_selection');
-                })
-                .catch(err => {
+                } catch (err) {
                   console.error("Auto-generation failed:", err);
                   setIsAutoGeneratingFromStripe(false);
                   setStripeGenerationError("Dein Look konnte leider nicht automatisch erstellt werden. Bitte versuche es oben erneut.");
-                  // Clear pending selection anyway so it doesn't try again on reload
                   setPendingStudioSelection(null);
                   localStorage.removeItem('frisurenai_pending_studio_selection');
-                });
+                }
+              };
+              
+              triggerTryOn();
             }
           }
 
@@ -1250,12 +1261,15 @@ export default function App() {
     const sketchesSynced = !avatarSketch || (userData && userData.avatarSketch);
     const faceAnalysisSynced = !faceAnalysis || (userData && userData.faceAnalysis);
 
-    if (user && resultsSynced && customResultsSynced && sketchesSynced && faceAnalysisSynced) {
+    const isProcessingOrAutoGenerating = isAutoGeneratingFromStripe || !!pendingStudioSelection || isPaymentProcessingRef.current;
+
+    if (user && resultsSynced && customResultsSynced && sketchesSynced && faceAnalysisSynced && !isProcessingOrAutoGenerating) {
       console.log("All data synced to Firestore. Clearing localStorage backup.");
       localStorage.removeItem('frisurenai_pending_results');
       localStorage.removeItem('frisurenai_pending_selected_result');
       localStorage.removeItem('frisurenai_pending_custom_results');
       localStorage.removeItem('frisurenai_pending_image');
+      localStorage.removeItem('frisurenai_pending_hd_image');
       localStorage.removeItem('frisurenai_pending_mime_type');
       localStorage.removeItem('frisurenai_pending_plan');
       localStorage.removeItem('frisurenai_pending_uid');
@@ -1265,7 +1279,7 @@ export default function App() {
       localStorage.removeItem('frisurenai_pending_sketch_ref_mime');
       localStorage.removeItem('frisurenai_pending_face_analysis');
     }
-  }, [user, results, customResults, savedResults, userData, avatarSketch, faceAnalysis]);
+  }, [user, results, customResults, savedResults, userData, avatarSketch, faceAnalysis, isAutoGeneratingFromStripe, pendingStudioSelection]);
 
   // Trigger manual generation of missing images for premium users
   const handleGenerateRemaining = async () => {
@@ -1288,8 +1302,10 @@ export default function App() {
     setIsGenerating(true);
     setGenerationProgress(Math.round((results.filter(r => !!r.imageUrl).length / results.length) * 100));
     
-    const base64Data = image.split(',')[1];
-    const mimeType = image.split(';')[0].split(':')[1] || 'image/jpeg';
+    const sourceImageToUse = hdImage || image;
+    if (!sourceImageToUse) return;
+    const base64Data = sourceImageToUse.split(',')[1];
+    const mimeType = sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg';
     
     try {
       const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
@@ -1878,7 +1894,7 @@ export default function App() {
     if (file) {
       // Track event
       trackEvent('click_upload_button', 'User', file.type);
-
+ 
       const reader = new FileReader();
       reader.onload = async (event) => {
         const base64 = event.target?.result as string;
@@ -1888,10 +1904,14 @@ export default function App() {
         setError(null);
         setMimeType(file.type);
         
+        // Keep high-quality HD Image
+        const processedHD = await fastResizeImage(base64, 1920, 0.85);
+        setHdImage(processedHD);
+ 
         // Resize image immediately - using smaller size for mobile/web upload to save tokens/bandwidth
-        const processedImage = await fastResizeImage(base64, 800, 0.65);
+        const processedImage = await fastResizeImage(base64, 1024, 0.7);
         setImage(processedImage);
-
+ 
         // Track complete
         trackEvent('upload_completed', 'User', file.type);
       };
@@ -1991,7 +2011,9 @@ export default function App() {
     localStorage.removeItem('frisurenai_pending_avatar_sketch');
     
     try {
-      const base64Data = image.split(',')[1];
+      const sourceImageToUse = hdImage || image;
+      if (!sourceImageToUse) return;
+      const base64Data = sourceImageToUse.split(',')[1];
       const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       if (suggestions.length === 0) {
@@ -2156,7 +2178,8 @@ export default function App() {
     });
 
     try {
-      const base64Data = image.split(',')[1];
+      const sourceImageToUse = hdImage || image;
+      const base64Data = sourceImageToUse.split(',')[1];
       const suggestion = results[index];
       
       const timeoutPromise = new Promise<null>((_, reject) => 
@@ -2202,7 +2225,7 @@ export default function App() {
     setError(null);
 
     try {
-      const sourceImage = result.sourceImageUrl || image;
+      const sourceImage = hdImage || result.sourceImageUrl || image;
       if (!sourceImage) {
         throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
       }
@@ -2250,7 +2273,8 @@ export default function App() {
     setIsGenerating(true);
     setError(null);
     try {
-      const base64Data = image.split(',')[1];
+      const sourceImageToUse = hdImage || image;
+      const base64Data = sourceImageToUse.split(',')[1];
       const isOriginalColor = color.id === 'col-original';
       const isCustomTech = tech && tech.id !== 'tech-none';
       
@@ -2337,7 +2361,8 @@ export default function App() {
     setIsGenerating(true);
     setError(null);
     try {
-      const base64Data = image.split(',')[1];
+      const sourceImageToUse = hdImage || image;
+      const base64Data = sourceImageToUse.split(',')[1];
       const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       
       const faceShape = analysis[0]?.faceShape || 'Oval';
@@ -2403,7 +2428,8 @@ export default function App() {
   const handleGenerateFashionSketch = async (styleName: string): Promise<string | null> => {
     if (!image) return null;
     try {
-      const base64Data = image.split(',')[1];
+      const sourceImageToUse = hdImage || image;
+      const base64Data = sourceImageToUse.split(',')[1];
       return await generateFashionSketch(base64Data, mimeType, styleName, baseSketch || avatarSketch);
     } catch (err) {
       console.error("Fashion sketch generation failed", err);
@@ -2416,6 +2442,10 @@ export default function App() {
     setError(null);
     setMimeType(type);
     
+    // Keep high-quality HD Image
+    const processedHD = await fastResizeImage(base64, 1920, 0.85);
+    setHdImage(processedHD);
+ 
     // Resize image immediately to keep memory usage low and prevent API timeouts
     const processedImage = await fastResizeImage(base64, 1024, 0.7);
     setImage(processedImage);
@@ -2425,7 +2455,7 @@ export default function App() {
       console.log("Using existing sketches for studio; skipping regeneration on new upload.");
       return;
     }
-
+ 
     try {
       const base64Data = processedImage.split(',')[1];
       const baldSketch = await generateBaseAvatarSketch(base64Data, type);
@@ -2449,6 +2479,9 @@ export default function App() {
               }, { merge: true });
               setSketchReferenceImage(processedImage);
               setSketchReferenceMimeType(type);
+              
+              // Save HD draft to Firestore
+              await saveStudioDraftToFirestore(auth.currentUser.uid);
             } catch (e) {
               console.warn("Failed to persist sketches on studio upload", e);
             }
@@ -2462,8 +2495,58 @@ export default function App() {
     }
   };
 
+  const saveStudioDraftToFirestore = async (uid: string) => {
+    try {
+      if (!uid) return;
+      console.log("Saving HD studio draft to Firestore...");
+      const draftRef = doc(db, 'users', uid, 'drafts', 'studio');
+      
+      const draftData: any = {
+        updatedAt: serverTimestamp()
+      };
+      
+      if (hdImage) draftData.hdImage = hdImage;
+      if (image) draftData.image = image;
+      if (mimeType) draftData.mimeType = mimeType;
+      if (avatarSketch) draftData.avatarSketch = avatarSketch;
+      if (baseSketch) draftData.baseSketch = baseSketch;
+      if (sketchReferenceImage) draftData.sketchReferenceImage = sketchReferenceImage;
+      if (sketchReferenceMimeType) draftData.sketchReferenceMimeType = sketchReferenceMimeType;
+      if (faceAnalysis) draftData.faceAnalysis = faceAnalysis;
+      
+      await setDoc(draftRef, draftData, { merge: true });
+      console.log("HD studio draft successfully saved to Firestore.");
+    } catch (e) {
+      console.warn("Failed to save studio draft to Firestore:", e);
+    }
+  };
+
+  const loadStudioDraftFromFirestore = async (uid: string) => {
+    try {
+      if (!uid) return;
+      console.log("Loading HD studio draft from Firestore...");
+      const draftRef = doc(db, 'users', uid, 'drafts', 'studio');
+      const docSnap = await getDoc(draftRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.hdImage) setHdImage(data.hdImage);
+        if (data.image) setImage(data.image);
+        if (data.mimeType) setMimeType(data.mimeType);
+        if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
+        if (data.baseSketch) setBaseSketch(data.baseSketch);
+        if (data.sketchReferenceImage) setSketchReferenceImage(data.sketchReferenceImage);
+        if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
+        if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
+        console.log("HD studio draft successfully loaded.");
+      }
+    } catch (e) {
+      console.warn("Failed to load studio draft from Firestore:", e);
+    }
+  };
+
   const reset = () => {
     setImage(null);
+    setHdImage(null);
     setResults([]);
     setCustomResults([]);
     setLastCustomResult(null);
@@ -2474,6 +2557,10 @@ export default function App() {
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
     setShowGallery(false);
+    
+    // Clear localStorage
+    localStorage.removeItem('frisurenai_pending_image');
+    localStorage.removeItem('frisurenai_pending_hd_image');
   };
 
   const handleCustomTryOn = async () => {
@@ -2488,7 +2575,8 @@ export default function App() {
     setError(null);
     
     try {
-      const base64Data = image.split(',')[1];
+      const sourceImageToUse = hdImage || image;
+      const base64Data = sourceImageToUse.split(',')[1];
       const styleWithColor = `${selectedLibraryStyle.name} in der Farbe ${selectedColor.name}`;
       const descriptionWithColor = `${selectedLibraryStyle.description} Die Haarfarbe soll ein realistisches ${selectedColor.name} sein.`;
 
@@ -2683,6 +2771,15 @@ export default function App() {
       if (data.url) {
         console.log("Redirecting to Stripe:", data.url);
         
+        // Save HD studio draft to Firestore first if logged in
+        if (user) {
+          try {
+            await saveStudioDraftToFirestore(user.uid);
+          } catch (draftErr) {
+            console.warn("Could not save studio draft to Firestore before redirect", draftErr);
+          }
+        }
+
         // Save current results to localStorage before redirecting (as backup)
         try {
           if (results && results.length > 0) {
@@ -2696,6 +2793,15 @@ export default function App() {
           }
           if (image) {
             localStorage.setItem('frisurenai_pending_image', image);
+          }
+          if (hdImage) {
+            try {
+              // Compress to 1200 maxDimension to keep it safe from localStorage Quota limit (usually 5MB total)
+              const backupHDImage = await fastResizeImage(hdImage, 1200, 0.75);
+              localStorage.setItem('frisurenai_pending_hd_image', backupHDImage);
+            } catch (hdBackupErr) {
+              console.warn("Failed to save HD image backup to localStorage", hdBackupErr);
+            }
           }
           if (mimeType) {
             localStorage.setItem('frisurenai_pending_mime_type', mimeType);
