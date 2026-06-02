@@ -1320,13 +1320,13 @@ export default function App() {
       const generateMissingParallel = async (i: number, idx: number) => {
         const suggestion = results[i];
         try {
-          // Stagger starting times slightly to prevent bottlenecking API (increased to 7000ms)
-          await new Promise(resolve => setTimeout(resolve, idx * 7000));
+          // Stagger starting times slightly to prevent bottlenecking API
+          await new Promise(resolve => setTimeout(resolve, idx * 600));
           console.log(`Generating manual premium style ${i + 1}: ${suggestion.name}`);
 
           const imageUrl = await withTimeout(
             generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
-            30000,
+            20000,
             "Timeout"
           );
           
@@ -2036,10 +2036,10 @@ export default function App() {
 
       const maxToGenerate = isPremium ? suggestions.length : 3;
       
-      // Delay avatar sketch to avoid hitting rate limit at the start (increased to 21000ms to allow images to stagger first)
+      // Delay avatar sketch to avoid hitting rate limit at the start
       const generateSketchDelayed = async () => {
         try {
-          await new Promise(resolve => setTimeout(resolve, 21000));
+          await new Promise(resolve => setTimeout(resolve, 1000));
           // Speed optimization: Generate first style sketch directly from the original photo without first generating a bald sketch!
           const styledSketch = await generateFashionSketch(base64Data, mimeType, suggestions[0].name, null);
           
@@ -2079,15 +2079,15 @@ export default function App() {
       const generateWithStaggerAndTimeout = async (i: number) => {
         const suggestion = suggestions[i];
         try {
-          // Stagger starting times: index 0 (0ms), index 1 (7000ms), index 2 (14000ms) to ensure upload phase finishes
+          // Stagger starting times: index 0 (0ms), index 1 (600ms), index 2 (1200ms)
           if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, i * 7000));
+            await new Promise(resolve => setTimeout(resolve, i * 600));
           }
           console.log(`Generating image in parallel slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
           const imageUrl = await withTimeout(
             generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
-            30000,
+            18000,
             "Timeout"
           );
           
@@ -2183,7 +2183,7 @@ export default function App() {
       const suggestion = results[index];
       
       const timeoutPromise = new Promise<null>((_, reject) => 
-        setTimeout(() => reject(new Error("Timeout")), 30000)
+        setTimeout(() => reject(new Error("Timeout")), 18000)
       );
       
       const imageUrl = await Promise.race([
