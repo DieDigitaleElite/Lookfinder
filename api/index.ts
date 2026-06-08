@@ -243,7 +243,12 @@ Generate a photorealistic image where the person in the source photo has their h
 - Maintain 100% identical face, facial structure, skin texture, wrinkles, mouth, teeth, and pose of the subject.
 - Keep the eyes (exact shape, eyelids, wrinkles, gaze direction) and EYES COLOR (exact natural shade) 100% identical. Under no circumstances should the eyes, eye color, eye iris, or look of the person be changed. We need 100% realistic recognition.
 - Keep the exact facial shape and lines.
-- Only modify the hair region to depict the requested style "${styleName}" with the specified color and dyeing technique. Everything else must remain completely unchanged.`;
+- Only modify the hair region to depict the requested style "${styleName}" with the specified color and dyeing technique. Everything else must remain completely unchanged.
+
+### PREMIUM QUALITY & HIGH FIDELITY SPECIFICATIONS:
+- The generated hair must be rich in micro-details, ultra-sharp, showing natural strand-by-strand textures, realistic hair shine, and natural flows.
+- Ensure the transition between the head/forehead and the new hair is fully seamless, photorealistic, and highly premium.
+- Match the exact camera sharpness, depth of field, and image quality of the original photorealistic portrait without any blurriness or artificial look.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
