@@ -1197,9 +1197,31 @@ export default function App() {
               const triggerTryOn = async () => {
                 try {
                   console.log("Pre-loading HD draft from Firestore for UID:", user.uid);
-                  await loadStudioDraftFromFirestore(user.uid);
+                  const draftData = await loadStudioDraftFromFirestore(user.uid);
                   
-                  await handleStudioTryOn(style, color, tech || HAIR_TECHNOLOGIES[0], LIGHTING_SIMULATIONS[0]);
+                  // Use draftData values, or falls back to standard state/localstorage values
+                  const imgToUse = draftData?.image || image || localStorage.getItem('frisurenai_pending_image');
+                  const hdToUse = draftData?.hdImage || hdImage || localStorage.getItem('frisurenai_pending_hd_image');
+                  const mimeToUse = draftData?.mimeType || mimeType || localStorage.getItem('frisurenai_pending_mime_type') || 'image/jpeg';
+                  
+                  if (!imgToUse) {
+                    throw new Error("Kein Basisbild für die Generierung im Styling Studio vorhanden.");
+                  }
+
+                  // Synchronise state backup values
+                  if (imgToUse && imgToUse !== image) setImage(imgToUse);
+                  if (hdToUse && hdToUse !== hdImage) setHdImage(hdToUse);
+                  if (mimeToUse && mimeToUse !== mimeType) setMimeType(mimeToUse);
+                  
+                  await handleStudioTryOn(
+                    style, 
+                    color, 
+                    tech || HAIR_TECHNOLOGIES[0], 
+                    LIGHTING_SIMULATIONS[0],
+                    imgToUse,
+                    mimeToUse,
+                    hdToUse
+                  );
                   setIsAutoGeneratingFromStripe(false);
                   setPendingStudioSelection(null);
                   localStorage.removeItem('frisurenai_pending_studio_selection');
@@ -1253,9 +1275,9 @@ export default function App() {
 
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
-    // Check if results are synced
-    const resultsSynced = results.length === 0 || results.every(r => (r.imageUrl || r.failed) && isResultSaved(r.id));
-    const customResultsSynced = customResults.length === 0 || customResults.every(r => (r.imageUrl || r.failed) && isResultSaved(r.id));
+    // Check if results are synced (only require results with images to be saved to Firestore)
+    const resultsSynced = results.length === 0 || results.every(r => !r.imageUrl || isResultSaved(r.id));
+    const customResultsSynced = customResults.length === 0 || customResults.every(r => !r.imageUrl || isResultSaved(r.id));
     
     // Check if sketches are synced (by checking if they exist in userData)
     const sketchesSynced = !avatarSketch || (userData && userData.avatarSketch);
@@ -1445,38 +1467,7 @@ export default function App() {
     }
   }, [user, image]);
 
-  // Sync local results and custom results to Firestore on login or when they change
-  useEffect(() => {
-    if (user && (results.length > 0 || customResults.length > 0)) {
-      const syncLocalResults = async () => {
-        // Combined list of all results to check
-        const allResults = [...results, ...customResults];
-        
-        // Find results that are NOT in savedResults
-        const unsaved = allResults.filter(res => 
-          !savedResults.some(sr => sr.id === res.id)
-        );
 
-        if (unsaved.length === 0) return;
-
-        console.log(`Syncing ${unsaved.length} results to Firestore...`);
-        // Use Promise.all to handle sync more efficiently, but be careful with quota
-        // For larger sets, we might want to batch, but usually it's just a few
-        for (const res of unsaved) {
-          if (res.imageUrl || results.some(r => r.id === res.id)) {
-            await saveResult(res, true);
-          }
-        }
-      };
-      
-      // Delay slightly to allow state to settle
-      const timer = setTimeout(() => {
-        syncLocalResults();
-      }, 1000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [user?.uid, results.length, customResults.length, savedResults.length]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -1819,7 +1810,7 @@ export default function App() {
         try {
           console.log(`Compressing image for ${result.id}...`);
           const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 800000);
+          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 500000);
           console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
         } catch (compressErr) {
           console.error("Compression failed", compressErr);
@@ -2272,12 +2263,26 @@ export default function App() {
     }
   };
 
-  const handleStudioTryOn = async (style: any, color: any, tech: any, lighting: any) => {
-    if (!image) return;
+  const handleStudioTryOn = async (
+    style: any, 
+    color: any, 
+    tech: any, 
+    lighting: any,
+    overrideImage?: string | null,
+    overrideMimeType?: string,
+    overrideHdImage?: string | null
+  ) => {
+    const activeImage = overrideImage || image;
+    const activeMime = overrideMimeType || mimeType;
+    const activeHdImage = overrideHdImage || hdImage;
+    if (!activeImage) {
+      console.warn("handleStudioTryOn: No active image available!");
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     try {
-      const sourceImageToUse = hdImage || image;
+      const sourceImageToUse = activeHdImage || activeImage;
       const base64Data = sourceImageToUse.split(',')[1];
       const isOriginalColor = color.id === 'col-original';
       const isCustomTech = tech && tech.id !== 'tech-none';
@@ -2296,10 +2301,10 @@ export default function App() {
       const customPrompt = `Gewünschte Frisur: ${style.name}. Beschreibung der Frisur: ${style.description}. Gewünschte Haarfarbe/Färbetechnik: ${colorAndTechText}. 
 WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 1. KEINE NEUEN LICHTEFFEKTE ODER BELICHTUNGSÄNDERUNGEN: Füge keine künstlichen Lichteffekte, Studio-Blitze, Linsenreflexionen oder veränderte Schattierungen hinzu. Behalte die originale Beleuchtung, Lichtquellen, Schatten, Kleidung und den Hintergrund des Originalbildes exakt zu 100% bei.
-2. ABSOLUTER ERHALT DES GESICHTS UND DER IDENTITÄT: Das Gesicht der Person darf absolut NICHT verändert, verschönert oder neu generiert werden. Die Augen (inklusive Augenfarbe, Augenform, Wimpern, Blickrichtung), Nase, Mund, Gesichtsform, Hautstruktur und Mimik MÜSSEN zu 100% identisch und pixelgenau wie auf dem Originalfoto beibehalten werden. Die Person muss sich sofort und perfekt wiedererkennen.
+2. ABSOLUTER ERHALT DES GESICHTS UND DER IDENTITÄT: Das Gesicht der Person darf absolut NICHT verändert, verschönert oder neu generiert werden. Die Augen (inklusive Augenfarbe, Augenform, Wimpern, Blickrichtung), Nase, Mouth, Gesichtsform, Hautstruktur und Mimik MÜSSEN zu 100% identisch und pixelgenau wie auf dem Originalfoto beibehalten werden. Die Person muss sich sofort und perfekt wiedererkennen.
 3. PRÄZISE FRISURENANPASSUNG: Passe ausschließlich die Frisur sowie die Haarfarbe und Färbetechnik exakt nach den Vorgaben an und blende diese fotorealistisch und nahtlos in das originale Foto ein.`;
       
-      const imageUrl = await generateHairstyleImage(base64Data, mimeType, style.name, customPrompt);
+      const imageUrl = await generateHairstyleImage(base64Data, activeMime || 'image/jpeg', style.name, customPrompt);
       if (imageUrl) {
         // Only consume credit if generation was successful
         if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
@@ -2326,7 +2331,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           name: style.name,
           description: stylingMetadata.description,
           imageUrl,
-          sourceImageUrl: image,
+          sourceImageUrl: activeImage,
           rating: stylingMetadata.rating,
           suitabilityReason: stylingMetadata.suitabilityReason,
           barberInstructions: stylingMetadata.barberInstructions,
@@ -2353,7 +2358,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       if (errorMsg.includes('429') || errorMsg.includes('rate limit') || errorMsg.includes('503') || errorMsg.includes('overloaded')) {
         setError("Der Ansturm ist gerade riesig! ✨ Unsere KI braucht eine kurze Verschnaufpause. Bitte hab einen Moment Geduld – wir versuchen es gleich automatisch noch einmal für dich.");
         setTimeout(() => {
-          if (image) handleStudioTryOn(style, color, tech, lighting);
+          if (activeImage) handleStudioTryOn(style, color, tech, lighting, activeImage, activeMime, activeHdImage);
         }, 8000);
       } else {
         setError("Hoppla! ✨ Die Simulation konnte gerade nicht gestartet werden. Bitte versuche es in einem Moment noch einmal.");
@@ -2537,7 +2542,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
   const loadStudioDraftFromFirestore = async (uid: string) => {
     try {
-      if (!uid) return;
+      if (!uid) return null;
       console.log("Loading HD studio draft from Firestore...");
       const draftRef = doc(db, 'users', uid, 'drafts', 'studio');
       const docSnap = await getDoc(draftRef);
@@ -2552,10 +2557,12 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
         if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
         console.log("HD studio draft successfully loaded.");
+        return data;
       }
     } catch (e) {
       console.warn("Failed to load studio draft from Firestore:", e);
     }
+    return null;
   };
 
   const reset = () => {
@@ -2684,12 +2691,14 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
   const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' | 'studio-single' = 'single', metadata?: any) => {
     console.log("Initiating checkout for plan:", plan, "metadata:", metadata);
     
+    const activeMetadata = metadata || pendingStudioSelection;
+    
     if (!user) {
       console.log("User not logged in, prompting for login before checkout");
       setPendingCheckoutPlan(plan);
-      if (metadata) {
-        localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(metadata));
-        setPendingStudioSelection(metadata);
+      if (activeMetadata) {
+        localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(activeMetadata));
+        setPendingStudioSelection(activeMetadata);
       }
       setAuthMessage({ type: 'info', text: "Bitte erstelle ein kostenloses Konto oder logge dich ein, um mit der Zahlung fortzufahren." });
       
@@ -2835,8 +2844,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           if (faceAnalysis) {
             localStorage.setItem('frisurenai_pending_face_analysis', JSON.stringify(faceAnalysis));
           }
-          if (metadata) {
-            localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(metadata));
+          if (activeMetadata) {
+            localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(activeMetadata));
           }
         } catch (storageError) {
           console.warn("Could not save all data to localStorage.", storageError);
@@ -3803,7 +3812,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         isGenerating={isGenerating}
                         onImageUpload={handleStylingStudioImageUpload}
                         avatarSketch={avatarSketch}
-                        isPremium={isPro}
+                        isPremium={canUseStudio}
                         preGeneratedSketches={hairstyleSketches}
                         onCategoryChange={setActiveCategory}
                         isGeneratingBackground={isGeneratingBackground}
