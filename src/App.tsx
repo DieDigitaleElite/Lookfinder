@@ -2101,15 +2101,15 @@ export default function App() {
                 saveResultToHistory(updatedResult);
               }
             } else {
-              newResults[i] = { ...newResults[i], failed: true };
+              newResults[i] = { ...newResults[i], failed: true, errorReason: "Keine Bilddaten erhalten" };
             }
             return newResults;
           });
-        } catch (err) {
+        } catch (err: any) {
           console.error(`Failed/Timeout generating sequential image for style ${i}`, err);
           setResults(prev => {
             const newResults = [...prev];
-            newResults[i] = { ...newResults[i], failed: true };
+            newResults[i] = { ...newResults[i], failed: true, errorReason: err?.message || String(err) };
             return newResults;
           });
         } finally {
@@ -2199,15 +2199,15 @@ export default function App() {
         if (imageUrl) {
           newResults[index] = { ...newResults[index], imageUrl, sourceImageUrl: image, failed: false };
         } else {
-          newResults[index] = { ...newResults[index], failed: true };
+          newResults[index] = { ...newResults[index], failed: true, errorReason: "Keine Bilddaten erhalten" };
         }
         return newResults;
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Failed to retry image for style ${index}`, err);
       setResults(prev => {
         const newResults = [...prev];
-        newResults[index] = { ...newResults[index], failed: true };
+        newResults[index] = { ...newResults[index], failed: true, errorReason: err?.message || String(err) };
         return newResults;
       });
     }
@@ -4959,6 +4959,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               <p className="text-sm font-medium text-brand-primary leading-snug">
                                 Unsere KI ist gerade schwer am arbeiten;)
                               </p>
+                              {result.errorReason && (
+                                <p className="text-[10px] text-red-500 bg-red-100/60 font-mono py-1 px-2 rounded-lg max-w-full overflow-hidden text-center break-all leading-tight">
+                                  {result.errorReason}
+                                </p>
+                              )}
                               <div className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#FF9EBE] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-md shadow-[#FF9EBE]/20 hover:bg-[#FF9EBE]/90 transition-colors">
                                 <RefreshCcw size={10} />
                                 Tippe hier zum Neuladen

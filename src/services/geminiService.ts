@@ -179,6 +179,6 @@ export const generateHairstyleImage = async (
     return null;
   } catch (err) {
     console.error("Failed to generate hairstyle image via proxy", err);
-    return null;
+    throw err;
   }
 };
