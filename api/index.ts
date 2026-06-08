@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import cors from "cors";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
+import fs from "fs";
 
 dotenv.config();
 
@@ -44,7 +45,8 @@ app.post("/api/gemini", async (req, res) => {
 
     switch (action) {
       case "analyzeFace": {
-        const { base64Image, mimeType } = payload;
+        const { base64Image } = payload;
+        const mimeType = "image/jpeg"; // Enforce JPEG as all resized images are JPEGs. Fixes HEIC/PNG issues.
         
         const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor.
         REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (PFLICHT):
@@ -84,7 +86,7 @@ app.post("/api/gemini", async (req, res) => {
         Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, emotionalEnhancer, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-flash-latest",
+          model: "gemini-3.5-flash",
           contents: {
             parts: [
               { inlineData: { data: base64Image, mimeType } },
@@ -121,7 +123,7 @@ app.post("/api/gemini", async (req, res) => {
         Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-flash-latest",
+          model: "gemini-3.5-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json"
@@ -132,7 +134,8 @@ app.post("/api/gemini", async (req, res) => {
       }
 
       case "generateImage": {
-        const { base64Image, mimeType, styleName, description, isSketch, baseSketch } = payload;
+        const { base64Image, styleName, description, isSketch, baseSketch } = payload;
+        const mimeType = "image/jpeg"; // Enforce JPEG for the resized original image
         const model = "gemini-2.5-flash-image";
         
         let promptSnippet = "";
@@ -217,13 +220,38 @@ Generate a photorealistic image where the person in the source photo has their h
     }
   } catch (error: any) {
     const errorMsg = error.message || "Unbekannter Fehler";
+    const stack = error.stack || "";
     console.error("Gemini Proxy error:", errorMsg.replace(/AIza[0-9A-Za-z-_]{35}/g, "[HIDDEN_KEY]"));
     
-    // Provide slightly more detail in non-production to help the user
-    const isProd = process.env.NODE_ENV === "production";
-    const userMessage = isProd 
-      ? "Ein interner Fehler im KI-Dienst ist aufgetreten." 
-      : `KI-Fehler: ${errorMsg.substring(0, 100)}`;
+    // Log to a file we can inspect
+    try {
+      fs.appendFileSync("server_error.log", `[${new Date().toISOString()}] Action: ${req.body?.action || "unknown"} Error: ${errorMsg}\nStack: ${stack}\n\n`);
+    } catch (logErr) {
+      console.error("Failed to write to server_error.log", logErr);
+    }
+    
+    // Translate the error message to high-quality user-friendly German
+    const lower = errorMsg.toLowerCase();
+    let userMessage = "Ein interner Fehler im KI-Dienst ist aufgetreten.";
+    
+    if (lower.includes("429") || lower.includes("rate limit") || lower.includes("quota") || lower.includes("overloaded") || lower.includes("exhausted")) {
+      userMessage = "Die KI ist gerade überlastet (Ansturm zu hoch). Bitte warte einen kurzen Moment und klicke auf 'Neuladen'.";
+    } else if (lower.includes("safety") || lower.includes("block") || lower.includes("blocked") || lower.includes("finish_reason") || lower.includes("harm")) {
+      userMessage = "Das Foto wurde von den Sicherheitsfiltern der KI blockiert. Bitte lade ein Foto hoch, auf dem dein Gesicht klar, frontal, unverdeckt und gut ausgeleuchtet zu sehen ist.";
+    } else if (lower.includes("api_key") || lower.includes("key") || lower.includes("unauthorized") || lower.includes("invalid key") || lower.includes("forbidden") || lower.includes("403")) {
+      userMessage = "Der KI-Dienst ist derzeit aufgrund eines Konfigurationsfehlers nicht erreichbar. Bitte kontaktiere unseren Support.";
+    } else if (lower.includes("not found") || lower.includes("404")) {
+      userMessage = "Der aufgerufene KI-Modell-Dienst wurde nicht gefunden oder ist vorübergehend deaktiviert.";
+    } else if (lower.includes("timeout") || lower.includes("504") || lower.includes("gateway")) {
+      userMessage = "Die Verbindung zum KI-Dienst hat zu lange gedauert. Bitte versuche es noch einmal.";
+    } else {
+      // Return a friendly message with a safe sanitized snippet of the actual model error
+      let shortMsg = errorMsg.replace(/AIza[0-9A-Za-z-_]{35}/g, "[SECRET_KEY]");
+      if (shortMsg.length > 60) {
+        shortMsg = shortMsg.substring(0, 60) + "...";
+      }
+      userMessage = `Ein interner Fehler im KI-Dienst ist aufgetreten (${shortMsg}).`;
+    }
       
     res.status(500).json({ error: userMessage });
   }
