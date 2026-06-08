@@ -34,13 +34,13 @@ const getGeminiAI = () => {
 };
 
 // Help helper for GenAI image generation with fallback & candidate inspection
-async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[], safetySettings: any[]) {
+async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[], safetySettings: any[], extraConfig: any = {}) {
   try {
     console.log(`Querying image model ${model}...`);
     const response = await ai.models.generateContent({
       model: model,
       contents: { parts },
-      config: { safetySettings }
+      config: { safetySettings, ...extraConfig }
     });
 
     let imageData = null;
@@ -228,27 +228,27 @@ app.post("/api/gemini", async (req, res) => {
              }
           }
         } else {
-          promptSnippet = `### TASK: PHOTOREALISTIC HAIRSTYLE SWAP
-Generate a photorealistic image where the person in the source photo has their hairstyle professionally swapped and replaced.
+          promptSnippet = `### TASK: PHOTOREALISTIC HAIRSTYLE SWAP WITH ZERO FACE ALTERATION (EXTREME FIDELITY)
+Generate a photorealistic image where ONLY the hair of the person in the source photo is replaced with the requested hairstyle and color.
 
-### CHOSEN HAIRSTYLE, COLOR & DYEING TECHNIQUE:
-- Target Hairstyle: ${styleName}
-- Details & Color/Technique Specifications: ${description}
+### CHOSEN HAIRSTYLE, COLOR & DYEING TECHNIQUE (MUST STRICTLY FOLLOW):
+- Target Hairstyle (Ausgewählte Frisur): ${styleName}
+- Details & Color/Technique Specifications (Gewünschte Haarfarbe & Art der Färbung): ${description}
+- STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle, the specific color, and the dyeing technique. Do NOT generalize, simplify, or deviate from these selections.
 
-### NO LIGHTING EFFECTS / MAINTAIN ORIGINAL LIGHTING:
-- Absolutely DO NOT add any extra lighting effects, studio lamps, glow, lens flares, or professional studio artificial lighting.
-- Preserve the exact environment, shadows, background, clothing, and illumination/lighting of the original photo. Do not distort or modify the environment or original light source.
+### STRICTEST PERSON & FACE PRESERVATION - NO BEAUTIFICATION (ABSOLUTER ERHALT):
+- ABSOLUTE FIDELITY REQUIRED: The person's face MUST be 100% identical to the original photo.
+- NO BEAUTIFICATION / NO FILTERS / NO AIRBRUSH: Do not beautify, refine, smooth the skin, adjust facial symmetry, make the person look younger, or apply any artificial beauty filters. Skin texture, blemishes, moles, freckles, double-chin, skin tone, pores, and wrinkles MUST be preserved exactly as they are without any modification.
+- NO ALTERATION OF EYE/FACE FEATURES: The eyes (exact shape, gaze direction, iris details, eyelashes, eye-bags, eye wrinkles) and especially the EYES COLOR (exact natural hazel, blue, brown, or green shade of the original iris) MUST remain completely unchanged. Nose, mouth, teeth, lips, jawline, ears, and overall head shape/proportions must be exactly identical to the original image.
+- The user MUST recognize themselves perfectly, without a single facial feature being altered or "perfected" by AI. It must be a 100% faithful replication of the face.
 
-### STRICT PERSON & FACE PRESERVATION (CRITICAL DIRECTION):
-- Maintain 100% identical face, facial structure, skin texture, wrinkles, mouth, teeth, and pose of the subject.
-- Keep the eyes (exact shape, eyelids, wrinkles, gaze direction) and EYES COLOR (exact natural shade) 100% identical. Under no circumstances should the eyes, eye color, eye iris, or look of the person be changed. We need 100% realistic recognition.
-- Keep the exact facial shape and lines.
-- Only modify the hair region to depict the requested style "${styleName}" with the specified color and dyeing technique. Everything else must remain completely unchanged.
+### ORIGINAL ENVIRONMENT, LIGHTING & CLOTHING:
+- Absolutely NO new or extra lighting effects, studio strobe lights, ambient glow, lens flares, or exposure changes.
+- Keep the exact background, environment, lighting direction, clothing, and neck region of the original photo. No changes or distortions are permitted in the background or surrounding areas.
 
-### PREMIUM QUALITY & HIGH FIDELITY SPECIFICATIONS:
-- The generated hair must be rich in micro-details, ultra-sharp, showing natural strand-by-strand textures, realistic hair shine, and natural flows.
-- Ensure the transition between the head/forehead and the new hair is fully seamless, photorealistic, and highly premium.
-- Match the exact camera sharpness, depth of field, and image quality of the original photorealistic portrait without any blurriness or artificial look.`;
+### PREMIUM 1K HD QUALITY & SEAMLESS COMPOSITING:
+- The generated hair must be presented in extreme high definition (HD 1K resolution), showing precise individual hair strands, micro-details, natural hair textures, realistic volume, natural shine, and flows.
+- The seam/boundary where the new hair meets the forehead, scalp, temples, and shoulders must blend seamlessly, with natural individual strands falling photorealistically onto the skin or clothing.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
@@ -260,17 +260,37 @@ Generate a photorealistic image where the person in the source photo has their h
         parts.push({ text: promptSnippet });
 
         let result;
-        try {
-          // Attempt 1: gemini-2.5-flash-image
-          result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
-        } catch (err1: any) {
-          console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image...");
+        if (isSketch) {
           try {
-            // Attempt 2: gemini-3.1-flash-image
-            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
-          } catch (err2: any) {
-            console.error("All image generation models failed!");
-            throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
+            // Attempt 1: gemini-2.5-flash-image (lighter, standard for simple pencil sketches)
+            result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
+          } catch (err1: any) {
+            console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image...");
+            try {
+              // Attempt 2: gemini-3.1-flash-image
+              result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
+            } catch (err2: any) {
+              console.error("All image generation models failed!");
+              throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
+            }
+          }
+        } else {
+          try {
+            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 1K HD premium quality
+            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings, {
+              imageConfig: {
+                imageSize: "1K"
+              }
+            });
+          } catch (err1: any) {
+            console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-2.5-flash-image as fallback...");
+            try {
+              // Attempt 2: gemini-2.5-flash-image
+              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
+            } catch (err2: any) {
+              console.error("All image generation models failed!");
+              throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
+            }
           }
         }
         

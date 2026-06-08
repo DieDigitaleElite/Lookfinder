@@ -1810,7 +1810,7 @@ export default function App() {
         try {
           console.log(`Compressing image for ${result.id}...`);
           const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 500000);
+          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 800000);
           console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
         } catch (compressErr) {
           console.error("Compression failed", compressErr);
