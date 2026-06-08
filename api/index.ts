@@ -33,6 +33,48 @@ const getGeminiAI = () => {
   return new GoogleGenAI({ apiKey: key });
 };
 
+// Help helper for GenAI image generation with fallback & candidate inspection
+async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[], safetySettings: any[]) {
+  try {
+    console.log(`Querying image model ${model}...`);
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: { parts },
+      config: { safetySettings }
+    });
+
+    let imageData = null;
+    for (const candidate of response.candidates || []) {
+      for (const part of candidate.content?.parts || []) {
+        if (part.inlineData) {
+          imageData = part.inlineData.data;
+          break;
+        }
+      }
+      if (imageData) break;
+    }
+
+    if (imageData) {
+      console.log(`Successfully generated image using model ${model}. Data length: ${imageData.length}`);
+      return { imageData, modelUsed: model };
+    }
+
+    const blockReason = response.candidates?.[0]?.finishReason;
+    const errorDetails = `finishReason: ${blockReason || "unknown"}. text: ${response.text || "none"}`;
+    console.warn(`Model ${model} returned no image: ${errorDetails}`);
+    
+    // Write detailed response details to server_error.log for real-time inspection
+    try {
+      fs.appendFileSync("server_error.log", `[${new Date().toISOString()}] Warning: model ${model} did not return inlineData. Details: ${errorDetails}. Parts: ${JSON.stringify(response.candidates?.[0]?.content?.parts)}\n`);
+    } catch (_) {}
+
+    throw new Error(`NO_IMAGE_DATA_RETURNED (${errorDetails})`);
+  } catch (err: any) {
+    console.warn(`Query for model ${model} failed with error:`, err.message || err);
+    throw err;
+  }
+}
+
 // --- API GUIDELINES ---
 // Health checks
 app.get("/api/health", (req, res) => res.status(200).send("OK"));
@@ -136,8 +178,26 @@ app.post("/api/gemini", async (req, res) => {
       case "generateImage": {
         const { base64Image, styleName, description, isSketch, baseSketch } = payload;
         const mimeType = "image/jpeg"; // Enforce JPEG for the resized original image
-        const model = "gemini-2.5-flash-image";
         
+        const safetySettings = [
+          {
+            category: "HARM_CATEGORY_HATE_SPEECH",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_HARASSMENT",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+            threshold: "BLOCK_NONE"
+          },
+          {
+            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+            threshold: "BLOCK_NONE"
+          }
+        ];
+
         let promptSnippet = "";
         if (isSketch) {
           if (payload.isBase) {
@@ -194,24 +254,22 @@ Generate a photorealistic image where the person in the source photo has their h
         }
         parts.push({ text: promptSnippet });
 
-        const response = await ai.models.generateContent({
-          model: model,
-          contents: { parts }
-        });
-        
-        let imageData = null;
-        for (const part of response.candidates?.[0]?.content?.parts || []) {
-          if (part.inlineData) {
-            imageData = part.inlineData.data;
-            break;
+        let result;
+        try {
+          // Attempt 1: gemini-2.5-flash-image
+          result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
+        } catch (err1: any) {
+          console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image...");
+          try {
+            // Attempt 2: gemini-3.1-flash-image
+            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
+          } catch (err2: any) {
+            console.error("All image generation models failed!");
+            throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
           }
         }
         
-        if (imageData) {
-           res.json({ imageData });
-        } else {
-           res.json({ text: response.text });
-        }
+        res.json({ imageData: result.imageData, modelUsed: result.modelUsed });
         break;
       }
 
