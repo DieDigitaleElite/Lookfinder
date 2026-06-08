@@ -5873,7 +5873,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       ? 'Bitte logge dich ein oder erstelle ein Konto, um deine Styles dauerhaft zu speichern und die Zahlung abzuschließen.'
                       : isForgotPassword 
                         ? 'Gib deine E-Mail ein, um einen Link zum Zurücksetzen zu erhalten.' 
-                        : 'Melde dich an, um deine Looks zu speichern und exklusive Tipps zu erhalten.'}
+                        : 'Melde dich kostenlos an, um deine Looks zu speichern, Umfragen zu erstellen und exklusive Tipps zu erhalten.'}
                   </p>
                 </div>
 
