@@ -2036,10 +2036,10 @@ export default function App() {
 
       const maxToGenerate = isPremium ? suggestions.length : 3;
       
-      // Delay avatar sketch to avoid hitting rate limit at the start
-      const generateSketchDelayed = async () => {
+      // Teaser sketch generator - will be executed after the main images to prevent API overlap
+      const generateTeaserSketch = async () => {
         try {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log("Starting delayed teaser sketch generation...");
           // Speed optimization: Generate first style sketch directly from the original photo without first generating a bald sketch!
           const styledSketch = await generateFashionSketch(base64Data, mimeType, suggestions[0].name, null);
           
@@ -2063,8 +2063,6 @@ export default function App() {
           console.warn("Teaser sketch generation failed, skipping...", err);
         }
       };
-      
-      generateSketchDelayed();
 
       // Parallelize image generation with stagger delays and timeouts for 3x speedup!
       const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
@@ -2118,11 +2116,17 @@ export default function App() {
         }
       };
 
-      for (let i = 0; i < maxToGenerate; i++) {
-        await generateWithStaggerAndTimeout(i);
+      try {
+        for (let i = 0; i < maxToGenerate; i++) {
+          await generateWithStaggerAndTimeout(i);
+        }
+      } catch (err) {
+        console.error("Unexpected error in image generation loop", err);
+      } finally {
+        setGenerationProgress(100);
+        // Safely generate the teaser sketch at the very end to avoid API Rate Limit / concurrent bottlenecking
+        await generateTeaserSketch();
       }
-
-      setGenerationProgress(100);
 
       // Increment usage count
       await incrementUsage();
