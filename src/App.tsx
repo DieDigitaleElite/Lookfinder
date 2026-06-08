@@ -1324,7 +1324,7 @@ export default function App() {
 
           const imageUrl = await withTimeout(
             generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
-            20000,
+            30000,
             "Timeout"
           );
           
@@ -1904,12 +1904,18 @@ export default function App() {
         setError(null);
         setMimeType(file.type);
         
+        // Detect mobile to optimize memory impact and network payload
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        const hdMaxDim = isMobileDevice ? 800 : 1200;
+        const stdMaxDim = isMobileDevice ? 640 : 1024;
+        const resizeQuality = isMobileDevice ? 0.6 : 0.75;
+
         // Keep high-quality HD Image
-        const processedHD = await fastResizeImage(base64, 1200, 0.75);
+        const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
         setHdImage(processedHD);
  
-        // Resize image immediately - using smaller size for mobile/web upload to save tokens/bandwidth
-        const processedImage = await fastResizeImage(base64, 1024, 0.7);
+        // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
+        const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
         setImage(processedImage);
  
         // Track complete
@@ -2081,7 +2087,7 @@ export default function App() {
           
           const imageUrl = await withTimeout(
             generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
-            18000,
+            30000,
             "Timeout"
           );
           
@@ -2442,12 +2448,18 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setError(null);
     setMimeType(type);
     
+    // Detect mobile to optimize memory impact and network payload
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+    const hdMaxDim = isMobileDevice ? 800 : 1200;
+    const stdMaxDim = isMobileDevice ? 640 : 1024;
+    const resizeQuality = isMobileDevice ? 0.6 : 0.75;
+
     // Keep high-quality HD Image
-    const processedHD = await fastResizeImage(base64, 1200, 0.75);
+    const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
     setHdImage(processedHD);
  
-    // Resize image immediately to keep memory usage low and prevent API timeouts
-    const processedImage = await fastResizeImage(base64, 1024, 0.7);
+    // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
+    const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
     setImage(processedImage);
     
     // Only generate NEW sketches if none exist for this user
