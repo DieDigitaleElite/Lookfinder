@@ -1317,11 +1317,9 @@ export default function App() {
         ]);
       };
 
-      const generateMissingParallel = async (i: number, idx: number) => {
+      const generateMissingSequential = async (i: number, idx: number) => {
         const suggestion = results[i];
         try {
-          // Stagger starting times slightly to prevent bottlenecking API
-          await new Promise(resolve => setTimeout(resolve, idx * 600));
           console.log(`Generating manual premium style ${i + 1}: ${suggestion.name}`);
 
           const imageUrl = await withTimeout(
@@ -1361,8 +1359,10 @@ export default function App() {
         }
       };
 
-      const promises = missingIndices.map((i, idx) => generateMissingParallel(i, idx));
-      await Promise.all(promises);
+      for (let idx = 0; idx < missingIndices.length; idx++) {
+        const i = missingIndices[idx];
+        await generateMissingSequential(i, idx);
+      }
       
       // Trigger confetti after the full unlock
       confetti({
@@ -2079,11 +2079,7 @@ export default function App() {
       const generateWithStaggerAndTimeout = async (i: number) => {
         const suggestion = suggestions[i];
         try {
-          // Stagger starting times: index 0 (0ms), index 1 (600ms), index 2 (1200ms)
-          if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, i * 600));
-          }
-          console.log(`Generating image in parallel slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
+          console.log(`Generating image in sequential slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
           const imageUrl = await withTimeout(
             generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
@@ -2106,7 +2102,7 @@ export default function App() {
             return newResults;
           });
         } catch (err) {
-          console.error(`Failed/Timeout generating parallel image for style ${i}`, err);
+          console.error(`Failed/Timeout generating sequential image for style ${i}`, err);
           setResults(prev => {
             const newResults = [...prev];
             newResults[i] = { ...newResults[i], failed: true };
@@ -2122,12 +2118,9 @@ export default function App() {
         }
       };
 
-      const promises = [];
       for (let i = 0; i < maxToGenerate; i++) {
-        promises.push(generateWithStaggerAndTimeout(i));
+        await generateWithStaggerAndTimeout(i);
       }
-
-      await Promise.all(promises);
 
       setGenerationProgress(100);
 
