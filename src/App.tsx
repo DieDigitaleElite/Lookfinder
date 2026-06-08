@@ -1275,8 +1275,8 @@ export default function App() {
 
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
-    // Check if results are synced (only require results with images to be saved to Firestore)
-    const resultsSynced = results.length === 0 || results.every(r => !r.imageUrl || isResultSaved(r.id));
+    // Check if results are synced (require all suggestions, with or without images, to be successfully saved to Firestore)
+    const resultsSynced = results.length === 0 || results.every(r => isResultSaved(r.id));
     const customResultsSynced = customResults.length === 0 || customResults.every(r => !r.imageUrl || isResultSaved(r.id));
     
     // Check if sketches are synced (by checking if they exist in userData)
@@ -1403,12 +1403,18 @@ export default function App() {
   useEffect(() => {
     if (user && (results.length > 0 || customResults.length > 0)) {
       const syncResults = async () => {
-        // Collect all results that have an image but are not saved yet
-        const allPending = [...results, ...customResults].filter(result => 
-          result.imageUrl && 
-          !isResultSaved(result.id) && 
-          !savingIdsRef.current.has(result.id)
-        );
+        // Collect all results to sync:
+        // For results (the 9 suggestions), sync regardless of whether they have an image yet.
+        // For customResults, only sync if they have an image.
+        const allPending = [...results, ...customResults].filter(result => {
+          const isFromMainResults = results.some(r => r.id === result.id);
+          const hasImageOrIsMainResult = !!result.imageUrl || isFromMainResults;
+          return (
+            hasImageOrIsMainResult &&
+            !isResultSaved(result.id) &&
+            !savingIdsRef.current.has(result.id)
+          );
+        });
 
         if (allPending.length === 0) return;
 
