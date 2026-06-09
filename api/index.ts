@@ -90,19 +90,19 @@ app.post("/api/gemini", async (req, res) => {
         const { base64Image } = payload;
         const mimeType = "image/jpeg"; // Enforce JPEG as all resized images are JPEGs. Fixes HEIC/PNG issues.
         
-        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage genau 9 verschiedene Frisuren vor.
+        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage 9 verschiedene Frisuren vor.
         REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (PFLICHT):
-        - Die ersten 3 Vorschläge MÜSSEN einfache, klassische und schöne Frisuren sein, die die ursprüngliche Haarfarbe und Haarstruktur des Nutzers zu 100% unverändert beibehalten.
-        - Es dürfen ABSOLUT KEINE Haarfarben-Änderungen oder extreme Verfremdungen vorgeschlagen werden. Die natürliche Haarfarbe und Textur des Nutzers müssen exakt beibehalten werden.
-        1. VORSCHLAG: Eine schöne, moderne MITTELLANGE Frisur (z.B. ein eleganter, klassischer Bob in der exakten Naturhaarfarbe des Nutzers).
-        2. VORSCHLAG: Eine schöne, feminine LANGE Frisur (in der exakten Naturhaarfarbe des Nutzers).
-        3. VORSCHLAG: Eine schöne, moderne KURZE Frisur (in der exakten Naturhaarfarbe des Nutzers, ohne Farbexperimente).
+        - Die ersten 3 Vorschläge MÜSSEN sich deutlich voneinander und von der aktuellen Frisur auf dem Foto unterscheiden.
+        - Es soll eine klare Typveränderung sichtbar sein, während sie dennoch perfekt zur Gesichtsform passen.
+        1. VORSCHLAG: Muss eine MITTELLANGE Frisur sein (z.B. Bob-Varianten).
+        2. VORSCHLAG: Muss eine LANGE Frisur sein.
+        3. VORSCHLAG: Muss eine KURZHAARFRISUR sein (z.B. Pixie oder kurzer Shag).
         
         STRICT IDENTITY GUIDELINES:
-        - Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) sowie die Gesichts- und Körperhaltung (kein Neigen, Beugen oder Verzerren des Körpers) zu 100% EXAKT.
-        - Behalte die Original-Haarfarbe und -Haarstruktur des Nutzers komplett bei (Farbe und Textur müssen exakt übereinstimmen).
+        - Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) zu 100% EXAKT.
+        - Behalte die Original-Haarfarbe des Nutzers so nah wie möglich bei (nur minimale, harmonische Nuancen-Abweichungen erlaubt).
         - Die Augenfarbe und Blickrichtung dürfen NIEMALS verändert werden.
-        - Der Fokus liegt auf der Erhaltung der Wiedererkennbarkeit und absoluten Einfachheit.
+        - Der Fokus liegt auf der Erhaltung der Wiedererkennbarkeit.
         
         NEUES FELD "emotionalEnhancer":
         Erstelle für JEDEN Vorschlag einen kurzen, emotionalen Verstärker (max. 5-7 Wörter), der den User begeistert.
@@ -237,7 +237,7 @@ Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen.
 ### WHAT MUST REMAIN 100% UNCHANGED (ZERO MODIFICATIONS ALLOWED):
 1. THE FACE (GESICHT & IDENTITÄT): Keep the exact same face, jawline, chin shape, forehead, cheekbones, nose, lips, mouth, teeth, teeth alignment, skin tone, skin texture, blemishes, freckles, moles, scars, and wrinkles. Absolutely NO beautification, NO skin smoothing, NO airbrush, NO face slimming, NO rejuvenation, NO age changes, and NO face-lifting. The face must be absolutely untouched. Keine Änderungen an Augenfarbe, Nase, Mund, Make-up, Kopfstellung usw. erlaubt!
 2. THE EYES (AUGEN & BLICKRICHTUNG): Keep the exact same eyes, eye shape, eyelids, eyelashes, eye-brows, eye-bags, eye wrinkles, gaze direction, and ESPECIALLY the iris pattern and EYES COLOR (the exact natural hazel, blue, brown, or green shade of the original iris). Do NOT change the expression, shape or color of the eyes under any circumstances.
-3. THE BODY, POSE & HEAD POSITION (KÖRPERHALTUNG UND KOPFHALTUNG): Preserve the exact head tilt, head angle, body position, shoulders, neck, posture, hands/arms, clothing, jewelries, tattoos, and position 100% as they are. DO NOT bend the posture forward or backward. The person must sit or stand completely upright in the EXACT same pose and angle as in the original image. Absolutely NO bowing, slouching, leaning forward, or shoulder rotations are allowed. Keine Änderungen an der Körperhaltung erlaubt!
+3. THE BODY, POSE & HEAD POSITION (KÖRPERHALTUNG UND KOPFHALTUNG): Preserve the exact head tilt, head angle, body position, shoulders, neck, posture, hands/arms, clothing, jewelries, tattoos, and position 100% as they are. Do NOT change, rotate, tilt, or modify the shoulders, head, neck, body posture, or clothing. Keine Änderungen an der Körperhaltung erlaubt!
 4. BACKDROP & ENVIRONMENT (HINTERGRUND & UMGEBUNG): Keep the exact same background, scenery, lighting, shadows, and environment as in the source photo. Absolutely no alterations, extensions, or enhancements to the surroundings. The backdrop must remain pixel-exact.
 5. NO MAKEUP CHANGES: Do not add, modify, or remove any makeup, lipstick, or eyelashes.
 6. NO STRUCTURAL DRIFT: Do not alter the posture or head angle even slightly.
@@ -245,7 +245,7 @@ Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen.
 ### TARGET HAIRSTYLE & COLOR (MUST STRICTLY FOLLOW):
 - Target Hairstyle (Ausgewählte Frisur): ${styleName}
 - Hair Color & Dyeing (Gewünschte Haarfarbe & Art der Färbung): ${description}
-- STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle. Keep the user's exact original natural hair color and hair texture unless a specific different hair shade or color has been explicitly chosen by the user! Apply the hair realistically and blend it perfectly. Do not generalize or simplify.
+- STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle, specific color, and dyeing. Do not generalize or simplify. Only change the hair, and blend it perfectly.
 
 ### PREMIUM 1K HD QUALITY & SEAMLESS TRANSITION:
 - The generated hair must be presented in extreme premium quality, showing precise individual hair strands, micro-details, natural hair textures, realistic volume, natural shine, and realistic flow.
@@ -277,10 +277,10 @@ Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen.
           }
         } else {
           try {
-            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 1K HD premium quality (extremely snappy and reliable)
+            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 2K HD premium quality
             result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings, {
               imageConfig: {
-                imageSize: "1K"
+                imageSize: "2K"
               }
             });
           } catch (err1: any) {
