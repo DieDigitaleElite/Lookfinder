@@ -371,9 +371,6 @@ export default function App() {
     // ONLY generate background sketches if user is registered/logged in and we have a source, and we are NOT currently generating or auto-generating from Stripe
     if (!user || !sourceImage || isGenerating || isAutoGeneratingFromStripe || !!pendingStudioSelection) return;
 
-    // If we already have the baseSketch, do NOT run background sketches for other library hairstyles while inside the 'studio' tab to prevent API rate limiting / starvation of on-demand try-on requests!
-    if (baseSketch && dashboardTab === 'studio') return;
-
     const getNextStyleToGenerate = (currentSketches: Record<string, string>, activeCat: string) => {
       const pendingStyles = HAIRSTYLE_LIBRARY.filter(s => !currentSketches[s.id]);
       if (pendingStyles.length === 0) return null;
@@ -447,11 +444,11 @@ export default function App() {
       while (active) {
         const style = getNextStyleToGenerate(localSketches, activeCategory);
         if (!style) break;
-        if (isGenerating || isAutoGeneratingFromStripe) break; // Pause if user starts a new main generation or auto-generation
+        if (isGenerating) break; // Pause if user starts a new main generation
         if (!active) break;
         // Double check conditions inside the loop
         if (localSketches[style.id]) continue;
-        if (isGenerating || isAutoGeneratingFromStripe) break; // Pause if user starts a new main generation or auto-generation
+        if (isGenerating) break; // Pause if user starts a new main generation
 
         try {
           const base64Data = sourceImage.split(',')[1];
@@ -489,8 +486,8 @@ export default function App() {
         }
         
         // Wait longer between background tasks to be extremely gentle on the API
-        for (let delay = 0; delay < 10; delay++) {
-          if (!active || isGenerating || isAutoGeneratingFromStripe) break;
+        for (let delay = 0; delay < 5; delay++) {
+          if (!active) break;
           await new Promise(r => setTimeout(r, 1000));
         }
       }
@@ -1154,13 +1151,6 @@ export default function App() {
 
   // Separate effect to handle pending payment once user is logged in
   useEffect(() => {
-    if (authInitializing) return;
-
-    if (user) {
-      // Automatically keep login modal closed if user is already logged in
-      setShowLoginModal(false);
-    }
-
     if (user && pendingPayment) {
       // If we have a UID from URL, it MUST match the current user
       // Or if no UID from URL, we assume it's for the current user
@@ -1310,9 +1300,6 @@ export default function App() {
         });
       } else {
         console.warn("Payment UID mismatch. URL UID:", pendingPayment.uid, "Current User UID:", user.uid);
-        setIsAutoGeneratingFromStripe(false);
-        setPendingPayment(null);
-        localStorage.removeItem('frisurenai_pending_studio_selection');
       }
     } else if (!user && pendingPayment) {
       const isFreshPayment = new URLSearchParams(window.location.search).get('payment') === 'success';
@@ -1327,21 +1314,7 @@ export default function App() {
         // setAuthMessage({ type: 'info', text: "Melde dich an, um deine Analyse-Ergebnisse zu speichern." });
       }
     }
-  }, [user, pendingPayment, showLoginModal, pendingStudioSelection, authInitializing]);
-
-  // Safety timeout for Stripe auto-generation loader to prevent getting stuck infinitely
-  useEffect(() => {
-    if (!isAutoGeneratingFromStripe) return;
-
-    const timer = setTimeout(() => {
-      console.warn("Safety timeout fired: isAutoGeneratingFromStripe was active for over 45 seconds. Forgetting state to unblock user.");
-      setIsAutoGeneratingFromStripe(false);
-      setStripeGenerationError("Die automatische Generierung hat zu lange gedauert. Du kannst deine Auswahl jetzt manuell über den 'Generieren'-Button erstellen.");
-      localStorage.removeItem('frisurenai_pending_studio_selection');
-    }, 45000);
-
-    return () => clearTimeout(timer);
-  }, [isAutoGeneratingFromStripe]);
+  }, [user, pendingPayment, showLoginModal, pendingStudioSelection]);
 
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
@@ -2908,13 +2881,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       if (data.url) {
         console.log("Redirecting to Stripe:", data.url);
         
-        // Save HD studio draft to Firestore and await its completion to ensure data isn't lost during page unload/redirect
+        // Save HD studio draft to Firestore in background to avoid blocking Stripe redirect
         if (user) {
-          try {
-            await saveStudioDraftToFirestore(user.uid);
-          } catch (draftErr) {
+          saveStudioDraftToFirestore(user.uid).catch(draftErr => {
             console.warn("Could not save studio draft to Firestore before redirect", draftErr);
-          }
+          });
         }
 
         // Save current results to localStorage before redirecting (as backup)
