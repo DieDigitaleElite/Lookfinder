@@ -1076,6 +1076,13 @@ export default function App() {
       const uid = params.get('uid') || localStorage.getItem('frisurenai_pending_uid');
       const sessionId = params.get('session_id') || localStorage.getItem('frisurenai_pending_session_id');
       
+      const selectionSaved = localStorage.getItem('frisurenai_pending_studio_selection');
+      if (selectionSaved) {
+        console.log("Found pending studio selection on mount - showing immediate loader in Studio tab");
+        setDashboardTab('studio');
+        setIsAutoGeneratingFromStripe(true);
+      }
+      
       if (isPaymentSuccess) {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid, "SessionId:", sessionId);
         isPaymentProcessingRef.current = true;
@@ -1207,9 +1214,19 @@ export default function App() {
           }, 5000);
 
           // Auto-trigger studio generation if pending
-          if (pendingStudioSelection) {
-            console.log("Auto-triggering studio generation after payment success");
-            const { styleId, colorId, techId } = pendingStudioSelection;
+          const savedSelection = localStorage.getItem('frisurenai_pending_studio_selection');
+          let selectionToUse = pendingStudioSelection;
+          if (!selectionToUse && savedSelection) {
+            try {
+              selectionToUse = JSON.parse(savedSelection);
+            } catch (e) {
+              console.warn("Failed to parse saved studio selection from localStorage:", e);
+            }
+          }
+
+          if (selectionToUse) {
+            console.log("Auto-triggering studio generation after payment success:", selectionToUse);
+            const { styleId, colorId, techId } = selectionToUse;
             const style = HAIRSTYLE_LIBRARY.find(s => s.id === styleId);
             const color = HAIR_COLORS.find(c => c.id === colorId);
             const tech = HAIR_TECHNOLOGIES.find(t => t.id === techId);
@@ -1291,12 +1308,13 @@ export default function App() {
       if ((isFreshPayment || hasPlan) && !authMessage) {
         console.log("Payment success detected but user not logged in yet. Showing message.");
         setAuthMessage({ type: 'info', text: "Zahlung erfolgreich! Bitte logge dich ein, um deine Ergebnisse dauerhaft in deinem Profil zu speichern." });
+        setShowLoginModal(true);
       } else if (!authMessage && results.length > 0) {
         // Optional: show a message if they have results but no payment
         // setAuthMessage({ type: 'info', text: "Melde dich an, um deine Analyse-Ergebnisse zu speichern." });
       }
     }
-  }, [user, pendingPayment, showLoginModal]);
+  }, [user, pendingPayment, showLoginModal, pendingStudioSelection]);
 
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
@@ -5050,13 +5068,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                           </div>
                         ) : (
                           <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
-                            <Loader2 className={`animate-spin text-[#FF9EBE] ${isGenerating ? 'opacity-100' : 'opacity-20'}`} size={32} />
+                            <Loader2 className={`animate-spin text-[#FF9EBE] ${generatingResultId === result.id ? 'opacity-100' : 'opacity-20'}`} size={32} />
                             <div className="space-y-1">
                               <p className="text-xs font-bold uppercase tracking-widest opacity-30">
-                                {isGenerating ? "Dein exklusiver Look wird erstellt..." : "Bereit zum Generieren ✨"}
+                                {generatingResultId === result.id ? "Dein exklusiver Look wird erstellt..." : "Bereit zum Generieren ✨"}
                               </p>
                               <p className="text-[8px] text-brand-primary/40 leading-tight">
-                                {isGenerating 
+                                {generatingResultId === result.id 
                                   ? "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."
                                   : isPremium 
                                     ? "Klicke oben auf 'Alle Styles laden', um deine Premium-Beratung zu vervollständigen."
