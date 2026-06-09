@@ -10,9 +10,7 @@
         "displayName": { "type": "string" },
         "photoURL": { "type": "string", "format": "uri" },
         "createdAt": { "type": "string", "format": "date-time" },
-        "isPremium": { "type": "boolean", "description": "Whether the user has purchased premium access" },
-        "studioCredits": { "type": "number", "description": "Number of styling studio generation credits" },
-        "processedSessions": { "type": "array", "items": { "type": "string" }, "description": "Stripe checkout session IDs that have been processed" }
+        "isPremium": { "type": "boolean", "description": "Whether the user has purchased premium access" }
       },
       "required": ["uid", "email", "createdAt"]
     },
