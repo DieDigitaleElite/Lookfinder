@@ -1812,15 +1812,29 @@ export default function App() {
     try {
       // Compress image before saving to Firestore to stay under 1MB limit
       let finalResult = { ...result };
+      
+      // Compress generated hairstyle image to ~600KB
       if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
         try {
           console.log(`Compressing image for ${result.id}...`);
           const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 800000);
+          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 600000);
           console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
         } catch (compressErr) {
           console.error("Compression failed", compressErr);
-          // If compression fails, we might still try to save, but it will likely fail if too big
+        }
+      }
+
+      // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits
+      if (finalResult.sourceImageUrl && finalResult.sourceImageUrl.startsWith('data:image')) {
+        try {
+          console.log(`Compressing source image for ${result.id}...`);
+          const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+          finalResult.sourceImageUrl = await compressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
+          console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
+        } catch (compressErr) {
+          console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
+          delete finalResult.sourceImageUrl;
         }
       }
 
@@ -1830,7 +1844,7 @@ export default function App() {
       const saveData = {
         ...finalResult,
         userId: user.uid,
-        createdAt: serverTimestamp(),
+        createdAt: (result as any).createdAt || serverTimestamp(),
         id: result.id // Explicitly ensure id is present
       };
 
@@ -2226,7 +2240,8 @@ export default function App() {
     setError(null);
 
     try {
-      const sourceImage = hdImage || result.sourceImageUrl || image;
+      // Extensive fallback chain to locate the original user photo
+      const sourceImage = hdImage || result.sourceImageUrl || image || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
       if (!sourceImage) {
         throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
       }
@@ -2248,12 +2263,28 @@ export default function App() {
 
       const updatedResult = { ...result, imageUrl };
       
-      // Update local state
+      // Update ALL local React states
       setSavedResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
       setCustomResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
-      if (selectedResult?.id === result.id) setSelectedResult(updatedResult);
+      setResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
       
-      // Save to Firestore
+      if (selectedResult?.id === result.id) {
+        setSelectedResult(updatedResult);
+      }
+      
+      // Update localStorage backups if they exist for consistency
+      const pendingResultsStr = localStorage.getItem('frisurenai_pending_results');
+      if (pendingResultsStr) {
+        try {
+          const pendingResults: GeneratedResult[] = JSON.parse(pendingResultsStr);
+          const updatedPending = pendingResults.map(r => r.id === result.id ? updatedResult : r);
+          localStorage.setItem('frisurenai_pending_results', JSON.stringify(updatedPending));
+        } catch (e) {
+          console.warn("Failed to update pending results in localStorage", e);
+        }
+      }
+      
+      // Save to Firestore (this will update or merge with the existing synced placeholder document)
       await saveResult(updatedResult, true);
       
       confetti({
