@@ -1324,11 +1324,6 @@ export default function App() {
     setIsGenerating(true);
     setGenerationProgress(Math.round((results.filter(r => !!r.imageUrl).length / results.length) * 100));
     
-    const sourceImageToUse = hdImage || image;
-    if (!sourceImageToUse) return;
-    const base64Data = sourceImageToUse.split(',')[1];
-    const mimeType = sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg';
-    
     try {
       const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, errorMsg: string): Promise<T> => {
         return Promise.race([
@@ -1343,15 +1338,22 @@ export default function App() {
         const suggestion = results[i];
         try {
           console.log(`Generating manual premium style ${i + 1}: ${suggestion.name}`);
+          
+          const itemSourceImage = suggestion.sourceImageUrl || image || hdImage || localStorage.getItem('frisurenai_pending_image');
+          if (!itemSourceImage) {
+            throw new Error("Originalfoto für diese Generierung nicht gefunden.");
+          }
+          const itemBase64 = itemSourceImage.split(',')[1];
+          const itemMimeType = itemSourceImage.split(';')[0].split(':')[1] || 'image/jpeg';
 
           const imageUrl = await withTimeout(
-            generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
+            generateHairstyleImage(itemBase64, itemMimeType, suggestion.name, suggestion.description),
             30000,
             "Timeout"
           );
           
           const updatedResult = imageUrl 
-            ? { ...suggestion, imageUrl, sourceImageUrl: image, failed: false }
+            ? { ...suggestion, imageUrl, sourceImageUrl: itemSourceImage, failed: false }
             : { ...suggestion, failed: true };
 
           setResults(prev => {
@@ -2050,7 +2052,7 @@ export default function App() {
       setGenerationProgress(0);
 
       // Initialize results with suggestions but no images yet to show placeholders
-      setResults(suggestions.map(s => ({ ...s, imageUrl: null, sourceImageUrl: image })));
+      setResults(suggestions.map(s => ({ ...s, imageUrl: null, sourceImageUrl: sourceImageToUse })));
 
       const maxToGenerate = isPremium ? suggestions.length : 3;
       
@@ -2068,11 +2070,11 @@ export default function App() {
               const userRef = doc(db, 'users', auth.currentUser.uid);
               await setDoc(userRef, { 
                 avatarSketch: styledSketch,
-                sketchReferenceImage: image, // Store the reference image used for sketches
+                sketchReferenceImage: sourceImageToUse, // Store the reference image used for sketches
                 sketchReferenceMimeType: mimeType,
                 lastActive: serverTimestamp()
               }, { merge: true }).catch(err => console.warn("Failed to persist styled sketch to user profile", err));
-              setSketchReferenceImage(image);
+              setSketchReferenceImage(sourceImageToUse);
               setSketchReferenceMimeType(mimeType);
               console.log("Teaser sketch and reference image successfully persisted to user profile.");
             }
@@ -2106,7 +2108,7 @@ export default function App() {
           setResults(prev => {
             const newResults = [...prev];
             if (imageUrl) {
-              const updatedResult = { ...newResults[i], imageUrl, sourceImageUrl: image, failed: false };
+              const updatedResult = { ...newResults[i], imageUrl, sourceImageUrl: sourceImageToUse, failed: false };
               newResults[i] = updatedResult;
               
               if (isPremium && user) {
@@ -2183,7 +2185,11 @@ export default function App() {
   };
 
   const retryStyle = async (index: number) => {
-    if (!image || !results[index]) return;
+    const suggestion = results[index];
+    if (!suggestion) return;
+    
+    const sourceImageToUse = suggestion.sourceImageUrl || image || hdImage || localStorage.getItem('frisurenai_pending_image');
+    if (!sourceImageToUse) return;
     
     // Reset failed state for this style
     setResults(prev => {
@@ -2193,23 +2199,22 @@ export default function App() {
     });
 
     try {
-      const sourceImageToUse = hdImage || image;
       const base64Data = sourceImageToUse.split(',')[1];
-      const suggestion = results[index];
+      const resMimeType = sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg';
       
       const timeoutPromise = new Promise<null>((_, reject) => 
         setTimeout(() => reject(new Error("Timeout")), 18000)
       );
       
       const imageUrl = await Promise.race([
-        generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
+        generateHairstyleImage(base64Data, resMimeType, suggestion.name, suggestion.description),
         timeoutPromise
       ]);
       
       setResults(prev => {
         const newResults = [...prev];
         if (imageUrl) {
-          newResults[index] = { ...newResults[index], imageUrl, sourceImageUrl: image, failed: false };
+          newResults[index] = { ...newResults[index], imageUrl, sourceImageUrl: sourceImageToUse, failed: false };
         } else {
           newResults[index] = { ...newResults[index], failed: true, errorReason: "Keine Bilddaten erhalten" };
         }
@@ -2240,8 +2245,8 @@ export default function App() {
     setError(null);
 
     try {
-      // Extensive fallback chain to locate the original user photo
-      const sourceImage = hdImage || result.sourceImageUrl || image || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
+      // ALWAYS prioritize the specific original source image recorded for this style recommendation
+      const sourceImage = result.sourceImageUrl || image || hdImage || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
       if (!sourceImage) {
         throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
       }

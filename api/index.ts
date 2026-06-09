@@ -228,20 +228,24 @@ app.post("/api/gemini", async (req, res) => {
              }
           }
         } else {
-          promptSnippet = `### CRITICAL MANDATE: PERFECT FACE, BODY, POSE & BACKDROP REPLICATION (100% IDENTICAL)
+          promptSnippet = `### CRITICAL MANDATE: PERFECT FACE, BODY, POSE, CHARACTERISTICS & BACKDROP REPLICATION (100% IDENTICAL)
 You must generate a photorealistic image where ONLY the hair of the person in the source photo is replaced with the requested hairstyle and color. Everything else must remain 100% IDENTICAL to the source photo.
 
+### WICHTIGSTE REGEL: GESICHT UND IDENTITÄT MÜSSEN ZU 100% IDENTISCH SEIN!
+Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen. Es darf KEINERLEI Veränderung an den Gesichtszügen, dem Gesichtsausdruck, der Identität, dem Alter oder dem Geschlecht der Person vorgenommen werden. Es dürfen Filter (wie Glätten, Schönheitseffekte, Verjüngung o.ä.) absolut NICHT angewendet werden. Das Originalgesicht und das gesamte Originalbild müssen exakt beibehalten werden.
+
 ### WHAT MUST REMAIN 100% UNCHANGED (ZERO MODIFICATIONS ALLOWED):
-1. THE FACE: Keep the exact same face, jawline, chin, shape, cheekbones, nose, lips, mouth, teeth, teeth alignment, skin tone, skin texture, blemishes, freckles, moles, scars, and wrinkles. Absolutely NO beautification, NO skin smoothing, NO airbrush, NO face slimming, NO rejuvenation, NO age changes, and NO face-lifting.
-2. THE EYES: Keep the exact same eyes, eye shape, eyelids, eyelashes, eye-brows, eye-bags, eye wrinkles, gaze direction, and ESPECIALLY the iris pattern and EYES COLOR (the exact natural hazel, blue, brown, or green shade of the original iris). Under no circumstances should the look or eye details of the person be changed.
-3. THE BODY, POSE & HEAD POSITION: Preserve the exact head tilt, head angle, body position, shoulders, neck, posture, hands/arms, clothing, jewelries, tattoos, and position 100% as they are. Do NOT change or rotate the head or body.
-4. BACKDROP & ENVIRONMENT: Keep the exact same background, scenery, shadows, and environment as in the source photo. Absolutely no alterations, extensions, or enhancements to the surroundings.
-5. NO MAKEUP CHANGES: Do not add, modify, or remove any makeup or lipstick.
+1. THE FACE (GESICHT & IDENTITÄT): Keep the exact same face, jawline, chin shape, forehead, cheekbones, nose, lips, mouth, teeth, teeth alignment, skin tone, skin texture, blemishes, freckles, moles, scars, and wrinkles. Absolutely NO beautification, NO skin smoothing, NO airbrush, NO face slimming, NO rejuvenation, NO age changes, and NO face-lifting. The face must be absolutely untouched. Keine Änderungen an Augenfarbe, Nase, Mund, Make-up, Kopfstellung usw. erlaubt!
+2. THE EYES (AUGEN & BLICKRICHTUNG): Keep the exact same eyes, eye shape, eyelids, eyelashes, eye-brows, eye-bags, eye wrinkles, gaze direction, and ESPECIALLY the iris pattern and EYES COLOR (the exact natural hazel, blue, brown, or green shade of the original iris). Do NOT change the expression, shape or color of the eyes under any circumstances.
+3. THE BODY, POSE & HEAD POSITION (KÖRPERHALTUNG UND KOPFHALTUNG): Preserve the exact head tilt, head angle, body position, shoulders, neck, posture, hands/arms, clothing, jewelries, tattoos, and position 100% as they are. Do NOT change, rotate, tilt, or modify the shoulders, head, neck, body posture, or clothing. Keine Änderungen an der Körperhaltung erlaubt!
+4. BACKDROP & ENVIRONMENT (HINTERGRUND & UMGEBUNG): Keep the exact same background, scenery, lighting, shadows, and environment as in the source photo. Absolutely no alterations, extensions, or enhancements to the surroundings. The backdrop must remain pixel-exact.
+5. NO MAKEUP CHANGES: Do not add, modify, or remove any makeup, lipstick, or eyelashes.
+6. NO STRUCTURAL DRIFT: Do not alter the posture or head angle even slightly.
 
 ### TARGET HAIRSTYLE & COLOR (MUST STRICTLY FOLLOW):
 - Target Hairstyle (Ausgewählte Frisur): ${styleName}
 - Hair Color & Dyeing (Gewünschte Haarfarbe & Art der Färbung): ${description}
-- STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle, specific color, and dyeing. Do not generalize or simplify.
+- STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle, specific color, and dyeing. Do not generalize or simplify. Only change the hair, and blend it perfectly.
 
 ### PREMIUM 1K HD QUALITY & SEAMLESS TRANSITION:
 - The generated hair must be presented in extreme premium quality, showing precise individual hair strands, micro-details, natural hair textures, realistic volume, natural shine, and realistic flow.
