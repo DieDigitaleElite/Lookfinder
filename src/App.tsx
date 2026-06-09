@@ -85,6 +85,7 @@ export default function App() {
   const [mimeType, setMimeType] = useState<string>(() => localStorage.getItem('frisurenai_pending_mime_type') || '');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingResultId, setGeneratingResultId] = useState<string | null>(null);
   const [results, setResults] = useState<GeneratedResult[]>(() => {
     const saved = localStorage.getItem('frisurenai_pending_results');
     if (saved) {
@@ -2266,6 +2267,7 @@ export default function App() {
     }
 
     setIsGenerating(true);
+    setGeneratingResultId(result.id);
     setError(null);
 
     try {
@@ -2326,6 +2328,7 @@ export default function App() {
       setError("Bild konnte nicht nachträglich generiert werden: " + (err.message || "Unbekannter Fehler"));
     } finally {
       setIsGenerating(false);
+      setGeneratingResultId(null);
     }
   };
 
@@ -3947,7 +3950,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                           disabled={isGenerating}
                                           className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
                                         >
-                                          {isGenerating ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
+                                          {generatingResultId === result.id ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
                                           Bild erstellen
                                         </button>
                                       ) : (
