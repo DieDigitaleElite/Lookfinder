@@ -1885,24 +1885,24 @@ export default function App() {
       // Compress image before saving to Firestore to stay under 1MB limit
       let finalResult = { ...result };
       
-      // Compress generated hairstyle image to ~800KB for maximum HD detail preservation
+      // Compress generated hairstyle image to ~600KB
       if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
         try {
           console.log(`Compressing image for ${result.id}...`);
           const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 800000);
+          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 600000);
           console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
         } catch (compressErr) {
           console.error("Compression failed", compressErr);
         }
       }
 
-      // Compress or remove sourceImageUrl to stay safely under Firestore 1MB limits while preserving quality (~450KB)
+      // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits
       if (finalResult.sourceImageUrl && finalResult.sourceImageUrl.startsWith('data:image')) {
         try {
           console.log(`Compressing source image for ${result.id}...`);
           const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.sourceImageUrl = await compressBase64Image(finalResult.sourceImageUrl, mimeType, 450000);
+          finalResult.sourceImageUrl = await compressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
           console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
         } catch (compressErr) {
           console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
@@ -1990,8 +1990,8 @@ export default function App() {
         // Detect mobile to optimize memory impact and network payload.
         // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const hdMaxDim = isMobileDevice ? 1600 : 2048;
-        const stdMaxDim = isMobileDevice ? 1200 : 1600;
+        const hdMaxDim = 1600;
+        const stdMaxDim = 1200;
         const resizeQuality = isMobileDevice ? 0.92 : 0.95;
 
         // Keep high-quality HD Image
@@ -2571,8 +2571,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     // Detect mobile to optimize memory impact and network payload.
     // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-    const hdMaxDim = isMobileDevice ? 1600 : 2048;
-    const stdMaxDim = isMobileDevice ? 1200 : 1600;
+    const hdMaxDim = 1600;
+    const stdMaxDim = 1200;
     const resizeQuality = isMobileDevice ? 0.92 : 0.95;
 
     // Keep high-quality HD Image

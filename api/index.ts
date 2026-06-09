@@ -247,9 +247,7 @@ Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen.
 - Hair Color & Dyeing (Gewünschte Haarfarbe & Art der Färbung): ${description}
 - STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle, specific color, and dyeing. Do not generalize or simplify. Only change the hair, and blend it perfectly.
 
-### PREMIUM 2K ULTRA HD QUALITY, SEAMLESS TRANSITION, ZERO PIXELATION:
-- The generated image must be extremely sharp and rendered in glorious 2K Ultra High-Definition, showing crystal clear, razor-sharp facial details, eyes, skin texture, and background.
-- Absolutely NO compression artifacts, pixelation, or blur in the face or body area are allowed. Ensure 100% pixel clarity for perfect high-resolution rendering.
+### PREMIUM 1K HD QUALITY & SEAMLESS TRANSITION:
 - The generated hair must be presented in extreme premium quality, showing precise individual hair strands, micro-details, natural hair textures, realistic volume, natural shine, and realistic flow.
 - The seam/boundary where the new hair meets the forehead, scalp, temples, and shoulders must blend seamlessly, with natural individual strands falling photorealistically onto the skin or clothing.`;
         }
@@ -289,11 +287,7 @@ Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen.
             console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-2.5-flash-image as fallback...");
             try {
               // Attempt 2: gemini-2.5-flash-image
-              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings, {
-                imageConfig: {
-                  imageSize: "1K"
-                }
-              });
+              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
             } catch (err2: any) {
               console.error("All image generation models failed!");
               throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
