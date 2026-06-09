@@ -277,10 +277,10 @@ Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen.
           }
         } else {
           try {
-            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 2K HD premium quality
+            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 1K HD premium quality
             result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings, {
               imageConfig: {
-                imageSize: "2K"
+                imageSize: "1K"
               }
             });
           } catch (err1: any) {

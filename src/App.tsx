@@ -1990,9 +1990,9 @@ export default function App() {
         // Detect mobile to optimize memory impact and network payload.
         // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const hdMaxDim = 1600;
-        const stdMaxDim = 1200;
-        const resizeQuality = isMobileDevice ? 0.92 : 0.95;
+        const hdMaxDim = isMobileDevice ? 1024 : 1600;
+        const stdMaxDim = isMobileDevice ? 768 : 1200;
+        const resizeQuality = isMobileDevice ? 0.8 : 0.88;
 
         // Keep high-quality HD Image
         const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
@@ -2571,9 +2571,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     // Detect mobile to optimize memory impact and network payload.
     // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-    const hdMaxDim = 1600;
-    const stdMaxDim = 1200;
-    const resizeQuality = isMobileDevice ? 0.92 : 0.95;
+    const hdMaxDim = isMobileDevice ? 1024 : 1600;
+    const stdMaxDim = isMobileDevice ? 768 : 1200;
+    const resizeQuality = isMobileDevice ? 0.8 : 0.88;
 
     // Keep high-quality HD Image
     const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
