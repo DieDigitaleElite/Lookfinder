@@ -48,6 +48,7 @@ import {
   getDocs,
   updateDoc,
   increment,
+  arrayUnion,
   addDoc,
   collection, 
   query, 
@@ -66,7 +67,7 @@ export default function App() {
   const [image, setImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_image'));
   const [hdImage, setHdImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_hd_image'));
 
-  const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null} | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<{plan: string, uid: string | null, sessionId?: string | null} | null>(null);
   const [pendingStudioSelection, setPendingStudioSelection] = useState<{styleId: string, colorId: string, techId: string} | null>(() => {
     const saved = localStorage.getItem('frisurenai_pending_studio_selection');
     if (saved) {
@@ -1072,15 +1073,16 @@ export default function App() {
     if (isPaymentSuccess || (hasPendingData && pendingPlan)) {
       const plan = params.get('plan') || pendingPlan || 'single';
       const uid = params.get('uid') || localStorage.getItem('frisurenai_pending_uid');
+      const sessionId = params.get('session_id') || localStorage.getItem('frisurenai_pending_session_id');
       
       if (isPaymentSuccess) {
-        console.log("Payment success detected in URL. Plan:", plan, "UID:", uid);
+        console.log("Payment success detected in URL. Plan:", plan, "UID:", uid, "SessionId:", sessionId);
         isPaymentProcessingRef.current = true;
-        setPendingPayment({ plan, uid });
+        setPendingPayment({ plan, uid, sessionId });
 
         // Track Purchase Event
         ReactGA.event('purchase', {
-          transaction_id: `trans_${Date.now()}_${uid || 'anon'}`,
+          transaction_id: sessionId || `trans_${Date.now()}_${uid || 'anon'}`,
           value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 9.99 : 4.99,
           currency: 'EUR',
           items: [{ item_id: plan, item_name: `Frisuren AI ${plan}` }]
@@ -1088,15 +1090,18 @@ export default function App() {
 
         // Save plan/uid to localStorage in case of reloads during login
         localStorage.setItem('frisurenai_pending_plan', plan);
+        if (sessionId) {
+          localStorage.setItem('frisurenai_pending_session_id', sessionId);
+        }
         if (plan === 'studio-single') {
           localStorage.setItem('frisurenai_pending_studio_credits', '1');
         }
         if (uid) localStorage.setItem('frisurenai_pending_uid', uid);
       } else if (pendingPlan && !pendingPayment) {
         // Restore pending payment state from localStorage if URL params are gone
-        console.log("Restoring pending payment state from localStorage. Plan:", plan, "UID:", uid);
+        console.log("Restoring pending payment state from localStorage. Plan:", plan, "UID:", uid, "SessionId:", sessionId);
         isPaymentProcessingRef.current = true;
-        setPendingPayment({ plan, uid });
+        setPendingPayment({ plan, uid, sessionId });
       }
       
       // Set local state immediately for better UX
@@ -1142,6 +1147,21 @@ export default function App() {
       // If we have a UID from URL, it MUST match the current user
       // Or if no UID from URL, we assume it's for the current user
       if (!pendingPayment.uid || user.uid === pendingPayment.uid) {
+        // Double-spend prevention check
+        const processedSessions = userData?.processedSessions || [];
+        const sessionId = pendingPayment.sessionId || localStorage.getItem('frisurenai_pending_session_id');
+        
+        if (sessionId && processedSessions.includes(sessionId)) {
+          console.log("Stripe session has already been processed and credited:", sessionId);
+          setPendingPayment(null);
+          localStorage.removeItem('frisurenai_pending_plan');
+          localStorage.removeItem('frisurenai_pending_uid');
+          localStorage.removeItem('frisurenai_pending_session_id');
+          isPaymentProcessingRef.current = false;
+          window.history.replaceState({}, document.title, window.location.pathname);
+          return;
+        }
+
         console.log("Updating Firestore for pending payment for user:", user.uid, "Plan:", pendingPayment.plan);
         const userDocRef = doc(db, 'users', user.uid);
         
@@ -1162,13 +1182,17 @@ export default function App() {
         }
 
         if (pendingPayment.plan === 'studio-single') {
-          updateData.studioCredits = (userData?.studioCredits || 0) + 1;
+          updateData.studioCredits = increment(1);
           setStudioCredits(prev => prev + 1);
           localStorage.removeItem('frisurenai_pending_studio_credits');
         }
         
         if (pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
           updateData.premiumExpiresAt = Timestamp.fromDate(expiresAt);
+        }
+
+        if (sessionId) {
+          updateData.processedSessions = arrayUnion(sessionId);
         }
 
         console.log("Updating user document with data:", updateData);
@@ -2352,7 +2376,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, { 
-            studioCredits: studioCredits - 1 
+            studioCredits: increment(-1)
           }).catch(err => {
             console.error("Failed to deduct studio credit after success", err);
             // We don't throw here to not block the user from seeing the result
@@ -2650,7 +2674,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, { 
-            studioCredits: studioCredits - 1 
+            studioCredits: increment(-1)
           }).catch(err => {
             console.error("Failed to deduct credit after custom success", err);
           });
@@ -2836,13 +2860,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       if (data.url) {
         console.log("Redirecting to Stripe:", data.url);
         
-        // Save HD studio draft to Firestore first if logged in
+        // Save HD studio draft to Firestore in background to avoid blocking Stripe redirect
         if (user) {
-          try {
-            await saveStudioDraftToFirestore(user.uid);
-          } catch (draftErr) {
+          saveStudioDraftToFirestore(user.uid).catch(draftErr => {
             console.warn("Could not save studio draft to Firestore before redirect", draftErr);
-          }
+          });
         }
 
         // Save current results to localStorage before redirecting (as backup)
@@ -5317,34 +5339,63 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-2">
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToTerms} 
                                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                  </label>
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich akzeptiere die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        AGB
+                                      </span>{" "}
+                                      und habe die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Datenschutzerklärung
+                                      </span>{" "}
+                                      gelesen.
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToWiderruf} 
                                       onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                  </label>
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Widerrufsrecht
+                                      </span>{" "}
+                                      verliere.
+                                    </span>
+                                  </div>
                                 </div>
                                 <button 
-                                  onClick={() => {
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     if (!agreedToTerms || !agreedToWiderruf) {
                                       alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                       return;
                                     }
                                     handleCheckout('yearly');
                                   }}
-                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF9EBE]/90 transition-all shadow-lg flex items-center justify-center gap-2"
+                                  disabled={isCheckingOut}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <span>Zahlungspflichtig bestellen</span>
                                   <Zap size={14} />
@@ -5385,34 +5436,63 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-2">
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToTerms} 
                                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                  </label>
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich akzeptiere die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        AGB
+                                      </span>{" "}
+                                      und habe die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Datenschutzerklärung
+                                      </span>{" "}
+                                      gelesen.
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToWiderruf} 
                                       onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                  </label>
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Widerrufsrecht
+                                      </span>{" "}
+                                      verliere.
+                                    </span>
+                                  </div>
                                 </div>
                                 <button 
-                                  onClick={() => {
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     if (!agreedToTerms || !agreedToWiderruf) {
                                       alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                       return;
                                     }
                                     handleCheckout('monthly');
                                   }}
-                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF9EBE]/90 transition-all shadow-lg flex items-center justify-center gap-2"
+                                  disabled={isCheckingOut}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <span>Zahlungspflichtig bestellen</span>
                                   <Zap size={14} />
@@ -5453,34 +5533,63 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-2">
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToTerms} 
                                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                  </label>
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich akzeptiere die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        AGB
+                                      </span>{" "}
+                                      und habe die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Datenschutzerklärung
+                                      </span>{" "}
+                                      gelesen.
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToWiderruf} 
                                       onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                  </label>
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Widerrufsrecht
+                                      </span>{" "}
+                                      verliere.
+                                    </span>
+                                  </div>
                                 </div>
                                 <button 
-                                  onClick={() => {
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     if (!agreedToTerms || !agreedToWiderruf) {
                                       alert("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                       return;
                                     }
                                     handleCheckout('studio-single');
                                   }}
-                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] hover:bg-[#FF9EBE]/90 transition-all shadow-lg flex items-center justify-center gap-2"
+                                  disabled={isCheckingOut}
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <span>Zahlungspflichtig bestellen</span>
                                   <Zap size={14} />
@@ -6272,27 +6381,55 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-2">
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToTerms} 
                                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                  </label>
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich akzeptiere die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        AGB
+                                      </span>{" "}
+                                      und habe die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Datenschutzerklärung
+                                      </span>{" "}
+                                      gelesen.
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToWiderruf} 
                                       onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                  </label>
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Widerrufsrecht
+                                      </span>{" "}
+                                      verliere.
+                                    </span>
+                                  </div>
                                 </div>
                                 <button 
-                                  onClick={() => {
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     if (!agreedToTerms || !agreedToWiderruf) {
                                       setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                       return;
@@ -6300,7 +6437,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                     handleCheckout('yearly');
                                   }}
                                   disabled={isCheckingOut}
-                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
                                 </button>
@@ -6336,27 +6473,55 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div className="space-y-2">
-                                <label className="flex items-start gap-2 cursor-pointer">
+                                <div className="flex items-start gap-2 select-none">
                                   <input 
                                     type="checkbox" 
                                     checked={agreedToTerms} 
                                     onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                   />
-                                  <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                </label>
-                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                    Ich akzeptiere die{" "}
+                                    <span 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                      className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                    >
+                                      AGB
+                                    </span>{" "}
+                                    und habe die{" "}
+                                    <span 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                      className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                    >
+                                      Datenschutzerklärung
+                                    </span>{" "}
+                                    gelesen.
+                                  </span>
+                                </div>
+                                <div className="flex items-start gap-2 select-none">
                                   <input 
                                     type="checkbox" 
                                     checked={agreedToWiderruf} 
                                     onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                   />
-                                  <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                </label>
+                                  <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                    Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                    <span 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                      className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                    >
+                                      Widerrufsrecht
+                                    </span>{" "}
+                                    verliere.
+                                  </span>
+                                </div>
                               </div>
                               <button 
-                                onClick={() => {
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
                                   if (!agreedToTerms || !agreedToWiderruf) {
                                     setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                     return;
@@ -6364,7 +6529,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                   handleCheckout('monthly');
                                 }}
                                 disabled={isCheckingOut}
-                                className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                                className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
                               </button>
@@ -6399,27 +6564,55 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               onClick={(e) => e.stopPropagation()}
                             >
                               <div className="space-y-2">
-                                <label className="flex items-start gap-2 cursor-pointer">
+                                <div className="flex items-start gap-2 select-none">
                                   <input 
                                     type="checkbox" 
                                     checked={agreedToTerms} 
                                     onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                   />
-                                  <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                </label>
-                                <label className="flex items-start gap-2 cursor-pointer">
+                                  <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                    Ich akzeptiere die{" "}
+                                    <span 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                      className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                    >
+                                      AGB
+                                    </span>{" "}
+                                    und habe die{" "}
+                                    <span 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                      className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                    >
+                                      Datenschutzerklärung
+                                    </span>{" "}
+                                    gelesen.
+                                  </span>
+                                </div>
+                                <div className="flex items-start gap-2 select-none">
                                   <input 
                                     type="checkbox" 
                                     checked={agreedToWiderruf} 
                                     onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                    className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                   />
-                                  <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                </label>
+                                  <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                    Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                    <span 
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                      className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                    >
+                                      Widerrufsrecht
+                                    </span>{" "}
+                                    verliere.
+                                  </span>
+                                </div>
                               </div>
                               <button 
-                                onClick={() => {
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
                                   if (!agreedToTerms || !agreedToWiderruf) {
                                     setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                     return;
@@ -6427,7 +6620,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                   handleCheckout('single');
                                 }}
                                 disabled={isCheckingOut}
-                                className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                                className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
                               </button>
@@ -6463,27 +6656,55 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 onClick={(e) => e.stopPropagation()}
                               >
                                 <div className="space-y-2">
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToTerms} 
                                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich akzeptiere die <button onClick={() => setActiveLegalModal('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => setActiveLegalModal('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
-                                  </label>
-                                  <label className="flex items-start gap-2 cursor-pointer">
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich akzeptiere die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        AGB
+                                      </span>{" "}
+                                      und habe die{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Datenschutzerklärung
+                                      </span>{" "}
+                                      gelesen.
+                                    </span>
+                                  </div>
+                                  <div className="flex items-start gap-2 select-none">
                                     <input 
                                       type="checkbox" 
                                       checked={agreedToWiderruf} 
                                       onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                                      className="mt-1 w-3 h-3 rounded text-[#FF9EBE] cursor-pointer shrink-0" 
                                     />
-                                    <span className="text-[9px] text-brand-primary/60">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => setActiveLegalModal('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
-                                  </label>
+                                    <span className="text-[9px] text-brand-primary/60 leading-tight">
+                                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                                      <span 
+                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                                      >
+                                        Widerrufsrecht
+                                      </span>{" "}
+                                      verliere.
+                                    </span>
+                                  </div>
                                 </div>
                                 <button 
-                                  onClick={() => {
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                     if (!agreedToTerms || !agreedToWiderruf) {
                                       setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
                                       return;
@@ -6491,7 +6712,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                     handleCheckout('studio-single');
                                   }}
                                   disabled={isCheckingOut}
-                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                                  className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {isCheckingOut ? <Loader2 className="animate-spin" size={16} /> : <><span>Zahlungspflichtig bestellen</span> <Zap size={14} /></>}
                                 </button>
@@ -6608,32 +6829,56 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
               <div className="space-y-4 text-left max-w-sm mx-auto pt-2">
                 <div className="space-y-2">
-                  <label className="flex items-start gap-2 cursor-pointer group">
+                  <div className="flex items-start gap-2 select-none group">
                     <input 
                       type="checkbox" 
                       checked={agreedToTerms} 
                       onChange={(e) => setAgreedToTerms(e.target.checked)}
-                      className="mt-1 w-3.5 h-3.5 rounded text-[#FF9EBE] border-gray-300 focus:ring-[#FF9EBE]" 
+                      className="mt-1 w-3.5 h-3.5 rounded text-[#FF9EBE] border-gray-300 focus:ring-[#FF9EBE] cursor-pointer shrink-0" 
                     />
                     <span className="text-[10px] leading-relaxed text-brand-primary/60 group-hover:text-brand-primary transition-colors">
-                      Ich akzeptiere die <button onClick={(e) => { e.stopPropagation(); setActiveLegalModal('agb'); }} className="text-[#FF9EBE] underline font-bold">AGB</button> und habe die <button onClick={(e) => { e.stopPropagation(); setActiveLegalModal('datenschutz'); }} className="text-[#FF9EBE] underline font-bold">Datenschutz-erklärung</button> gelesen.
+                      Ich akzeptiere die{" "}
+                      <span 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                      >
+                        AGB
+                      </span>{" "}
+                      und habe die{" "}
+                      <span 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                      >
+                        Datenschutz-erklärung
+                      </span>{" "}
+                      gelesen.
                     </span>
-                  </label>
-                  <label className="flex items-start gap-2 cursor-pointer group">
+                  </div>
+                  <div className="flex items-start gap-2 select-none group">
                     <input 
                       type="checkbox" 
                       checked={agreedToWiderruf} 
                       onChange={(e) => setAgreedToWiderruf(e.target.checked)}
-                      className="mt-1 w-3.5 h-3.5 rounded text-[#FF9EBE] border-gray-300 focus:ring-[#FF9EBE]" 
+                      className="mt-1 w-3.5 h-3.5 rounded text-[#FF9EBE] border-gray-300 focus:ring-[#FF9EBE] cursor-pointer shrink-0" 
                     />
                     <span className="text-[10px] leading-relaxed text-brand-primary/60 group-hover:text-brand-primary transition-colors">
-                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={(e) => { e.stopPropagation(); setActiveLegalModal('widerruf'); }} className="text-[#FF9EBE] underline font-bold">Widerrufsrecht</button> verliere.
+                      Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein{" "}
+                      <span 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                        className="text-[#FF9EBE] underline font-bold cursor-pointer hover:opacity-80 inline-block"
+                      >
+                        Widerrufsrecht
+                      </span>{" "}
+                      verliere.
                     </span>
-                  </label>
+                  </div>
                 </div>
 
                 <button 
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (!agreedToTerms || !agreedToWiderruf) {
                       setAuthMessage({ type: 'error', text: "Bitte akzeptiere die AGB und die Widerrufsbelehrung." });
                       setTimeout(() => setAuthMessage(null), 3000);
@@ -6642,7 +6887,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     handleCheckout('monthly');
                   }}
                   disabled={isCheckingOut}
-                  className="w-full py-5 bg-[#FF9EBE] text-white rounded-2xl font-black text-lg hover:bg-[#FF9EBE]/90 transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-3 group active:scale-95"
+                  className="w-full py-5 bg-[#FF9EBE] text-white rounded-2xl font-black text-lg hover:brightness-105 active:scale-[0.98] transition-all shadow-xl shadow-[#FF9EBE]/20 flex items-center justify-center gap-3 group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isCheckingOut ? <Loader2 className="animate-spin" /> : <Zap size={24} className="group-hover:scale-125 transition-transform" />}
                   <span>Upgrade einlösen</span>

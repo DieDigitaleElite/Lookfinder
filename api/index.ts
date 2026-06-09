@@ -422,7 +422,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
       allow_promotion_codes: true,
       customer_email: email || undefined,
       client_reference_id: userId,
-      success_url: `${baseUrl}/?payment=success&plan=${plan || 'single'}&uid=${userId}`,
+      success_url: `${baseUrl}/?payment=success&plan=${plan || 'single'}&uid=${userId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/?payment=cancel`,
       metadata: { userId, plan: plan || 'single' },
     });
