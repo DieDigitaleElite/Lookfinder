@@ -43,6 +43,7 @@ interface StylingStudioProps {
   stripeGenerationError?: string | null;
   onClearStripeError?: () => void;
   onCategoryChange?: (category: string) => void;
+  userName?: string | null;
 }
 
 export default function StylingStudio({ 
@@ -60,7 +61,8 @@ export default function StylingStudio({
   isAutoGeneratingFromStripe = false,
   stripeGenerationError = null,
   onClearStripeError,
-  onCategoryChange
+  onCategoryChange,
+  userName = null
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
 
@@ -193,8 +195,28 @@ export default function StylingStudio({
         <div className="max-w-4xl mx-auto px-6 py-8 md:py-12 space-y-16 pb-32">
           
           {/* Header */}
-          <header className="space-y-4">
-            <h2 className="text-3xl md:text-5xl font-serif font-black italic">Styling Studio</h2>
+          <header className="space-y-6">
+            <h2 className="text-3xl md:text-5xl font-serif font-black italic">
+              {userName ? `${userName}´s Styling Studio` : "Dein Styling Studio"}
+            </h2>
+            
+            {avatarSketch && (
+              <div className="flex items-center gap-4 py-3 border-y border-black/5 max-w-xl">
+                <div className="w-14 h-14 rounded-full border border-black/15 shadow-sm overflow-hidden bg-black/5 shrink-0 flex items-center justify-center">
+                  <img 
+                    src={avatarSketch} 
+                    alt="Deine Erstanalyse" 
+                    className="w-full h-full object-cover" 
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">Deine Erstanalyse-Skizze</span>
+                  <p className="text-xs text-brand-primary/60 font-medium">Diese personalisierte Skizze dient als Basis für deine Styles im Studio.</p>
+                </div>
+              </div>
+            )}
+
             <p className="text-brand-primary/40 text-sm md:text-base max-w-xl">
               Wähle dein Foto, deinen Schnitt und deine Farbe. Wir erschaffen dein neues Ich in atemberaubender HD-Qualität.
             </p>

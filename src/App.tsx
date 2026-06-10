@@ -4087,6 +4087,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
                         stripeGenerationError={stripeGenerationError}
                         onClearStripeError={() => setStripeGenerationError(null)}
+                        userName={user?.displayName?.split(' ')[0] || null}
                       />
                     </div>
                   </div>
