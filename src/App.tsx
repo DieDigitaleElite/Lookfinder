@@ -12,6 +12,7 @@ import { HAIRSTYLE_LIBRARY, HAIR_COLORS, HAIR_TECHNOLOGIES, LIGHTING_SIMULATIONS
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
 import { CookieBanner } from './components/CookieBanner';
 import StylingStudio from './components/StylingStudio';
+import defaultTemplates from './template_sketches.json';
 import UserDashboard from './components/UserDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import PollCreator from './components/PollCreator';
@@ -143,7 +144,21 @@ export default function App() {
   const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_image'));
   const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_mime'));
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
-  const [templateSketches, setTemplateSketches] = useState<Record<string, string>>({});
+  const [templateSketches, setTemplateSketches] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {};
+    try {
+      if (Array.isArray(defaultTemplates)) {
+        defaultTemplates.forEach((t: any) => {
+          if (t.id && t.data) {
+            initial[t.id] = t.data;
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Failed to load local template sketches fallback:", e);
+    }
+    return initial;
+  });
   const [isTemplateSketchesLoading, setIsTemplateSketchesLoading] = useState(true);
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
   const backgroundGenQueueRef = useRef<boolean>(false);
@@ -942,7 +957,11 @@ export default function App() {
           templates[d.id] = d.data;
         }
       });
-      setTemplateSketches(templates);
+      setTemplateSketches(prev => {
+        // Only override if we received actual documents, otherwise preserve our pristine fallbacks
+        if (Object.keys(templates).length === 0) return prev;
+        return { ...prev, ...templates };
+      });
       setIsTemplateSketchesLoading(false);
       console.log(`Loaded ${snapshot.size} global template sketches from Firestore.`);
     }, (error) => {
