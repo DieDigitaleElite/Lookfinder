@@ -135,7 +135,7 @@ export default function App() {
   const [pricingSource, setPricingSource] = useState<'general' | 'styling_studio'>('general');
   const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
   const [expandedEnhancerId, setExpandedEnhancerId] = useState<string | null>(null);
-  const savingIdsRef = useRef<Set<string>>(new Set());
+  const savingIdsRef = useRef<Map<string, string | null>>(new Map());
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportInitialCategory, setSupportInitialCategory] = useState<'general' | 'payment' | 'bug' | 'feedback'>('general');
@@ -1449,8 +1449,8 @@ export default function App() {
   // Clear pending data from localStorage once everything is safely in Firestore
   useEffect(() => {
     // Check if results are synced (require all suggestions, with or without images, to be successfully saved to Firestore)
-    const resultsSynced = results.length === 0 || results.every(r => isResultSaved(r.id));
-    const customResultsSynced = customResults.length === 0 || customResults.every(r => !r.imageUrl || isResultSaved(r.id));
+    const resultsSynced = results.length === 0 || results.every(r => isResultSaved(r.id, r.imageUrl));
+    const customResultsSynced = customResults.length === 0 || customResults.every(r => !r.imageUrl || isResultSaved(r.id, r.imageUrl));
     
     // Check if sketches are synced (by checking if they exist in userData)
     const sketchesSynced = !avatarSketch || (userData && userData.avatarSketch);
@@ -1592,11 +1592,17 @@ export default function App() {
           const hasImageOrIsMainResult = !!result.imageUrl || isFromMainResults;
           
           // Use the ref to check saved status to avoid dependency cascading
-          const isSaved = savedResultsRef.current.some(r => r.id === result.id);
+          const savedVersion = savedResultsRef.current.find(r => r.id === result.id);
+          const needsSave = !savedVersion || (!savedVersion.imageUrl && !!result.imageUrl);
+          
+          // If we are currently saving this exact result, or have already successfully saved this exact imageUrl, skip
+          const currentlySavingUrl = savingIdsRef.current.get(result.id);
+          const isAlreadyInFlight = currentlySavingUrl !== undefined && currentlySavingUrl === result.imageUrl;
+
           return (
             hasImageOrIsMainResult &&
-            !isSaved &&
-            !savingIdsRef.current.has(result.id)
+            needsSave &&
+            !isAlreadyInFlight
           );
         });
 
@@ -1606,13 +1612,13 @@ export default function App() {
         
         // Save each one sequentially to ensure stability and wait for state updates
         for (const result of allPending) {
-          savingIdsRef.current.add(result.id);
+          savingIdsRef.current.set(result.id, result.imageUrl || null);
           try {
             await saveResult(result, true);
             console.log(`Synced look ${result.id} to user history`);
           } catch (err) {
             console.warn(`Sync failed for look ${result.id}`, err);
-            // If it failed, remove from savingIds so it can be retried if needed
+            // If it failed, remove from active flight tracker so it can be retried
             savingIdsRef.current.delete(result.id);
           }
         }
@@ -2084,8 +2090,11 @@ export default function App() {
     }
   };
 
-  const isResultSaved = (id: string) => {
-    return savedResults.some(r => r.id === id);
+  const isResultSaved = (id: string, imageUrl?: string | null) => {
+    const saved = savedResults.find(r => r.id === id);
+    if (!saved) return false;
+    if (imageUrl && !saved.imageUrl) return false;
+    return true;
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3079,12 +3088,14 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           console.warn("Could not save all data to localStorage.", storageError);
         }
 
-        // Fire and forget Firestore save - don't wait for it to avoid popup blocking/delays
+        // Safely await the Firestore save before redirecting to ensure results are not lost due to page unload
         if (user && (results.length > 0 || customResults.length > 0)) {
-          const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id));
+          const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id, r.imageUrl));
           if (unsavedResults.length > 0) {
-            console.log("Starting background Firestore sync before redirect...");
-            unsavedResults.forEach(r => saveResult(r, true).catch(err => console.warn("Background save failed", err)));
+            console.log(`Starting awaiting parallel Firestore sync of ${unsavedResults.length} results before redirect...`);
+            await Promise.all(
+              unsavedResults.map(r => saveResult(r, true).catch(err => console.warn("Awaited save failed before checkout redirect", err)))
+            );
           }
         }
 
