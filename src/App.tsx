@@ -136,6 +136,7 @@ export default function App() {
   const [selectedPlanId, setSelectedPlanId] = useState<'yearly' | 'monthly' | 'single' | 'studio-single' | null>(null);
   const [expandedEnhancerId, setExpandedEnhancerId] = useState<string | null>(null);
   const savingIdsRef = useRef<Map<string, string | null>>(new Map());
+  const activeSavesRef = useRef<Map<string, Promise<any>>>(new Map());
   const [showAdminDashboard, setShowAdminDashboard] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportInitialCategory, setSupportInitialCategory] = useState<'general' | 'payment' | 'bug' | 'feedback'>('general');
@@ -1653,15 +1654,23 @@ export default function App() {
     }
   }, [user, pendingCheckoutPlan]);
 
-  // Redirect to Studio after registration if image exists
+  // Redirect to Gallery ('gallery') after registration if results exist, otherwise go to Studio if image exists
   useEffect(() => {
-    if (user && image && dashboardTab !== 'studio') {
-      setDashboardTab('studio');
-      // Briefly show success message
-      setAuthMessage({ type: 'success', text: "Willkommen! Du bist jetzt im Studio. Probiere alle Looks aus! ✨" });
-      setTimeout(() => setAuthMessage(null), 5000);
+    if (user) {
+      if (results.length > 0) {
+        if (dashboardTab !== 'gallery') {
+          setDashboardTab('gallery');
+          setAuthMessage({ type: 'success', text: "Willkommen! Deine Analyse-Ergebnisse wurden erfolgreich in 'Meine Looks' gespeichert! ✨" });
+          setTimeout(() => setAuthMessage(null), 5000);
+        }
+      } else if (image && dashboardTab !== 'studio' && dashboardTab !== 'gallery') {
+        setDashboardTab('studio');
+        // Briefly show success message
+        setAuthMessage({ type: 'success', text: "Willkommen! Du bist jetzt im Studio. Probiere alle Looks aus! ✨" });
+        setTimeout(() => setAuthMessage(null), 5000);
+      }
     }
-  }, [user, image]);
+  }, [user, results.length, image]);
 
 
 
@@ -2002,91 +2011,108 @@ export default function App() {
       return;
     }
 
-    if (!silent) setIsSaving(result.id);
+    const activeSaveKey = `${result.id}_${result.imageUrl || 'noimage'}`;
+    const existingPromise = activeSavesRef.current.get(activeSaveKey);
+    if (existingPromise) {
+      console.log(`[saveResult] Deduplicating active save for result ${result.id}`);
+      return existingPromise;
+    }
+
+    const runSave = async () => {
+      if (!silent) setIsSaving(result.id);
+      try {
+        // Compress image before saving to Firestore to stay under 1MB limit
+        let finalResult = { ...result };
+        
+        // Compress generated hairstyle image to ~600KB
+        if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
+          try {
+            console.log(`Compressing image for ${result.id}...`);
+            const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+            finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 600000);
+            console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
+          } catch (compressErr) {
+            console.error("Compression failed", compressErr);
+          }
+        }
+
+        // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits
+        if (finalResult.sourceImageUrl && finalResult.sourceImageUrl.startsWith('data:image')) {
+          try {
+            console.log(`Compressing source image for ${result.id}...`);
+            const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+            finalResult.sourceImageUrl = await compressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
+            console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
+          } catch (compressErr) {
+            console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
+            delete finalResult.sourceImageUrl;
+          }
+        }
+
+        const resultRef = doc(db, 'users', user.uid, 'results', result.id);
+        console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
+        
+        const saveData = {
+          ...finalResult,
+          userId: user.uid,
+          createdAt: (result as any).createdAt || serverTimestamp(),
+          id: result.id // Explicitly ensure id is present
+        };
+
+        await setDoc(resultRef, saveData, { merge: true });
+        console.log(`Successfully saved result ${result.id} to Firestore.`);
+
+        // Clear from failed saves if it was there
+        if (failedSaves.has(result.id)) {
+          setFailedSaves(prev => {
+            const next = new Set(prev);
+            next.delete(result.id);
+            return next;
+          });
+        }
+
+        // Track event
+        ReactGA.event({
+          category: 'User',
+          action: silent ? 'Auto Save Look' : 'Save Look',
+          label: result.faceShape
+        });
+
+        if (!silent) {
+          confetti({
+            particleCount: 40,
+            spread: 50,
+            origin: { y: 0.8 },
+            colors: ['#FF9EBE']
+          });
+        }
+      } catch (err: any) {
+        console.error("Save failed", err);
+        // Log detailed error info for debugging
+        handleFirestoreError(err, OperationType.WRITE, `users/${user?.uid}/results/${result.id}`);
+        
+        const msg = err.message || String(err);
+        if (msg.includes('Quota') || msg.includes('exhausted')) {
+          if (!silent) setError("Datenbank-Limit erreicht. Speichern momentan nicht möglich.");
+        } else if (msg.includes('exceeds the maximum allowed size')) {
+          setFailedSaves(prev => new Set(prev).add(result.id));
+          if (!silent) setError("Bild zu groß zum Speichern.");
+        } else if (msg.includes('permission') || msg.includes('Permission')) {
+          if (!silent) setError("Berechtigung verweigert beim Speichern.");
+        } else {
+          if (!silent) setError("Speichern fehlgeschlagen.");
+        }
+      } finally {
+        if (!silent) setIsSaving(null);
+      }
+    };
+
+    const promise = runSave();
+    activeSavesRef.current.set(activeSaveKey, promise);
     try {
-      // Compress image before saving to Firestore to stay under 1MB limit
-      let finalResult = { ...result };
-      
-      // Compress generated hairstyle image to ~600KB
-      if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
-        try {
-          console.log(`Compressing image for ${result.id}...`);
-          const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 600000);
-          console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
-        } catch (compressErr) {
-          console.error("Compression failed", compressErr);
-        }
-      }
-
-      // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits
-      if (finalResult.sourceImageUrl && finalResult.sourceImageUrl.startsWith('data:image')) {
-        try {
-          console.log(`Compressing source image for ${result.id}...`);
-          const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-          finalResult.sourceImageUrl = await compressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
-          console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
-        } catch (compressErr) {
-          console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
-          delete finalResult.sourceImageUrl;
-        }
-      }
-
-      const resultRef = doc(db, 'users', user.uid, 'results', result.id);
-      console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
-      
-      const saveData = {
-        ...finalResult,
-        userId: user.uid,
-        createdAt: (result as any).createdAt || serverTimestamp(),
-        id: result.id // Explicitly ensure id is present
-      };
-
-      await setDoc(resultRef, saveData, { merge: true });
-      console.log(`Successfully saved result ${result.id} to Firestore.`);
-
-      // Clear from failed saves if it was there
-      if (failedSaves.has(result.id)) {
-        setFailedSaves(prev => {
-          const next = new Set(prev);
-          next.delete(result.id);
-          return next;
-        });
-      }
-
-      // Track event
-      ReactGA.event({
-        category: 'User',
-        action: silent ? 'Auto Save Look' : 'Save Look',
-        label: result.faceShape
-      });
-
-      if (!silent) {
-        confetti({
-          particleCount: 40,
-          spread: 50,
-          origin: { y: 0.8 },
-          colors: ['#FF9EBE']
-        });
-      }
-    } catch (err: any) {
-      console.error("Save failed", err);
-      // Log detailed error info for debugging
-      handleFirestoreError(err, OperationType.WRITE, `users/${user?.uid}/results/${result.id}`);
-      
-      const msg = err.message || String(err);
-      if (msg.includes('Quota') || msg.includes('exhausted')) {
-        if (!silent) setError("Datenbank-Limit erreicht. Speichern momentan nicht möglich.");
-      } else if (msg.includes('exceeds the maximum allowed size')) {
-        setFailedSaves(prev => new Set(prev).add(result.id));
-        if (!silent) setError("Bild zu groß zum Speichern.");
-      } else if (msg.includes('permission') || msg.includes('Permission')) {
-        if (!silent) setError("Berechtigung verweigert beim Speichern.");
-      } else {
-        if (!silent) setError("Speichern fehlgeschlagen.");
-      }
+      await promise;
     } finally {
-      if (!silent) setIsSaving(null);
+      activeSavesRef.current.delete(activeSaveKey);
     }
   };
 
