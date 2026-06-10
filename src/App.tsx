@@ -1471,6 +1471,12 @@ export default function App() {
     }
   };
 
+  // Keep a ref of savedResults to prevent useEffect cascading issues and parallel locks
+  const savedResultsRef = useRef(savedResults);
+  useEffect(() => {
+    savedResultsRef.current = savedResults;
+  }, [savedResults]);
+
   // Auto-save results when user logs in or results are generated while logged in
   useEffect(() => {
     if (user && (results.length > 0 || customResults.length > 0)) {
@@ -1481,9 +1487,12 @@ export default function App() {
         const allPending = [...results, ...customResults].filter(result => {
           const isFromMainResults = results.some(r => r.id === result.id);
           const hasImageOrIsMainResult = !!result.imageUrl || isFromMainResults;
+          
+          // Use the ref to check saved status to avoid dependency cascading
+          const isSaved = savedResultsRef.current.some(r => r.id === result.id);
           return (
             hasImageOrIsMainResult &&
-            !isResultSaved(result.id) &&
+            !isSaved &&
             !savingIdsRef.current.has(result.id)
           );
         });
@@ -1508,7 +1517,7 @@ export default function App() {
 
       syncResults();
     }
-  }, [user, results, customResults, savedResults]);
+  }, [user, results, customResults]);
 
   useEffect(() => {
     if (results.length > 0 && !isPremium) {
@@ -1633,8 +1642,12 @@ export default function App() {
         trackEvent('sign_up', 'Auth', 'Email');
 
         await sendEmailVerification(userCredential.user);
-        setAuthMessage({ type: 'info', text: "Konto erstellt! Bitte bestätige deine E-Mail-Adresse." });
-        setTimeout(() => setShowLoginModal(false), 4000);
+        if (pendingCheckoutPlan) {
+          setShowLoginModal(false);
+        } else {
+          setAuthMessage({ type: 'info', text: "Konto erstellt! Bitte bestätige deine E-Mail-Adresse." });
+          setTimeout(() => setShowLoginModal(false), 4000);
+        }
       } else {
         await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
         // Track Login
@@ -2908,13 +2921,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       if (data.url) {
         console.log("Redirecting to Stripe:", data.url);
         
-        // Save HD studio draft to Firestore and await its completion to ensure data isn't lost during page unload/redirect
+        // Save HD studio draft to Firestore in background (non-blocking) before redirecting
         if (user) {
-          try {
-            await saveStudioDraftToFirestore(user.uid);
-          } catch (draftErr) {
-            console.warn("Could not save studio draft to Firestore before redirect", draftErr);
-          }
+          saveStudioDraftToFirestore(user.uid).catch(draftErr => {
+            console.warn("Could not save studio draft to Firestore in background", draftErr);
+          });
         }
 
         // Save current results to localStorage before redirecting (as backup)

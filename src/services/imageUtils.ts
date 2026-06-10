@@ -44,7 +44,7 @@ export async function fastResizeImage(fullDataUrl: string, maxDimension: number,
  * This is useful for Firestore document limits (1MB).
  */
 export async function compressBase64Image(fullDataUrl: string, mimeType: string, targetSizeInBytes: number = 800000): Promise<string> {
-  // If it's already small enough, return it
+  // If it's already small enough, return it immediately to preserve absolute pixel perfection!
   const currentSize = (fullDataUrl.length * 3) / 4;
   if (currentSize <= targetSizeInBytes) {
     return fullDataUrl;
@@ -62,48 +62,49 @@ export async function compressBase64Image(fullDataUrl: string, mimeType: string,
         return;
       }
 
-      // Initial fast resize if image is huge
-      let scale = 1.0;
-      if (img.width > 2000 || img.height > 2000) {
-        scale = 0.5;
+      // We want to keep HD quality.
+      // For results, we keep max dimension up to 1200px.
+      // For background cache source images, we can go up to 1000px.
+      const isSourceImage = targetSizeInBytes < 200000;
+      const maxDim = isSourceImage ? 1000 : 1200;
+      
+      let width = img.width;
+      let height = img.height;
+      
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
       }
 
-      let quality = 0.8;
+      canvas.width = width;
+      canvas.height = height;
+      ctx.drawImage(img, 0, 0, width, height);
       
-      const attemptCompression = () => {
-        if (scale < 0.1 || quality < 0.1) {
-          resolve(canvas.toDataURL('image/jpeg', 0.1));
-          return;
-        }
-
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        
-        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-        const estimatedSize = compressedBase64.length * 0.75;
-
-        if (estimatedSize <= targetSizeInBytes) {
-          resolve(compressedBase64);
-        } else {
-          // Adjust parameters more aggressively to reduce iterations
-          if (estimatedSize > targetSizeInBytes * 2) {
-            quality *= 0.7;
-            scale *= 0.8;
-          } else {
-            quality -= 0.15;
-            if (quality < 0.3) {
-              scale -= 0.2;
-              quality = 0.5;
-            }
-          }
-          setTimeout(attemptCompression, 0);
-        }
-      };
-
-      attemptCompression();
+      // Try high quality first (0.85). Looks completely pristine and HD!
+      let quality = 0.85;
+      let resultBase64 = canvas.toDataURL('image/jpeg', quality);
+      let estimatedSize = resultBase64.length * 0.75;
+      
+      // If still too large, adjust to a very high-quality 0.75.
+      if (estimatedSize > targetSizeInBytes) {
+        quality = 0.75;
+        resultBase64 = canvas.toDataURL('image/jpeg', quality);
+        estimatedSize = resultBase64.length * 0.75;
+      }
+      
+      // Final safe compression fallback
+      if (estimatedSize > targetSizeInBytes) {
+        quality = 0.60;
+        resultBase64 = canvas.toDataURL('image/jpeg', quality);
+      }
+      
+      console.log(`Smart compression done: ${img.width}x${img.height} -> ${width}x${height}, quality: ${quality}, size: ${Math.round((resultBase64.length * 0.75) / 1024)}KB`);
+      resolve(resultBase64);
     };
     img.onerror = () => reject(new Error("Image compression failed"));
     img.src = fullDataUrl;

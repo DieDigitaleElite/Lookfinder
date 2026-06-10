@@ -90,16 +90,17 @@ app.post("/api/gemini", async (req, res) => {
         const { base64Image } = payload;
         const mimeType = "image/jpeg"; // Enforce JPEG as all resized images are JPEGs. Fixes HEIC/PNG issues.
         
-        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person. Schlage genau 9 verschiedene Frisuren vor.
-        REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (PFLICHT):
-        - Die ersten 3 Vorschläge MÜSSEN einfache, klassische und schöne Frisuren sein, die die ursprüngliche Haarfarbe und Haarstruktur des Nutzers zu 100% unverändert beibehalten.
-        - Es dürfen ABSOLUT KEINE Haarfarben-Änderungen oder extreme Verfremdungen vorgeschlagen werden. Die natürliche Haarfarbe und Textur des Nutzers müssen exakt beibehalten werden.
-        1. VORSCHLAG: Eine schöne, moderne MITTELLANGE Frisur (z.B. ein eleganter, klassischer Bob in der exakten Naturhaarfarbe des Nutzers).
-        2. VORSCHLAG: Eine schöne, feminine LANGE Frisur (in der exakten Naturhaarfarbe des Nutzers).
-        3. VORSCHLAG: Eine schöne, moderne KURZE Frisur (in der exakten Naturhaarfarbe des Nutzers, ohne Farbexperimente).
+        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person auf dem Foto. Schlage genau 9 verschiedene Frisuren vor.
+        REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (ABSOLUTE PFLICHT - KEEP IT SIMPLE):
+        - Die ersten 3 Vorschläge MÜSSEN einfache, klassische und alltagstaugliche Frisuren sein, welche die ursprüngliche Naturhaarfarbe und Struktur des Nutzers zu 100% absolut unverändert beibehalten. Mit diesen Frisuren soll sich der Nutzer direkt perfekt wiedererkennen!
+        - Es dürfen KEINE Farbexperimente oder Strähnen vorgeschlagen werden!
+        - Die 3 Vorschläge müssen genau diesen Frisuren-Kategorien entsprechen:
+          1. VORSCHLAG (Index 0): Mittellange Frisur (Ein schöner mittellanger Schnitt, z.B. ein eleganter klassischer Bob oder schulterlanger Schnitt in der exakten Naturhaarfarbe des Nutzers).
+          2. VORSCHLAG (Index 1): Lange Frisur (Ein schöner Langhaarschnitt mit sanften Stufen in der exakten Naturhaarfarbe des Nutzers).
+          3. VORSCHLAG (Index 2): Kurze Frisur (Eine schöne Kurzhaarfrisur, z.B. ein zeitloser, weicher Kurzhaarschnitt oder ein sanfter Pixie-Schnitt in der exakten Naturhaarfarbe des Nutzers, ohne Farbänderungen).
         
         STRICT IDENTITY GUIDELINES:
-        - Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) sowie die Gesichts- und Körperhaltung (kein Neigen, Beugen oder Verzerren des Körpers) zu 100% EXAKT.
+        - Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) sowie die Gesichts- und Körperhaltung (kein Neigen nach vorne, Beugen oder Verzerren des Körpers) zu 100% EXAKT.
         - Behalte die Original-Haarfarbe und -Haarstruktur des Nutzers komplett bei (Farbe und Textur müssen exakt übereinstimmen).
         - Die Augenfarbe und Blickrichtung dürfen NIEMALS verändert werden.
         - Der Fokus liegt auf der Erhaltung der Wiedererkennbarkeit und absoluten Einfachheit.
@@ -228,28 +229,22 @@ app.post("/api/gemini", async (req, res) => {
              }
           }
         } else {
-          promptSnippet = `### CRITICAL MANDATE: PERFECT FACE, BODY, POSE, CHARACTERISTICS & BACKDROP REPLICATION (100% IDENTICAL)
-You must generate a photorealistic image where ONLY the hair of the person in the source photo is replaced with the requested hairstyle and color. Everything else must remain 100% IDENTICAL to the source photo.
+          promptSnippet = `### CRITICAL MANDATE: 100% IDENTICAL POSE, BODY, FACE & BACKDROP
+You must generate a photorealistic image where ONLY the hair is replaced. All other elements (face, eyes, pose, body posture, clothing, background) must remain 100% UNCHANGED and pixel-identical to the source photo.
 
-### WICHTIGSTE REGEL: GESICHT UND IDENTITÄT MÜSSEN ZU 100% IDENTISCH SEIN!
-Die betroffene Person MUSS sich im fertigen Bild absolut perfekt wiedererkennen. Es darf KEINERLEI Veränderung an den Gesichtszügen, dem Gesichtsausdruck, der Identität, dem Alter oder dem Geschlecht der Person vorgenommen werden. Es dürfen Filter (wie Glätten, Schönheitseffekte, Verjüngung o.ä.) absolut NICHT angewendet werden. Das Originalgesicht und das gesamte Originalbild müssen exakt beibehalten werden.
+### KÖRPERSTELLUNG & KOPFHALTUNG (SPEZIELLE WARNUNG):
+- NIEMALS nach vorne beugen, neigen, krümmen oder drehen! Die Körperstellung, Kopfstellung, Schultern, Pose und der Sitz-/Stehwinkel MÜSSEN absolut exakt, geradlinig und 100% identisch mit dem Eingangs-Originalfoto der Person übereinstimmen. Die Pose darf sich um keinen Millimeter verändern!
 
-### WHAT MUST REMAIN 100% UNCHANGED (ZERO MODIFICATIONS ALLOWED):
-1. THE FACE (GESICHT & IDENTITÄT): Keep the exact same face, jawline, chin shape, forehead, cheekbones, nose, lips, mouth, teeth, teeth alignment, skin tone, skin texture, blemishes, freckles, moles, scars, and wrinkles. Absolutely NO beautification, NO skin smoothing, NO airbrush, NO face slimming, NO rejuvenation, NO age changes, and NO face-lifting. The face must be absolutely untouched. Keine Änderungen an Augenfarbe, Nase, Mund, Make-up, Kopfstellung usw. erlaubt!
-2. THE EYES (AUGEN & BLICKRICHTUNG): Keep the exact same eyes, eye shape, eyelids, eyelashes, eye-brows, eye-bags, eye wrinkles, gaze direction, and ESPECIALLY the iris pattern and EYES COLOR (the exact natural hazel, blue, brown, or green shade of the original iris). Do NOT change the expression, shape or color of the eyes under any circumstances.
-3. THE BODY, POSE & HEAD POSITION (KÖRPERHALTUNG UND KOPFHALTUNG): Preserve the exact head tilt, head angle, body position, shoulders, neck, posture, hands/arms, clothing, jewelries, tattoos, and position 100% as they are. DO NOT bend the posture forward or backward. The person must sit or stand completely upright in the EXACT same pose and angle as in the original image. Absolutely NO bowing, slouching, leaning forward, or shoulder rotations are allowed. Keine Änderungen an der Körperhaltung erlaubt!
-4. BACKDROP & ENVIRONMENT (HINTERGRUND & UMGEBUNG): Keep the exact same background, scenery, lighting, shadows, and environment as in the source photo. Absolutely no alterations, extensions, or enhancements to the surroundings. The backdrop must remain pixel-exact.
-5. NO MAKEUP CHANGES: Do not add, modify, or remove any makeup, lipstick, or eyelashes.
-6. NO STRUCTURAL DRIFT: Do not alter the posture or head angle even slightly.
+### GESICHT UND IDENTITÄT (SPEZIELLE WARNUNG):
+- Das Gesicht, die Augenstruktur, Augenfarbe, Form der Nase, des Mundes, Lippen, Zähne, Make-up und die Mimik MÜSSEN zu 100% identisch und pixelgenau wie auf dem Originalfoto beibehalten werden. Absolut KEIN Weichzeichner, Filter, Verjüngung, Beauty-Filter oder Formänderung. Die Person muss sich perfekt wiedererkennen!
 
-### TARGET HAIRSTYLE & COLOR (MUST STRICTLY FOLLOW):
+### HAARFARBE & STRUKTUR:
 - Target Hairstyle (Ausgewählte Frisur): ${styleName}
-- Hair Color & Dyeing (Gewünschte Haarfarbe & Art der Färbung): ${description}
-- STRICT INSTRUCTION: You must strictly adhere to the user's selected hairstyle. Keep the user's exact original natural hair color and hair texture unless a specific different hair shade or color has been explicitly chosen by the user! Apply the hair realistically and blend it perfectly. Do not generalize or simplify.
+- Target Color & Description: ${description}
+- REGEL: Behalte die exakte Naturhaarfarbe und Grundstruktur des Originalfotos bei! Es dürfen ABSOLUT KEINE unaufgeforderten Farbänderungen (z.B. plötzliche Blondierung oder Farbabweichung) stattfinden. Wenn der Benutzer dunkle Haare hat, muss die Frisur exakt in dieser dunklen Haarfarbe gerendert werden, unter Beibehaltung der natürlichen Lichtreflexe.
 
-### PREMIUM 1K HD QUALITY & SEAMLESS TRANSITION:
-- The generated hair must be presented in extreme premium quality, showing precise individual hair strands, micro-details, natural hair textures, realistic volume, natural shine, and realistic flow.
-- The seam/boundary where the new hair meets the forehead, scalp, temples, and shoulders must blend seamlessly, with natural individual strands falling photorealistically onto the skin or clothing.`;
+### SEAMLESS 1K HD TRANSITION:
+- Blende das neue Haar absolut nahtlos und perfekt an den Stirn- und Schläfenansatz sowie an den Nacken und die Schultern ein. Einzellinien und Strähnen sollen photorealistisch auf die Haut fallen. Generiere in maximaler High-End-Qualität.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
