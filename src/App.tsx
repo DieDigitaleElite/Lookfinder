@@ -143,6 +143,8 @@ export default function App() {
   const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_image'));
   const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_mime'));
   const [hairstyleSketches, setHairstyleSketches] = useState<Record<string, string>>({});
+  const [templateSketches, setTemplateSketches] = useState<Record<string, string>>({});
+  const [isTemplateSketchesLoading, setIsTemplateSketchesLoading] = useState(true);
   const [isGeneratingBackground, setIsGeneratingBackground] = useState(false);
   const backgroundGenQueueRef = useRef<boolean>(false);
   const [showUpsellModal, setShowUpsellModal] = useState(false);
@@ -360,8 +362,9 @@ export default function App() {
     }
   }, [user, pendingTab]);
 
-  // Background sketch generation for all library styles
+  // Background sketch generation for all library styles (DISABLED to use templates and save KI resources)
   useEffect(() => {
+    return;
     let active = true;
 
     // Determine best source for background generation
@@ -928,6 +931,87 @@ export default function App() {
   };
 
   const unsubsRef = useRef<(() => void)[]>([]);
+
+  // Load global template sketches from sketches_template
+  useEffect(() => {
+    const unsubscribeTemplates = onSnapshot(collection(db, 'sketches_template'), (snapshot) => {
+      const templates: Record<string, string> = {};
+      snapshot.docs.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.id && d.data) {
+          templates[d.id] = d.data;
+        }
+      });
+      setTemplateSketches(templates);
+      setIsTemplateSketchesLoading(false);
+      console.log(`Loaded ${snapshot.size} global template sketches from Firestore.`);
+    }, (error) => {
+      console.warn("Could not load global template sketches:", error.message);
+      setIsTemplateSketchesLoading(false);
+    });
+
+    return () => {
+      unsubscribeTemplates();
+    };
+  }, []);
+
+  // Automatic migration script to copy templates from test51@test.de if sketches_template is empty
+  useEffect(() => {
+    if (!user) return;
+
+    async function checkAndMigrate() {
+      try {
+        const templatesRef = collection(db, 'sketches_template');
+        const templatesSnap = await getDocs(templatesRef);
+        
+        if (templatesSnap.size >= 8) {
+          console.log("[Migration] Global template sketches already populated. Skipping migration.");
+          return;
+        }
+
+        console.log("[Migration] Global template sketches empty or incomplete. Copying from test51@test.de...");
+        
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('email', '==', 'test51@test.de'));
+        const usersSnap = await getDocs(q);
+
+        if (usersSnap.empty) {
+          console.log("[Migration] User with email 'test51@test.de' was not found in the database. Postponing migration until they register or log in.");
+          return;
+        }
+
+        const test51Uid = usersSnap.docs[0].id;
+        console.log(`[Migration] Found test51@test.de with UID: ${test51Uid}. Copying sketches...`);
+
+        const test51SketchesRef = collection(db, 'users', test51Uid, 'sketches');
+        const test51SketchesSnap = await getDocs(test51SketchesRef);
+
+        if (test51SketchesSnap.empty) {
+          console.log("[Migration] test51@test.de has no pre-saved sketches in their subcollection yet.");
+          return;
+        }
+
+        console.log(`[Migration] Copying ${test51SketchesSnap.size} sketches to 'sketches_template' collection...`);
+        for (const docSnap of test51SketchesSnap.docs) {
+          const sketchData = docSnap.data();
+          if (sketchData.data) {
+            await setDoc(doc(db, 'sketches_template', docSnap.id), {
+              id: docSnap.id,
+              data: sketchData.data,
+              styleName: sketchData.styleName || docSnap.id,
+              updatedAt: serverTimestamp()
+            });
+            console.log(`[Migration] Successfully copied sketch '${docSnap.id}' to template store.`);
+          }
+        }
+        console.log("[Migration] Finished copying all test51 template sketches!");
+      } catch (err: any) {
+        console.warn("[Migration] Copying sketches failed:", err.message);
+      }
+    }
+
+    checkAndMigrate();
+  }, [user]);
 
   useEffect(() => {
     // Fetch client IP for usage tracking
@@ -3938,7 +4022,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         onImageUpload={handleStylingStudioImageUpload}
                         avatarSketch={avatarSketch}
                         isPremium={canUseStudio}
-                        preGeneratedSketches={hairstyleSketches}
+                        preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
                         onCategoryChange={setActiveCategory}
                         isGeneratingBackground={isGeneratingBackground}
                         onCheckout={handleCheckout}

@@ -130,6 +130,10 @@
       "schema": "HairstyleSketch",
       "description": "Subcollection for storing pre-generated sketches for the styling studio"
     },
+    "/sketches_template/{sketchId}": {
+      "schema": "HairstyleSketch",
+      "description": "Global pre-rendered template sketches copied from test51@test.de for new users"
+    },
     "/polls/{pollId}": {
       "schema": "Poll",
       "description": "Public voting polls"
