@@ -17,6 +17,7 @@ import UserDashboard from './components/UserDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import PollCreator from './components/PollCreator';
 import SupportModal from './components/SupportModal';
+import SeoLandingPage from './components/SeoLandingPage';
 
 declare global {
   interface Window {
@@ -270,6 +271,7 @@ export default function App() {
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
   const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const [activeCategory, setActiveCategory] = useState<string>('short');
 
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
@@ -299,6 +301,17 @@ export default function App() {
       };
     }
   }, [results.length]);
+
+  // Synchronize path state with popstate
+  useEffect(() => {
+    const handlePathChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener('popstate', handlePathChange);
+    return () => {
+      window.removeEventListener('popstate', handlePathChange);
+    };
+  }, []);
 
   // Mirror critical state to localStorage for anonymous users
   useEffect(() => {
@@ -2279,6 +2292,10 @@ export default function App() {
       
       // Teaser sketch generator - will be executed after the main images to prevent API overlap
       const generateTeaserSketch = async () => {
+        if (avatarSketch) {
+          console.log("Skipping delayed teaser sketch generation because avatarSketch already exists.");
+          return;
+        }
         try {
           console.log("Starting delayed teaser sketch generation...");
           // Speed optimization: Generate first style sketch directly from the original photo without first generating a bald sketch!
@@ -2651,7 +2668,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       });
 
       // Also generate the sketches for the studio if not already done
-      if (!avatarSketch || !baseSketch) {
+      if (!avatarSketch) {
         setIsGeneratingSketch(true);
         try {
           const baldSketch = await generateBaseAvatarSketch(base64Data, mimeType);
@@ -2735,7 +2752,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setImage(processedImage);
     
     // Only generate NEW sketches if none exist for this user
-    if (avatarSketch && baseSketch) {
+    if (avatarSketch) {
       console.log("Using existing sketches for studio; skipping regeneration on new upload.");
       return;
     }
@@ -3326,9 +3343,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               setActivePoll(null);
               setVotedId(null);
               setIsPollSyncing(false);
-              const url = new URL(window.location.href);
-              url.searchParams.delete('poll');
-              window.history.replaceState({}, '', url.toString());
+              window.history.replaceState({}, '', '/');
+              setCurrentPath('/');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="flex flex-col items-start gap-1 group text-left"
@@ -4088,6 +4104,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         stripeGenerationError={stripeGenerationError}
                         onClearStripeError={() => setStripeGenerationError(null)}
                         userName={user?.displayName?.split(' ')[0] || null}
+                        isCheckingOut={isCheckingOut}
                       />
                     </div>
                   </div>
@@ -4417,7 +4434,16 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               )}
             </motion.div>
           ) : !image ? (
-            <div className="space-y-16 md:space-y-40 pb-24">
+            currentPath === '/frisuren-am-bildschirm-ausprobieren' ? (
+              <SeoLandingPage 
+                onStartAnalysis={() => {
+                  window.history.pushState({}, '', '/');
+                  setCurrentPath('/');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            ) : (
+              <div className="space-y-16 md:space-y-40 pb-24">
               <motion.div 
                 key="upload"
                 initial={{ opacity: 0, y: 20 }}
@@ -4682,6 +4708,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 </section>
               </section>
             </div>
+            )
           ) : results.length === 0 ? (
             <motion.div 
               key="processing"

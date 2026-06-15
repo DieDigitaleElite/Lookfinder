@@ -44,6 +44,7 @@ interface StylingStudioProps {
   onClearStripeError?: () => void;
   onCategoryChange?: (category: string) => void;
   userName?: string | null;
+  isCheckingOut?: boolean;
 }
 
 export default function StylingStudio({ 
@@ -62,7 +63,8 @@ export default function StylingStudio({
   stripeGenerationError = null,
   onClearStripeError,
   onCategoryChange,
-  userName = null
+  userName = null,
+  isCheckingOut = false
 }: StylingStudioProps) {
   const [selectedCategory, setSelectedCategory] = useState(HAIRSTYLE_CATEGORIES[0].id);
 
@@ -637,6 +639,7 @@ export default function StylingStudio({
                             </label>
                           </div>
                           <button 
+                            disabled={isCheckingOut}
                             onClick={() => {
                               if (!agreedToTerms || !agreedToWiderruf) {
                                 setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
@@ -648,10 +651,16 @@ export default function StylingStudio({
                                 techId: selectedTechId
                               });
                             }}
-                            className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                            className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                           >
-                            <span>Zahlungspflichtig bestellen</span>
-                            <Zap size={14} />
+                            {isCheckingOut ? (
+                              <Loader2 className="animate-spin" size={16} />
+                            ) : (
+                              <>
+                                <span>Zahlungspflichtig bestellen</span>
+                                <Zap size={14} />
+                              </>
+                            )}
                           </button>
                         </motion.div>
                       )}
@@ -716,6 +725,7 @@ export default function StylingStudio({
                               </label>
                             </div>
                             <button 
+                              disabled={isCheckingOut}
                               onClick={() => {
                                 if (!agreedToTerms || !agreedToWiderruf) {
                                   setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
@@ -727,10 +737,16 @@ export default function StylingStudio({
                                   techId: selectedTechId
                                 });
                               }}
-                              className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                              className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
-                              <span>Zahlungspflichtig bestellen</span>
-                              <Zap size={14} />
+                              {isCheckingOut ? (
+                                <Loader2 className="animate-spin" size={16} />
+                              ) : (
+                                <>
+                                  <span>Zahlungspflichtig bestellen</span>
+                                  <Zap size={14} />
+                                </>
+                              )}
                             </button>
                           </motion.div>
                         )}
@@ -779,6 +795,7 @@ export default function StylingStudio({
                               </label>
                             </div>
                             <button 
+                              disabled={isCheckingOut}
                               onClick={() => {
                                 if (!agreedToTerms || !agreedToWiderruf) {
                                   setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
@@ -790,10 +807,16 @@ export default function StylingStudio({
                                   techId: selectedTechId
                                 });
                               }}
-                              className="w-full py-4 bg-[#FF9EBE] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg"
+                              className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
-                              <span>Zahlungspflichtig bestellen</span>
-                              <Zap size={14} />
+                              {isCheckingOut ? (
+                                <Loader2 className="animate-spin" size={16} />
+                              ) : (
+                                <>
+                                  <span>Zahlungspflichtig bestellen</span>
+                                  <Zap size={14} />
+                                </>
+                              )}
                             </button>
                           </motion.div>
                         ) : (
