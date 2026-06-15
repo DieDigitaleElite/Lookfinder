@@ -2150,6 +2150,10 @@ export default function App() {
         setResults([]);
         setError(null);
         setMimeType(file.type);
+        setAvatarSketch(null);
+        setBaseSketch(null);
+        localStorage.removeItem('frisurenai_pending_avatar_sketch');
+        localStorage.removeItem('frisurenai_pending_base_sketch');
         
         // Detect mobile to optimize memory impact and network payload.
         // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
@@ -2292,10 +2296,6 @@ export default function App() {
       
       // Teaser sketch generator - will be executed after the main images to prevent API overlap
       const generateTeaserSketch = async () => {
-        if (avatarSketch) {
-          console.log("Skipping delayed teaser sketch generation because avatarSketch already exists.");
-          return;
-        }
         try {
           console.log("Starting delayed teaser sketch generation...");
           // Speed optimization: Generate first style sketch directly from the original photo without first generating a bald sketch!
@@ -2736,6 +2736,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setError(null);
     setMimeType(type);
     
+    // Check if there is an existing sketch in state, Firestore or cached guest state from the first analysis
+    const existingAvatarSketch = avatarSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+    const existingBaseSketch = baseSketch || userData?.baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+    
     // Detect mobile to optimize memory impact and network payload.
     // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
@@ -2750,13 +2754,35 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
     const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
     setImage(processedImage);
-    
-    // Only generate NEW sketches if none exist for this user
-    if (avatarSketch) {
-      console.log("Using existing sketches for studio; skipping regeneration on new upload.");
+ 
+    if (existingAvatarSketch) {
+      console.log("Preserving original first-analysis sketch in Styling Studio. Skipping sketch regeneration.");
+      setAvatarSketch(existingAvatarSketch);
+      if (existingBaseSketch) setBaseSketch(existingBaseSketch);
+      
+      if (auth.currentUser) {
+        try {
+          // Save HD draft to Firestore with the new image and original sketches preserved
+          await saveStudioDraftToFirestore(auth.currentUser.uid, {
+            image: processedImage,
+            hdImage: processedHD,
+            mimeType: type,
+            avatarSketch: existingAvatarSketch,
+            baseSketch: existingBaseSketch
+          });
+        } catch (e) {
+          console.warn("Failed to persist studio draft with existing sketch", e);
+        }
+      }
       return;
     }
- 
+
+    // No existing sketch found — clear old sketches and generate fresh ones
+    setAvatarSketch(null);
+    setBaseSketch(null);
+    localStorage.removeItem('frisurenai_pending_avatar_sketch');
+    localStorage.removeItem('frisurenai_pending_base_sketch');
+
     try {
       const base64Data = processedImage.split(',')[1];
       const baldSketch = await generateBaseAvatarSketch(base64Data, type);
@@ -2782,7 +2808,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               setSketchReferenceMimeType(type);
               
               // Save HD draft to Firestore
-              await saveStudioDraftToFirestore(auth.currentUser.uid);
+              await saveStudioDraftToFirestore(auth.currentUser.uid, {
+                image: processedImage,
+                hdImage: processedHD,
+                mimeType: type,
+                avatarSketch: styledSketch,
+                baseSketch: baldSketch
+              });
             } catch (e) {
               console.warn("Failed to persist sketches on studio upload", e);
             }
@@ -2796,7 +2828,16 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     }
   };
 
-  const saveStudioDraftToFirestore = async (uid: string) => {
+  const saveStudioDraftToFirestore = async (
+    uid: string,
+    overrideValues?: {
+      image?: string | null;
+      hdImage?: string | null;
+      mimeType?: string | null;
+      avatarSketch?: string | null;
+      baseSketch?: string | null;
+    }
+  ) => {
     try {
       if (!uid) return;
       console.log("Saving HD studio draft to Firestore...");
@@ -2806,11 +2847,17 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         updatedAt: serverTimestamp()
       };
       
-      if (hdImage) draftData.hdImage = hdImage;
-      if (image) draftData.image = image;
-      if (mimeType) draftData.mimeType = mimeType;
-      if (avatarSketch) draftData.avatarSketch = avatarSketch;
-      if (baseSketch) draftData.baseSketch = baseSketch;
+      const imgToUse = overrideValues?.image !== undefined ? overrideValues.image : image;
+      const hdToUse = overrideValues?.hdImage !== undefined ? overrideValues.hdImage : hdImage;
+      const mimeToUse = overrideValues?.mimeType !== undefined ? overrideValues.mimeType : mimeType;
+      const avatarSketchToUse = overrideValues?.avatarSketch !== undefined ? overrideValues.avatarSketch : avatarSketch;
+      const baseSketchToUse = overrideValues?.baseSketch !== undefined ? overrideValues.baseSketch : baseSketch;
+      
+      if (hdToUse) draftData.hdImage = hdToUse;
+      if (imgToUse) draftData.image = imgToUse;
+      if (mimeToUse) draftData.mimeType = mimeToUse;
+      if (avatarSketchToUse) draftData.avatarSketch = avatarSketchToUse;
+      if (baseSketchToUse) draftData.baseSketch = baseSketchToUse;
       if (sketchReferenceImage) draftData.sketchReferenceImage = sketchReferenceImage;
       if (sketchReferenceMimeType) draftData.sketchReferenceMimeType = sketchReferenceMimeType;
       if (faceAnalysis) draftData.faceAnalysis = faceAnalysis;
