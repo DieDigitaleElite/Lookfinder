@@ -8,6 +8,33 @@ import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircl
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
+
+// Global cache for in-flight compression promises to prevent redundant concurrent canvas compressions for the same image
+const compressionCache = new Map<string, Promise<string>>();
+
+const cachedCompressBase64Image = (base64: string, mimeType: string, targetBytes: number): Promise<string> => {
+  if (!base64) return Promise.resolve('');
+  // Build a highly-unique cache key combining the start, end, and size of the base64, plus the targetBytes
+  const key = `${base64.substring(0, 500)}_${base64.substring(base64.length - 500)}_${targetBytes}`;
+  
+  const existing = compressionCache.get(key);
+  if (existing) {
+    console.log(`[cachedCompressBase64Image] Reusing active compression promise for target ${targetBytes} bytes`);
+    return existing;
+  }
+  
+  console.log(`[cachedCompressBase64Image] Triggering fresh canvas compression for target ${targetBytes} bytes`);
+  const promise = compressBase64Image(base64, mimeType, targetBytes);
+  compressionCache.set(key, promise);
+  
+  // Prune on error so a temporary failure doesn't permanently brick future requests
+  promise.catch(() => {
+    compressionCache.delete(key);
+  });
+  
+  return promise;
+};
+
 import { HAIRSTYLE_LIBRARY, HAIR_COLORS, HAIR_TECHNOLOGIES, LIGHTING_SIMULATIONS } from './constants';
 import { LegalModal, ImpressumContent, DatenschutzContent, AGBContent, WiderrufContent, AboutContent } from './components/LegalModals';
 import { CookieBanner } from './components/CookieBanner';
@@ -2042,7 +2069,7 @@ export default function App() {
           try {
             console.log(`Compressing image for ${result.id}...`);
             const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-            finalResult.imageUrl = await compressBase64Image(result.imageUrl, mimeType, 600000);
+            finalResult.imageUrl = await cachedCompressBase64Image(result.imageUrl, mimeType, 600000);
             console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
           } catch (compressErr) {
             console.error("Compression failed", compressErr);
@@ -2054,7 +2081,7 @@ export default function App() {
           try {
             console.log(`Compressing source image for ${result.id}...`);
             const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-            finalResult.sourceImageUrl = await compressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
+            finalResult.sourceImageUrl = await cachedCompressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
             console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
           } catch (compressErr) {
             console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
@@ -3178,14 +3205,20 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           console.warn("Could not save all data to localStorage.", storageError);
         }
 
-        // Safely await the Firestore save before redirecting to ensure results are not lost due to page unload
+        // Safely await the Firestore save before redirecting to ensure results are not lost due to page unload,
+        // but use a safety timeout of 1000ms so we never keep the user waiting or freeze the checkout redirect.
+        // Even if some database writes are still in-flight, they are securely saved locally in localStorage
+        // and will also automatically sync upon return from Stripe.
         if (user && (results.length > 0 || customResults.length > 0)) {
           const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id, r.imageUrl));
           if (unsavedResults.length > 0) {
             console.log(`Starting awaiting parallel Firestore sync of ${unsavedResults.length} results before redirect...`);
-            await Promise.all(
+            const syncPromise = Promise.all(
               unsavedResults.map(r => saveResult(r, true).catch(err => console.warn("Awaited save failed before checkout redirect", err)))
             );
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1000));
+            await Promise.race([syncPromise, timeoutPromise]);
+            console.log("Firestore sync completed or safety timeout reached, proceeding to Stripe checkout...");
           }
         }
 
