@@ -572,16 +572,23 @@ export default function App() {
       const userRef = doc(db, 'users', user.uid);
       const updateData: any = { lastActive: serverTimestamp() };
       
+      const resolvedRefImage = sketchReferenceImage || image;
+      const resolvedRefMime = sketchReferenceMimeType || mimeType;
+
       if (avatarSketch) updateData.avatarSketch = avatarSketch;
       if (baseSketch) updateData.baseSketch = baseSketch;
-      if (sketchReferenceImage) updateData.sketchReferenceImage = sketchReferenceImage;
-      if (sketchReferenceMimeType) updateData.sketchReferenceMimeType = sketchReferenceMimeType;
+      if (resolvedRefImage) updateData.sketchReferenceImage = resolvedRefImage;
+      if (resolvedRefMime) updateData.sketchReferenceMimeType = resolvedRefMime;
       if (faceAnalysis) updateData.faceAnalysis = faceAnalysis;
 
       setDoc(userRef, updateData, { merge: true })
         .catch(err => console.warn("Failed to sync profile data to user", err));
+        
+      // Also update local states if not yet set
+      if (resolvedRefImage && !sketchReferenceImage) setSketchReferenceImage(resolvedRefImage);
+      if (resolvedRefMime && !sketchReferenceMimeType) setSketchReferenceMimeType(resolvedRefMime);
     }
-  }, [user, !!avatarSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
+  }, [user, !!avatarSketch, !!baseSketch, !!sketchReferenceImage, image, faceAnalysis]);
 
   // Manage body overflow for full-screen modals - only for actual fixed overlays
   useEffect(() => {
@@ -1139,8 +1146,15 @@ export default function App() {
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
             if (data.baseSketch) setBaseSketch(data.baseSketch);
-            if (data.sketchReferenceImage) setSketchReferenceImage(data.sketchReferenceImage);
-            if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
+            if (data.sketchReferenceImage) {
+              setSketchReferenceImage(data.sketchReferenceImage);
+              setImage(prev => prev || data.sketchReferenceImage);
+              setHdImage(prev => prev || data.sketchReferenceImage);
+            }
+            if (data.sketchReferenceMimeType) {
+              setSketchReferenceMimeType(data.sketchReferenceMimeType);
+              setMimeType(prev => prev || data.sketchReferenceMimeType);
+            }
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -1396,9 +1410,9 @@ export default function App() {
                   const draftData = await loadStudioDraftFromFirestore(user.uid);
                   
                   // Use draftData values, or falls back to standard state/localstorage values
-                  const imgToUse = draftData?.image || image || localStorage.getItem('frisurenai_pending_image');
-                  const hdToUse = draftData?.hdImage || hdImage || localStorage.getItem('frisurenai_pending_hd_image');
-                  const mimeToUse = draftData?.mimeType || mimeType || localStorage.getItem('frisurenai_pending_mime_type') || 'image/jpeg';
+                  const imgToUse = draftData?.image || image || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+                  const hdToUse = draftData?.hdImage || hdImage || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_hd_image') || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+                  const mimeToUse = draftData?.mimeType || mimeType || sketchReferenceMimeType || userData?.sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_mime_type') || localStorage.getItem('frisurenai_pending_sketch_ref_mime') || 'image/jpeg';
                   
                   if (!imgToUse) {
                     throw new Error("Kein Basisbild für die Generierung im Styling Studio vorhanden.");
@@ -2581,9 +2595,9 @@ export default function App() {
     overrideMimeType?: string,
     overrideHdImage?: string | null
   ) => {
-    const activeImage = overrideImage || image;
-    const activeMime = overrideMimeType || mimeType;
-    const activeHdImage = overrideHdImage || hdImage;
+    const activeImage = overrideImage || image || sketchReferenceImage || userData?.sketchReferenceImage;
+    const activeMime = overrideMimeType || mimeType || sketchReferenceMimeType || userData?.sketchReferenceMimeType || 'image/jpeg';
+    const activeHdImage = overrideHdImage || hdImage || sketchReferenceImage || userData?.sketchReferenceImage;
     if (!activeImage) {
       console.warn("handleStudioTryOn: No active image available!");
       return;
@@ -4168,7 +4182,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     )}
                     <div className="bg-white rounded-[3rem] overflow-hidden border border-black/5 shadow-inner">
                       <StylingStudio 
-                        image={image}
+                        image={image || sketchReferenceImage || userData?.sketchReferenceImage}
                         onTryOn={handleStudioTryOn}
                         isGenerating={isGenerating}
                         onImageUpload={handleStylingStudioImageUpload}
