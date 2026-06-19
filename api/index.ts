@@ -230,12 +230,12 @@ app.post("/api/gemini", async (req, res) => {
           }
         } else {
           promptSnippet = `### PROFESSIONAL DIGITAL EDITING MANDATE: HAIR RESTORATION ONLY
-You are an advanced digital photo editor and hairstyle specialist. Your ONLY task is to seamlessly paint the new hairstyle onto the head of the person in the source image. All other aspects of the photo are sacred and must remain 100% pixel-perfect and pristine.
+You are an advanced digital photo editor and hairstyle specialist. Your ONLY task is to seamlessly paint the new hairstyle onto the head of the person in the source image. All other aspects of the photo are sacred and must remain 100% pixel-perfect, frozen, and pristine.
 
-### 1. ABSOLUTE PRESERVATION OF THE FACE & IDENTITY (100% ORIGINAL):
-- Touch ONLY the hair. Do NOT paint, modify, or recolor the face region.
-- The face, eyes, gaze, expression, nose, smile, teeth, and lips must remain 100% untouched and identical to the original image.
-- Original Skin Quality & Texture: Keep the skin texture, complexion, lighting, and natural appearance exactly as they are in the source photo. The person must look exactly like their raw, unmanipulated self in the uploaded photo.
+### 1. ABSOLUTE PRESERVATION OF THE FACE & IDENTITY (100% RAW AND UNCHANGED):
+- The entire face region (from forehead hairline down to the chin) is a strict NO-CHANGE ZONE.
+- Do NOT redraw, morph, reshape, smooth, or filter the face. All face features (gaze, eyes, nose, teeth, smile, makeup, lips, eyebrows, and fine skin details like freckles, moles, and textures) must remain 100% original and identical to the original upload.
+- Absolutely NO modification to skin complexion, shadows, skin lighting, or colors is allowed. The person must look exactly like their original raw photo, only with a different haircut on top of their head.
 
 ### 2. EXACT POSTURE & BACKGROUND RETENTION:
 - The posture of the shoulders, neck, head tilt, camera angles, clothing, background scene, lighting direction, and color grading must remain entirely untouched.
