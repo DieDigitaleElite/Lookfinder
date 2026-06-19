@@ -6502,9 +6502,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 referrerPolicy="no-referrer"
               />
               
-              <div className="mt-4 flex flex-col items-center gap-1 text-center text-white">
+              <div className="mt-4 text-center text-white">
                 <h4 className="font-bold text-lg md:text-xl">{selectedResult.name}</h4>
-                <p className="text-white/40 text-xs select-none">Tippe irgendwo hin oder benutze das Schließen-Symbol, um zurückzugehen</p>
               </div>
 
               {/* Action Floating Buttons inside Lightbox */}
