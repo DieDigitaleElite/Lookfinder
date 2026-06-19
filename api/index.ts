@@ -229,22 +229,22 @@ app.post("/api/gemini", async (req, res) => {
              }
           }
         } else {
-          promptSnippet = `### ULTRA-STRICT MANDATE: MODIFY ONLY HAIRSTYLE — KEEP ALL OTHER PIXELS 100% UNCHANGED
-You are an expert, precise, and professional image editor. Your ONLY task is to draw the new hairstyle onto the person in the source image. Everything else must remain 100% pixel-perfect and untouched.
+          promptSnippet = `### PROFESSIONAL DIGITAL EDITING MANDATE: HAIR RESTORATION ONLY
+You are an advanced digital photo editor and hairstyle specialist. Your ONLY task is to seamlessly paint the new hairstyle onto the head in the source image. All other aspects of the photo are sacred and must remain 100% pixel-perfect and pristine.
 
-### 1. ABSOLUTE PRESERVATION of FACE, IDENTITY & SKIN (CRITICAL):
-- GERMAN: Das Gesicht, die Gesichtsform, Nase, Augen, Blick, Mund, Lippen, Zähne, Augenbrauen, Kopf und alle feinen Merkmale (Sommersprossen, Muttermale, Fältchen) MÜSSEN zu 100% exakt wie im Originalfoto aussehen. Jede Veränderung an der Gesichtsstruktur ist strengstens verboten!
-- HAUT-TEXTUR SCHUTZ (SKIN PRESERVATION): Behalte die Hautstruktur, Poren, Lichtreflexe und Hautfarbe exakt wie im Originalfoto bei. Verwende absolut keine Filter, Weichzeichner oder Glättungen, und füge KEINE künstlichen Details hinzu. Die Haut muss absolut unbearbeitet sein!
-- No trigger words or negative blemish words should be used—simply retain the beautiful, raw, original face and skin quality.
+### 1. ABSOLUTE PRESERVATION OF THE FACE & IDENTITY (100% ORIGINAL):
+- Face & Head: Keep the exact same eyes, gaze, nose, smile, teeth, lips, shape, and eyebrows. Do not warp, redraw, or alter any part of the face structure.
+- Original Skin Quality & Texture: The skin surface must remain 100% identical to the source image. Do not add any new details, spots, marks, grains, noise, or textures to the skin. Do not paint or touch the face areas. Retain the authentic lighting, shadow patterns, and original details of the face exactly as they are.
+- No beauty filter, smoothing, or alterations are allowed. The person must look exactly like themselves.
 
-### 2. POSE & BACKGROUND PRESERVATION:
-- GERMAN: Die Pose, Schultern, Nacken, Körperhaltung, Bekleidung, Kamera-Winkel, Lichtrichtung und der komplette Hintergrund dürfen sich um keinen Millimeter verändern! Sie MÜSSEN zu 100% identisch mit dem Eingangs-Bild sein.
+### 2. EXACT POSTURE & BACKGROUND RETENTION:
+- The posture of the shoulders, neck, head tilt, cameras angles, clothing, background scene, lighting source, and color grading must remain entirely untouched.
 
-### 3. HAIRSTYLE MODIFICATION:
+### 3. HAIRSTYLE REPLACEMENT SPECIFICATIONS:
 - Target Hairstyle: ${styleName}
-- Styling & Color Details: ${description}
-- Draw the new hairstyle "${styleName}" seamlessly merging with the forehead hairline, temples, and neck of the original head.
-- Ensure the hair looks completely realistic and beautifully integrated with high-fidelity detail.`;
+- Styling and color details: ${description}
+- Fit the new hairstyle "${styleName}" naturally and realistically onto the head. Render detailed, high-fidelity hair strands that blend seamlessly at the user's natural forehead hairline, temples, and neck.
+- Return the finished image in crystal-clear high definition.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
@@ -275,14 +275,21 @@ You are an expert, precise, and professional image editor. Your ONLY task is to 
             // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 1K HD premium quality (extremely snappy and reliable)
             result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings, {
               imageConfig: {
-                imageSize: "1K"
-              }
+                imageSize: "1K",
+                imageFormat: "image/png"
+              },
+              outputMimeType: "image/png"
             });
           } catch (err1: any) {
             console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-2.5-flash-image as fallback...");
             try {
               // Attempt 2: gemini-2.5-flash-image
-              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
+              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings, {
+                imageConfig: {
+                  imageFormat: "image/png"
+                },
+                outputMimeType: "image/png"
+              });
             } catch (err2: any) {
               console.error("All image generation models failed!");
               throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
