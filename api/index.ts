@@ -229,23 +229,22 @@ app.post("/api/gemini", async (req, res) => {
              }
           }
         } else {
-          promptSnippet = `### CRITICAL MANDATE: 100% IDENTICAL POSE, BODY, FACE & BACKDROP
-You must generate a photorealistic image where ONLY the hair is replaced. All other elements (face, eyes, pose, body posture, clothing, background) must remain 100% UNCHANGED and pixel-identical to the source photo.
+          promptSnippet = `### ULTRA-STRICT MANDATE: MODIFY ONLY HAIRSTYLE — KEEP ALL OTHER PIXELS 100% UNCHANGED
+You are an expert, precise, and professional image editor. Your ONLY task is to draw the new hairstyle onto the person in the source image. Everything else must remain 100% pixel-perfect and untouched.
 
-### KÖRPERSTELLUNG & KOPFHALTUNG (SPEZIELLE WARNUNG):
-- NIEMALS nach vorne beugen, neigen, krümmen oder drehen! Die Körperstellung, Kopfstellung, Schultern, Pose und der Sitz-/Stehwinkel MÜSSEN absolut exakt, geradlinig und 100% identisch mit dem Eingangs-Originalfoto der Person übereinstimmen. Die Pose darf sich um keinen Millimeter verändern!
+### 1. ABSOLUTE PRESERVATION of FACE, IDENTITY & SKIN (CRITICAL):
+- GERMAN: Das Gesicht, die Gesichtsform, Nase, Augen, Blick, Mund, Lippen, Zähne, Augenbrauen, Kopf und alle feinen Merkmale (Sommersprossen, Muttermale, Fältchen) MÜSSEN zu 100% exakt wie im Originalfoto aussehen. Jede Veränderung an der Gesichtsstruktur ist strengstens verboten!
+- HAUT-TEXTUR SCHUTZ (SKIN PRESERVATION): Behalte die Hautstruktur, Poren, Lichtreflexe und Hautfarbe exakt wie im Originalfoto bei. Verwende absolut keine Filter, Weichzeichner oder Glättungen, und füge KEINE künstlichen Details hinzu. Die Haut muss absolut unbearbeitet sein!
+- No trigger words or negative blemish words should be used—simply retain the beautiful, raw, original face and skin quality.
 
-### GESICHT, HAUT UND IDENTITÄT (SPEZIELLE STRIKTE ANWEISUNG):
-- Das Gesicht, die Gesichtsform, Nase, Kopf, Augen, Augenfarbe, Mund, Lippen, Zähne, Augenbrauen, Mimik, Sommersprossen, Muttermale und Falten MÜSSEN zu 100% absolut unverändert, identisch und pixelgenau aus dem Originalfoto übernommen werden.
-- HAUT & TEINT: Die Haut darf weder verschönert noch verschlechtert werden! Füge absolut KEINE Hautunreinheiten, Pickel, Rötungen, Flecken, Narben oder Akne hinzu, die nicht im Originalfoto vorhanden sind. Verwende gleichzeitig KEINE unrealistischen Weichzeichner, Klonstempel oder übertriebene Beauty-Filter. Die Hautbeschaffenheit muss zu 100% exakt wie im Originalbild sein, unberührt von der Haar-Generierung. Der Benutzer muss sich auf dem fertigen Bild zu 100% authentisch wiedererkennen!
+### 2. POSE & BACKGROUND PRESERVATION:
+- GERMAN: Die Pose, Schultern, Nacken, Körperhaltung, Bekleidung, Kamera-Winkel, Lichtrichtung und der komplette Hintergrund dürfen sich um keinen Millimeter verändern! Sie MÜSSEN zu 100% identisch mit dem Eingangs-Bild sein.
 
-### HAARFARBE & STRUKTUR:
-- Target Hairstyle (Ausgewählte Frisur): ${styleName}
-- Target Color & Description: ${description}
-- REGEL: Behalte die exakte Naturhaarfarbe und Grundstruktur des Originalfotos bei! Es dürfen ABSOLUT KEINE unaufgeforderten Farbänderungen (z.B. plötzliche Blondierung oder Farbabweichung) stattfinden. Wenn der Benutzer dunkle Haare hat, muss die Frisur exakt in dieser dunklen Haarfarbe gerendert werden, unter Beibehaltung der natürlichen Lichtreflexe.
-
-### SEAMLESS 1K HD TRANSITION:
-- Blende das neue Haar absolut nahtlos und perfekt an den Stirn- und Schläfenansatz sowie an den Nacken und die Schultern ein. Einzellinien und Strähnen sollen photorealistisch auf die Haut fallen. Generiere in maximaler High-End-Qualität.`;
+### 3. HAIRSTYLE MODIFICATION:
+- Target Hairstyle: ${styleName}
+- Styling & Color Details: ${description}
+- Draw the new hairstyle "${styleName}" seamlessly merging with the forehead hairline, temples, and neck of the original head.
+- Ensure the hair looks completely realistic and beautifully integrated with high-fidelity detail.`;
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
