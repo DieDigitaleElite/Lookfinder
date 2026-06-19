@@ -230,20 +230,20 @@ app.post("/api/gemini", async (req, res) => {
           }
         } else {
           promptSnippet = `### PROFESSIONAL DIGITAL EDITING MANDATE: HAIR RESTORATION ONLY
-You are an advanced digital photo editor and hairstyle specialist. Your ONLY task is to seamlessly paint the new hairstyle onto the head in the source image. All other aspects of the photo are sacred and must remain 100% pixel-perfect and pristine.
+You are an advanced digital photo editor and hairstyle specialist. Your ONLY task is to seamlessly paint the new hairstyle onto the head of the person in the source image. All other aspects of the photo are sacred and must remain 100% pixel-perfect and pristine.
 
 ### 1. ABSOLUTE PRESERVATION OF THE FACE & IDENTITY (100% ORIGINAL):
-- Face & Head: Keep the exact same eyes, gaze, nose, smile, teeth, lips, shape, and eyebrows. Do not warp, redraw, or alter any part of the face structure.
-- Original Skin Quality & Texture: The skin surface must remain 100% identical to the source image. Do not add any new details, spots, marks, grains, noise, or textures to the skin. Do not paint or touch the face areas. Retain the authentic lighting, shadow patterns, and original details of the face exactly as they are.
-- No beauty filter, smoothing, or alterations are allowed. The person must look exactly like themselves.
+- Touch ONLY the hair. Do NOT paint, modify, or recolor the face region.
+- The face, eyes, gaze, expression, nose, smile, teeth, and lips must remain 100% untouched and identical to the original image.
+- Original Skin Quality & Texture: Keep the skin texture, complexion, lighting, and natural appearance exactly as they are in the source photo. The person must look exactly like their raw, unmanipulated self in the uploaded photo.
 
 ### 2. EXACT POSTURE & BACKGROUND RETENTION:
-- The posture of the shoulders, neck, head tilt, cameras angles, clothing, background scene, lighting source, and color grading must remain entirely untouched.
+- The posture of the shoulders, neck, head tilt, camera angles, clothing, background scene, lighting direction, and color grading must remain entirely untouched.
 
 ### 3. HAIRSTYLE REPLACEMENT SPECIFICATIONS:
 - Target Hairstyle: ${styleName}
 - Styling and color details: ${description}
-- Fit the new hairstyle "${styleName}" naturally and realistically onto the head. Render detailed, high-fidelity hair strands that blend seamlessly at the user's natural forehead hairline, temples, and neck.
+- Fit the new hairstyle "${styleName}" naturally and realistically onto the head. Render detailed, high-fidelity hair strands that merge seamlessly with the user's natural forehead hairline, temples, and neck.
 - Return the finished image in crystal-clear high definition.`;
         }
 

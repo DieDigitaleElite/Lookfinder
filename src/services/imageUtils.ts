@@ -85,21 +85,21 @@ export async function compressBase64Image(fullDataUrl: string, mimeType: string,
       canvas.height = height;
       ctx.drawImage(img, 0, 0, width, height);
       
-      // Try high quality first (0.85). Looks completely pristine and HD!
-      let quality = 0.85;
+      // Try high quality first (0.92). Looks completely pristine and HD!
+      let quality = 0.92;
       let resultBase64 = canvas.toDataURL('image/jpeg', quality);
       let estimatedSize = resultBase64.length * 0.75;
       
-      // If still too large, adjust to a very high-quality 0.75.
+      // If still too large, adjust to a highly crisp 0.84 quality level.
       if (estimatedSize > targetSizeInBytes) {
-        quality = 0.75;
+        quality = 0.84;
         resultBase64 = canvas.toDataURL('image/jpeg', quality);
         estimatedSize = resultBase64.length * 0.75;
       }
       
-      // Final safe compression fallback
+      // If still too large, adjust to a safe high-fidelity 0.76 quality level.
       if (estimatedSize > targetSizeInBytes) {
-        quality = 0.60;
+        quality = 0.76;
         resultBase64 = canvas.toDataURL('image/jpeg', quality);
       }
       

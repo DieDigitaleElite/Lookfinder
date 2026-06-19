@@ -2154,24 +2154,24 @@ export default function App() {
         // Compress image before saving to Firestore to stay under 1MB limit
         let finalResult = { ...result };
         
-        // Compress generated hairstyle image to ~600KB
+        // Compress generated hairstyle image to ~800KB for maximum definition
         if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
           try {
             console.log(`Compressing image for ${result.id}...`);
             const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-            finalResult.imageUrl = await cachedCompressBase64Image(result.imageUrl, mimeType, 600000);
+            finalResult.imageUrl = await cachedCompressBase64Image(result.imageUrl, mimeType, 800000);
             console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
           } catch (compressErr) {
             console.error("Compression failed", compressErr);
           }
         }
 
-        // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits
+        // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits - keep higher quality at 250KB
         if (finalResult.sourceImageUrl && finalResult.sourceImageUrl.startsWith('data:image')) {
           try {
             console.log(`Compressing source image for ${result.id}...`);
             const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-            finalResult.sourceImageUrl = await cachedCompressBase64Image(finalResult.sourceImageUrl, mimeType, 120000);
+            finalResult.sourceImageUrl = await cachedCompressBase64Image(finalResult.sourceImageUrl, mimeType, 250000);
             console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
           } catch (compressErr) {
             console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
