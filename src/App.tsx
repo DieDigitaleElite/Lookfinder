@@ -312,6 +312,11 @@ export default function App() {
       const handlePopState = (event: PopStateEvent) => {
         if (isExitingRef.current) return;
         
+        // If a modal or lightbox is open, handle popstate closing via the dedicated effect
+        if (selectedResult || isFullscreenImageOpen) {
+          return;
+        }
+        
         // Push dummy state back onto the stack to lock back behavior
         window.history.pushState({ isResults: true }, '', window.location.href);
         
@@ -329,7 +334,40 @@ export default function App() {
         window.removeEventListener('popstate', handlePopState);
       };
     }
-  }, [results.length]);
+  }, [results.length, selectedResult, isFullscreenImageOpen]);
+
+  // Handle closing detail modal or fullscreen lightbox on browser back click (popstate)
+  useEffect(() => {
+    if (selectedResult || isFullscreenImageOpen) {
+      // Push a dummy detail state to history so there is something to "go back" from
+      window.history.pushState({ isModalOpen: true }, '');
+
+      const handlePopState = (e: PopStateEvent) => {
+        // If fullscreen is open, close it first
+        if (isFullscreenImageOpen) {
+          setIsFullscreenImageOpen(false);
+          // Put the modal state back if the detail modal is still open
+          if (selectedResult) {
+            window.history.pushState({ isModalOpen: true }, '');
+          }
+        } else if (selectedResult) {
+          // Otherwise close the detail modal
+          setSelectedResult(null);
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        // If modal was closed from within the app (e.g. click on X or background),
+        // we must manually pop our pushed history state so the browser back stack remains clean
+        if (window.history.state?.isModalOpen) {
+          window.history.back();
+        }
+      };
+    }
+  }, [selectedResult, isFullscreenImageOpen]);
 
   // Synchronize path state with popstate
   useEffect(() => {
@@ -6259,8 +6297,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       setSelectedResult(null);
                     }}
                     className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors"
+                    title="Schließen"
                   >
-                    <RefreshCcw className="rotate-45" size={20} />
+                    <X size={20} />
                   </button>
                 </div>
                 <button 
@@ -6316,8 +6355,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     <button 
                       onClick={() => setSelectedResult(null)}
                       className="hidden md:flex w-12 h-12 bg-black/5 rounded-full items-center justify-center hover:bg-black/10 transition-colors"
+                      title="Schließen"
                     >
-                      <RefreshCcw size={20} className="rotate-45" />
+                      <X size={20} />
                     </button>
                   </div>
                 </div>
