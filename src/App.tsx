@@ -340,6 +340,23 @@ export default function App() {
     };
   }, []);
 
+  // Prevent accidental reload during initial analysis and registration phases
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Warn when user is NOT logged in and we have pending erstanalyse data or are analyzing/generating
+      if (!user && (faceAnalysis || results.length > 0 || isAnalyzing || isGenerating)) {
+        e.preventDefault();
+        e.returnValue = "Möchtest du die Seite wirklich verlassen? Deine Erstanalyse und Skizzen gehen dabei verloren.";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [user, faceAnalysis, results.length, isAnalyzing, isGenerating]);
+
   // Mirror critical state to localStorage for anonymous users
   useEffect(() => {
     if (user) return;

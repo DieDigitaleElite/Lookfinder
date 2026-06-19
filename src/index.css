@@ -18,8 +18,9 @@
 }
 
 @layer base {
-  body {
+  html, body {
     @apply bg-[#fdfdfb] text-brand-primary font-sans antialiased;
+    overscroll-behavior-y: contain;
   }
 }
 
