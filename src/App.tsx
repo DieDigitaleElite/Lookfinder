@@ -1096,6 +1096,14 @@ export default function App() {
       setAuthInitializing(false);
       
       if (currentUser) {
+        // Clear preselected/pending guest images so that logged-in users start fresh in their Styling Studio, avoiding the Stripe payment generation issues
+        setImage(null);
+        setHdImage(null);
+        setMimeType(null);
+        localStorage.removeItem('frisurenai_pending_image');
+        localStorage.removeItem('frisurenai_pending_hd_image');
+        localStorage.removeItem('frisurenai_pending_mime_type');
+
         // Sync user profile and listen for changes (like premium status)
         const userDocRef = doc(db, 'users', currentUser.uid);
         
@@ -1141,13 +1149,9 @@ export default function App() {
             if (data.baseSketch) setBaseSketch(data.baseSketch);
             if (data.sketchReferenceImage) {
               setSketchReferenceImage(data.sketchReferenceImage);
-              // Auto-restore image and hdImage in the visual state if they are currently null, so that the styling studio can show the user's uploaded portrait and its sketches immediately
-              setImage(prev => prev || data.sketchReferenceImage || null);
-              setHdImage(prev => prev || data.sketchReferenceImage || null);
             }
             if (data.sketchReferenceMimeType) {
               setSketchReferenceMimeType(data.sketchReferenceMimeType);
-              setMimeType(prev => prev || data.sketchReferenceMimeType || null);
             }
             if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
           }
