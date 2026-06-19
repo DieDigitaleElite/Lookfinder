@@ -235,8 +235,9 @@ You must generate a photorealistic image where ONLY the hair is replaced. All ot
 ### KÖRPERSTELLUNG & KOPFHALTUNG (SPEZIELLE WARNUNG):
 - NIEMALS nach vorne beugen, neigen, krümmen oder drehen! Die Körperstellung, Kopfstellung, Schultern, Pose und der Sitz-/Stehwinkel MÜSSEN absolut exakt, geradlinig und 100% identisch mit dem Eingangs-Originalfoto der Person übereinstimmen. Die Pose darf sich um keinen Millimeter verändern!
 
-### GESICHT UND IDENTITÄT (SPEZIELLE WARNUNG):
-- Das Gesicht, die Augenstruktur, Augenfarbe, Form der Nase, des Mundes, Lippen, Zähne, Make-up und die Mimik MÜSSEN zu 100% identisch und pixelgenau wie auf dem Originalfoto beibehalten werden. Absolut KEIN Weichzeichner, Filter, Verjüngung, Beauty-Filter oder Formänderung. Die Person muss sich perfekt wiedererkennen!
+### GESICHT, HAUT UND IDENTITÄT (SPEZIELLE STRIKTE ANWEISUNG):
+- Das Gesicht, die Gesichtsform, Nase, Kopf, Augen, Augenfarbe, Mund, Lippen, Zähne, Augenbrauen, Mimik, Sommersprossen, Muttermale und Falten MÜSSEN zu 100% absolut unverändert, identisch und pixelgenau aus dem Originalfoto übernommen werden.
+- HAUT & TEINT: Die Haut darf weder verschönert noch verschlechtert werden! Füge absolut KEINE Hautunreinheiten, Pickel, Rötungen, Flecken, Narben oder Akne hinzu, die nicht im Originalfoto vorhanden sind. Verwende gleichzeitig KEINE unrealistischen Weichzeichner, Klonstempel oder übertriebene Beauty-Filter. Die Hautbeschaffenheit muss zu 100% exakt wie im Originalbild sein, unberührt von der Haar-Generierung. Der Benutzer muss sich auf dem fertigen Bild zu 100% authentisch wiedererkennen!
 
 ### HAARFARBE & STRUKTUR:
 - Target Hairstyle (Ausgewählte Frisur): ${styleName}
