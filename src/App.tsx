@@ -6297,6 +6297,40 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   </div>
                 </div>
 
+                {/* Mobile-only Action Buttons */}
+                <div className="grid grid-cols-2 gap-3 w-full md:hidden">
+                  <button
+                    onClick={() => generatePDF(selectedResult)}
+                    className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#FF9EBE]/5 text-brand-primary border border-brand-primary/5 hover:bg-brand-primary/5 active:scale-[0.98] transition-all font-bold text-sm"
+                  >
+                    <FileText size={18} className="text-[#FF9EBE]" />
+                    <span>Profi-Guide (PDF)</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => handleDownload(selectedResult.imageUrl, selectedResult.name)}
+                    className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#FF9EBE]/10 text-[#FF9EBE] hover:bg-[#FF9EBE]/20 active:scale-[0.98] transition-all font-bold text-sm"
+                  >
+                    <Download size={18} />
+                    <span>Bild sichern</span>
+                  </button>
+                  
+                  <button
+                    onClick={() => saveResult(selectedResult)}
+                    disabled={isSaving === selectedResult.id}
+                    className={`col-span-2 flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-black/5 text-brand-primary hover:bg-black/10 active:scale-[0.98] transition-all font-bold text-sm ${isResultSaved(selectedResult.id) ? 'text-[#FF9EBE] bg-[#FF9EBE]/5 border border-[#FF9EBE]/10' : ''}`}
+                  >
+                    {isSaving === selectedResult.id ? (
+                      <Loader2 className="animate-spin" size={18} />
+                    ) : isResultSaved(selectedResult.id) ? (
+                      <BookmarkCheck size={18} className="text-[#FF9EBE]" />
+                    ) : (
+                      <Bookmark size={18} />
+                    )}
+                    <span>{isResultSaved(selectedResult.id) ? 'Look im Profil gesichert' : 'Look in "Meine Looks" speichern'}</span>
+                  </button>
+                </div>
+
                 <div className="space-y-6">
                   <section className="space-y-3">
                     <h4 className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Warum dieser Style?</h4>
