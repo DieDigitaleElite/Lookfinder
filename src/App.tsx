@@ -284,6 +284,7 @@ export default function App() {
     const pending = localStorage.getItem('frisurenai_pending_studio_credits');
     return pending ? parseInt(pending) : 0;
   });
+  const studioCreditsRef = useRef(studioCredits);
   const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly'));
   const canUseStudio = isPro || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
@@ -1113,13 +1114,22 @@ export default function App() {
       setAuthInitializing(false);
       
       if (currentUser) {
-        // Clear preselected/pending guest images so that logged-in users start fresh in their Styling Studio, avoiding the Stripe payment generation issues
-        setImage(null);
-        setHdImage(null);
-        setMimeType(null);
-        localStorage.removeItem('frisurenai_pending_image');
-        localStorage.removeItem('frisurenai_pending_hd_image');
-        localStorage.removeItem('frisurenai_pending_mime_type');
+        // Only clear guest images if this is a normal session load, and NOT part of an active checkout or successful Stripe payment return flow!
+        const isStripeSuccess = new URLSearchParams(window.location.search).get('payment') === 'success';
+        const hasPendingStudioSelection = localStorage.getItem('frisurenai_pending_studio_selection') !== null;
+        const hasPendingCheckout = localStorage.getItem('frisurenai_pending_plan') !== null;
+        
+        if (!isStripeSuccess && !hasPendingStudioSelection && !hasPendingCheckout) {
+          console.log("Normal login/load - starting fresh in Styling Studio");
+          setImage(null);
+          setHdImage(null);
+          setMimeType(null);
+          localStorage.removeItem('frisurenai_pending_image');
+          localStorage.removeItem('frisurenai_pending_hd_image');
+          localStorage.removeItem('frisurenai_pending_mime_type');
+        } else {
+          console.log("Preserving guest image state for active checkout / Stripe return flow");
+        }
 
         // Sync user profile and listen for changes (like premium status)
         const userDocRef = doc(db, 'users', currentUser.uid);
@@ -1132,7 +1142,12 @@ export default function App() {
             displayName: currentUser.displayName,
             photoURL: currentUser.photoURL,
             createdAt: serverTimestamp()
-          }, { merge: true });
+          }, { merge: true }).then(() => {
+            // Load saved studio draft from Firestore only for normal login (not during active checkout or payment processing)
+            if (!isStripeSuccess && !hasPendingCheckout) {
+              loadStudioDraftFromFirestore(currentUser.uid);
+            }
+          });
         } catch (e) {
           console.warn("Initial profile sync failed", e);
         }
@@ -1161,6 +1176,7 @@ export default function App() {
             setIsPremium(premiumActive);
             setUserPlan(data.plan || null);
             setStudioCredits(data.studioCredits || 0);
+            studioCreditsRef.current = data.studioCredits || 0;
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
             if (data.baseSketch) setBaseSketch(data.baseSketch);
@@ -1375,7 +1391,11 @@ export default function App() {
 
         if (pendingPayment.plan === 'studio-single') {
           updateData.studioCredits = increment(1);
-          setStudioCredits(prev => prev + 1);
+          setStudioCredits(prev => {
+            const next = prev + 1;
+            studioCreditsRef.current = next;
+            return next;
+          });
           localStorage.removeItem('frisurenai_pending_studio_credits');
         }
         
@@ -2685,7 +2705,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       const imageUrl = await generateHairstyleImage(base64Data, activeMime || 'image/jpeg', style.name, customPrompt);
       if (imageUrl) {
         // Only consume credit if generation was successful
-        if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+        if (user && studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, { 
             studioCredits: increment(-1)
@@ -2693,7 +2713,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             console.error("Failed to deduct studio credit after success", err);
             // We don't throw here to not block the user from seeing the result
           });
-          setStudioCredits(prev => Math.max(0, prev - 1));
+          setStudioCredits(prev => {
+            const next = Math.max(0, prev - 1);
+            studioCreditsRef.current = next;
+            return next;
+          });
         }
 
         // Generate a more emotional and face-shape specific metadata using AI
@@ -3030,14 +3054,18 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       
       if (imageUrl) {
         // Only consume credit if generation was successful
-        if (user && studioCredits > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+        if (user && studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, { 
             studioCredits: increment(-1)
           }).catch(err => {
             console.error("Failed to deduct credit after custom success", err);
           });
-          setStudioCredits(prev => Math.max(0, prev - 1));
+          setStudioCredits(prev => {
+            const next = Math.max(0, prev - 1);
+            studioCreditsRef.current = next;
+            return next;
+          });
         }
 
         // Generate a more emotional and face-shape specific metadata using AI
