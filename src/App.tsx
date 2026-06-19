@@ -137,6 +137,7 @@ export default function App() {
     }
     return null;
   });
+  const [isFullscreenImageOpen, setIsFullscreenImageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isPremium, setIsPremium] = useState(() => {
@@ -6217,13 +6218,31 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-5xl bg-white rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto"
             >
-              <div className="w-full md:w-1/2 h-64 md:h-auto relative">
+              <div 
+                onClick={() => setIsFullscreenImageOpen(true)}
+                className="w-full md:w-1/2 h-64 md:h-auto relative cursor-zoom-in group/img overflow-hidden bg-black/5"
+              >
                 <img 
                   src={selectedResult.imageUrl || undefined} 
                   alt={selectedResult.name} 
-                  className="w-full h-full object-cover" 
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105" 
                   referrerPolicy="no-referrer"
                 />
+                
+                {/* Desktop Hover Visual Tip Overlay */}
+                <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors hidden md:flex items-center justify-center pointer-events-none group-hover/img:pointer-events-auto">
+                  <div className="opacity-0 group-hover/img:opacity-100 bg-black/60 backdrop-blur-md text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-xs font-bold tracking-wider uppercase transition-opacity shadow-lg">
+                    <Maximize2 size={14} className="text-[#FF9EBE]" />
+                    <span>Vergrößern</span>
+                  </div>
+                </div>
+
+                {/* Mobile visual cue */}
+                <div className="absolute bottom-4 left-4 md:hidden bg-black/30 backdrop-blur-md text-white p-2 rounded-full pointer-events-none flex items-center gap-1">
+                  <Maximize2 size={14} className="text-[#FF9EBE]" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Tippen für Vollbild</span>
+                </div>
+
                 <div className="absolute top-6 right-6 flex gap-3 md:hidden">
                   <button 
                     onClick={(e) => {
@@ -6235,14 +6254,20 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     <Download size={20} />
                   </button>
                   <button 
-                    onClick={() => setSelectedResult(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedResult(null);
+                    }}
                     className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors"
                   >
                     <RefreshCcw className="rotate-45" size={20} />
                   </button>
                 </div>
                 <button 
-                  onClick={() => setSelectedResult(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedResult(null);
+                  }}
                   className="absolute top-6 left-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors md:hidden"
                 >
                   <ChevronRight className="rotate-180" size={24} />
@@ -6446,6 +6471,64 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     </div>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Fullscreen Image Lightbox Modal */}
+      <AnimatePresence>
+        {isFullscreenImageOpen && selectedResult && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-md p-4 md:p-12">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsFullscreenImageOpen(false)}
+              className="absolute inset-0 cursor-zoom-out"
+            />
+            
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative max-w-full max-h-full flex flex-col items-center justify-center z-10"
+            >
+              <img
+                src={selectedResult.imageUrl || undefined}
+                alt={selectedResult.name}
+                className="max-w-full max-h-[80vh] md:max-h-[85vh] object-contain rounded-2xl md:rounded-[2rem] shadow-2xl select-none"
+                referrerPolicy="no-referrer"
+              />
+              
+              <div className="mt-4 flex flex-col items-center gap-1 text-center text-white">
+                <h4 className="font-bold text-lg md:text-xl">{selectedResult.name}</h4>
+                <p className="text-white/40 text-xs select-none">Tippe irgendwo hin oder benutze das Schließen-Symbol, um zurückzugehen</p>
+              </div>
+
+              {/* Action Floating Buttons inside Lightbox */}
+              <div className="absolute -top-16 md:top-4 right-0 md:right-4 flex gap-3 z-20">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload(selectedResult.imageUrl, selectedResult.name);
+                  }}
+                  className="w-12 h-12 bg-white/10 hover:bg-white/20 hover:text-[#FF9EBE] active:scale-95 text-white backdrop-blur-md rounded-full flex items-center justify-center transition-all shadow-lg border border-white/10"
+                  title="Bild sichern"
+                >
+                  <Download size={22} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsFullscreenImageOpen(false);
+                  }}
+                  className="w-12 h-12 bg-white/10 hover:bg-white/20 active:scale-95 text-white backdrop-blur-md rounded-full flex items-center justify-center transition-all shadow-lg border border-white/10"
+                  title="Schließen"
+                >
+                  <X size={22} />
+                </button>
               </div>
             </motion.div>
           </div>
