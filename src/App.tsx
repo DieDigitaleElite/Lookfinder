@@ -1139,8 +1139,17 @@ export default function App() {
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
             if (data.baseSketch) setBaseSketch(data.baseSketch);
-            if (data.sketchReferenceImage) setSketchReferenceImage(data.sketchReferenceImage);
-            if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
+            if (data.sketchReferenceImage) {
+              setSketchReferenceImage(data.sketchReferenceImage);
+              // Auto-restore image and hdImage in the visual state if they are currently null, so that the styling studio can show the user's uploaded portrait and its sketches immediately
+              setImage(prev => prev || data.sketchReferenceImage || null);
+              setHdImage(prev => prev || data.sketchReferenceImage || null);
+            }
+            if (data.sketchReferenceMimeType) {
+              setSketchReferenceMimeType(data.sketchReferenceMimeType);
+              setMimeType(prev => prev || data.sketchReferenceMimeType || null);
+            }
+            if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -1733,10 +1742,29 @@ export default function App() {
           lastLogin: serverTimestamp(),
         };
 
+        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
+        const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+        const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+        const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+        const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+        let currentFaceAnalysis = faceAnalysis;
+        if (!currentFaceAnalysis) {
+          const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+          if (savedAnalysis) {
+            try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+          }
+        }
+
+        if (currentAvatarSketch) userData.avatarSketch = currentAvatarSketch;
+        if (currentBaseSketch) userData.baseSketch = currentBaseSketch;
+        if (currentSketchRefImage) userData.sketchReferenceImage = currentSketchRefImage;
+        if (currentSketchRefMime) userData.sketchReferenceMimeType = currentSketchRefMime;
+        if (currentFaceAnalysis) userData.faceAnalysis = currentFaceAnalysis;
+
         if (!userSnap.exists()) {
           userData.createdAt = serverTimestamp();
           userData.isPremium = false;
-          await setDoc(userRef, userData);
+          await setDoc(userRef, userData, { merge: true });
           // Track Sign Up
           trackEvent('sign_up', 'Auth', 'Google');
         } else {
@@ -1785,13 +1813,33 @@ export default function App() {
         
         // Initialize user profile in Firestore
         try {
-          await setDoc(doc(db, 'users', userCredential.user.uid), {
+          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+          let currentFaceAnalysis = faceAnalysis;
+          if (!currentFaceAnalysis) {
+            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+            if (savedAnalysis) {
+              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+            }
+          }
+
+          const userProfileData: any = {
             uid: userCredential.user.uid,
             email: userCredential.user.email,
             displayName: displayName,
             createdAt: serverTimestamp(),
             isPremium: false
-          });
+          };
+
+          if (currentAvatarSketch) userProfileData.avatarSketch = currentAvatarSketch;
+          if (currentBaseSketch) userProfileData.baseSketch = currentBaseSketch;
+          if (currentSketchRefImage) userProfileData.sketchReferenceImage = currentSketchRefImage;
+          if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
+          if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
+
+          await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData, { merge: true });
         } catch (dbErr) {
           console.error("Failed to initialize user profile document", dbErr);
         }
