@@ -129,11 +129,16 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 // Test connection
 async function testConnection() {
+  // Only check connection if a real API key is configured (not PLACEHOLDER)
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "PLACEHOLDER") {
+    console.log("Firebase runs in placeholder mode. Real configuration is not loaded yet.");
+    return;
+  }
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
-    if(error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration. ");
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.warn("Please check your Firebase configuration. The client is currently offline or unconfigured.");
     }
   }
 }
