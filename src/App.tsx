@@ -1240,9 +1240,12 @@ export default function App() {
             if (data.baseSketch) setBaseSketch(data.baseSketch);
             if (data.sketchReferenceImage) {
               setSketchReferenceImage(data.sketchReferenceImage);
+              setImage(prev => prev || data.sketchReferenceImage || null);
+              setHdImage(prev => prev || data.sketchReferenceImage || null);
             }
             if (data.sketchReferenceMimeType) {
               setSketchReferenceMimeType(data.sketchReferenceMimeType);
+              setMimeType(prev => prev || data.sketchReferenceMimeType || '');
             }
             if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
           }
@@ -1817,9 +1820,9 @@ export default function App() {
   useEffect(() => {
     if (user && savedResults.length > 0) {
       if (results.length === 0) {
-        // Standard analysis results have IDs like 'result-0', 'result-1', etc.
+        // Standard analysis results have IDs like 'style-0', 'style-1', etc.
         const standardSuggestions = savedResults
-          .filter(r => r.id.startsWith('result-'))
+          .filter(r => r.id.startsWith('style-'))
           .sort((a, b) => {
             const idxA = parseInt(a.id.split('-').pop() || '0', 10);
             const idxB = parseInt(b.id.split('-').pop() || '0', 10);
@@ -1849,9 +1852,9 @@ export default function App() {
       }
 
       if (customResults.length === 0) {
-        // Custom results start with 'custom-'
+        // Custom results start with 'custom-' or 'studio-'
         const savedCustoms = savedResults
-          .filter(r => r.id.startsWith('custom-'))
+          .filter(r => r.id.startsWith('custom-') || r.id.startsWith('studio-'))
           .sort((a, b) => {
             // Sort by creation time if available
             const timeA = (a as any).createdAt?.seconds || 0;
