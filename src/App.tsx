@@ -1772,25 +1772,100 @@ export default function App() {
 
         if (allPending.length === 0) return;
 
-        console.log(`Syncing ${allPending.length} results to Firestore sequentially...`);
-        
-        // Save each one sequentially to ensure stability and wait for state updates
-        for (const result of allPending) {
-          savingIdsRef.current.set(result.id, result.imageUrl || null);
+        // Pre-compress the shared source image once to avoid duplicate canvas operations across all 9 parallel writes
+        let compressedSourceImage: string | undefined = undefined;
+        const firstWithSource = allPending.find(r => r.sourceImageUrl && r.sourceImageUrl.startsWith('data:image'));
+        if (firstWithSource && firstWithSource.sourceImageUrl) {
           try {
-            await saveResult(result, true);
-            console.log(`Synced look ${result.id} to user history`);
-          } catch (err) {
-            console.warn(`Sync failed for look ${result.id}`, err);
-            // If it failed, remove from active flight tracker so it can be retried
-            savingIdsRef.current.delete(result.id);
+            console.log("Pre-compressing shared source image once for all pending parallel writes...");
+            const mimeType = firstWithSource.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+            compressedSourceImage = await cachedCompressBase64Image(firstWithSource.sourceImageUrl, mimeType, 100000);
+            console.log(`Shared source image pre-compression successful. Size: ${Math.round(compressedSourceImage.length / 1024)}KB`);
+          } catch (compressErr) {
+            console.warn("Shared source image pre-compression failed", compressErr);
           }
         }
+
+        console.log(`Syncing ${allPending.length} results to Firestore in parallel...`);
+        
+        // Save each pending result in parallel for instant synchronization
+        await Promise.all(
+          allPending.map(async (result) => {
+            const resultToSave = { ...result };
+            if (compressedSourceImage && resultToSave.sourceImageUrl && resultToSave.sourceImageUrl.startsWith('data:image')) {
+              resultToSave.sourceImageUrl = compressedSourceImage;
+            }
+
+            savingIdsRef.current.set(result.id, result.imageUrl || null);
+            try {
+              await saveResult(resultToSave, true);
+              console.log(`Synced look ${result.id} to user history`);
+            } catch (err) {
+              console.warn(`Sync failed for look ${result.id}`, err);
+              // If it failed, remove from active flight tracker so it can be retried
+              savingIdsRef.current.delete(result.id);
+            }
+          })
+        );
       };
 
       syncResults();
     }
   }, [user, results, customResults]);
+
+  // Restore the primary results and custom results from savedResults on load/refresh if states are empty
+  useEffect(() => {
+    if (user && savedResults.length > 0) {
+      if (results.length === 0) {
+        // Standard analysis results have IDs like 'result-0', 'result-1', etc.
+        const standardSuggestions = savedResults
+          .filter(r => r.id.startsWith('result-'))
+          .sort((a, b) => {
+            const idxA = parseInt(a.id.split('-').pop() || '0', 10);
+            const idxB = parseInt(b.id.split('-').pop() || '0', 10);
+            return idxA - idxB;
+          });
+
+        if (standardSuggestions.length > 0) {
+          console.log(`Restoring primary results from Firestore saved history: ${standardSuggestions.length} items`);
+          setResults(standardSuggestions);
+          
+          if (!selectedResult) {
+            setSelectedResult(standardSuggestions[0]);
+          }
+
+          // Also restore image and hdImage from the first result's source image if they are null
+          const firstSourceImage = standardSuggestions[0]?.sourceImageUrl;
+          if (firstSourceImage) {
+            if (!image) {
+              console.log("Restoring main image from saved result history");
+              setImage(firstSourceImage);
+            }
+            if (!hdImage) {
+              setHdImage(firstSourceImage);
+            }
+          }
+        }
+      }
+
+      if (customResults.length === 0) {
+        // Custom results start with 'custom-'
+        const savedCustoms = savedResults
+          .filter(r => r.id.startsWith('custom-'))
+          .sort((a, b) => {
+            // Sort by creation time if available
+            const timeA = (a as any).createdAt?.seconds || 0;
+            const timeB = (b as any).createdAt?.seconds || 0;
+            return timeB - timeA; // Descending order (newest first)
+          });
+          
+        if (savedCustoms.length > 0) {
+          console.log(`Restoring custom results from Firestore saved history: ${savedCustoms.length} items`);
+          setCustomResults(savedCustoms);
+        }
+      }
+    }
+  }, [user, savedResults, results.length, customResults.length]);
 
   useEffect(() => {
     if (results.length > 0 && !isPremium) {
@@ -3067,12 +3142,31 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         updatedAt: serverTimestamp()
       };
       
-      const imgToUse = overrideValues?.image !== undefined ? overrideValues.image : image;
-      const hdToUse = overrideValues?.hdImage !== undefined ? overrideValues.hdImage : hdImage;
+      let imgToUse = overrideValues?.image !== undefined ? overrideValues.image : image;
+      let hdToUse = overrideValues?.hdImage !== undefined ? overrideValues.hdImage : hdImage;
       const mimeToUse = overrideValues?.mimeType !== undefined ? overrideValues.mimeType : mimeType;
       const avatarSketchToUse = overrideValues?.avatarSketch !== undefined ? overrideValues.avatarSketch : avatarSketch;
       const baseSketchToUse = overrideValues?.baseSketch !== undefined ? overrideValues.baseSketch : baseSketch;
       
+      // Compress draft images to stay under the Firestore 1MB document size limit
+      if (hdToUse && hdToUse.startsWith('data:image')) {
+        try {
+          const type = mimeToUse || hdToUse.split(';')[0].split(':')[1] || 'image/jpeg';
+          hdToUse = await cachedCompressBase64Image(hdToUse, type, 300000); // max 300KB
+        } catch (e) {
+          console.warn("Failed to compress HD draft image before save", e);
+        }
+      }
+
+      if (imgToUse && imgToUse.startsWith('data:image')) {
+        try {
+          const type = mimeToUse || imgToUse.split(';')[0].split(':')[1] || 'image/jpeg';
+          imgToUse = await cachedCompressBase64Image(imgToUse, type, 150000); // max 150KB
+        } catch (e) {
+          console.warn("Failed to compress draft image before save", e);
+        }
+      }
+
       if (hdToUse) draftData.hdImage = hdToUse;
       if (imgToUse) draftData.image = imgToUse;
       if (mimeToUse) draftData.mimeType = mimeToUse;
