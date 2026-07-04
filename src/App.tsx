@@ -1325,6 +1325,9 @@ export default function App() {
         setIsPremium(false);
         setUserPlan(null);
         setUserData(null);
+        setAvatarSketch(null);
+        setFirstAnalysisSketch(null);
+        setBaseSketch(null);
       }
     });
 
@@ -2953,7 +2956,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setMimeType(type);
     
     // Check if there is an existing sketch in state, Firestore or cached guest state from the first analysis
-    const existingAvatarSketch = avatarSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+    const existingAvatarSketch = firstAnalysisSketch || avatarSketch || userData?.firstAnalysisSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_first_analysis_sketch') || localStorage.getItem('frisurenai_pending_avatar_sketch');
     const existingBaseSketch = baseSketch || userData?.baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
     
     // Detect mobile to optimize memory impact and network payload.
@@ -2974,6 +2977,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     if (existingAvatarSketch) {
       console.log("Preserving original first-analysis sketch in Styling Studio. Skipping sketch regeneration.");
       setAvatarSketch(existingAvatarSketch);
+      setFirstAnalysisSketch(existingAvatarSketch);
       if (existingBaseSketch) setBaseSketch(existingBaseSketch);
       
       if (auth.currentUser) {
@@ -3120,7 +3124,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setError(null);
     setGenerationProgress(0);
     setAvatarSketch(null);
-    setFirstAnalysisSketch(null);
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
     setShowGallery(false);
@@ -3128,7 +3131,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     // Clear localStorage
     localStorage.removeItem('frisurenai_pending_image');
     localStorage.removeItem('frisurenai_pending_hd_image');
-    localStorage.removeItem('frisurenai_first_analysis_sketch');
   };
 
   const handleCustomTryOn = async () => {
