@@ -306,14 +306,21 @@ export default function App() {
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const isExitingRef = useRef(false);
 
+  // Refs to read modal and lightbox states inside the results lock effect without re-triggering it
+  const selectedResultRef = useRef(selectedResult);
+  selectedResultRef.current = selectedResult;
+
+  const isFullscreenImageOpenRef = useRef(isFullscreenImageOpen);
+  isFullscreenImageOpenRef.current = isFullscreenImageOpen;
+
   // Verlaufssperre (Prevent exits of results page and prompt saving)
   useEffect(() => {
     if (results.length > 0 && !isExitingRef.current) {
       const handlePopState = (event: PopStateEvent) => {
         if (isExitingRef.current) return;
         
-        // If a modal or lightbox is open, handle popstate closing via the dedicated effect
-        if (selectedResult || isFullscreenImageOpen) {
+        // If a modal or lightbox is open, handle popstate closing via the dedicated effects
+        if (selectedResultRef.current || isFullscreenImageOpenRef.current) {
           return;
         }
         
@@ -334,24 +341,17 @@ export default function App() {
         window.removeEventListener('popstate', handlePopState);
       };
     }
-  }, [results.length, selectedResult, isFullscreenImageOpen]);
+  }, [results.length]);
 
-  // Handle closing detail modal or fullscreen lightbox on browser back click (popstate)
+  // Synchronize history state for Detail Modal (selectedResult)
   useEffect(() => {
-    if (selectedResult || isFullscreenImageOpen) {
-      // Push a dummy detail state to history so there is something to "go back" from
+    if (selectedResult) {
+      // Push history state so there is a state to "go back" from
       window.history.pushState({ isModalOpen: true }, '');
 
       const handlePopState = (e: PopStateEvent) => {
-        // If fullscreen is open, close it first
-        if (isFullscreenImageOpen) {
-          setIsFullscreenImageOpen(false);
-          // Put the modal state back if the detail modal is still open
-          if (selectedResult) {
-            window.history.pushState({ isModalOpen: true }, '');
-          }
-        } else if (selectedResult) {
-          // Otherwise close the detail modal
+        // If the new state is not the modal state or lightbox state, close the modal
+        if (!window.history.state?.isModalOpen && !window.history.state?.isLightboxOpen) {
           setSelectedResult(null);
         }
       };
@@ -360,14 +360,38 @@ export default function App() {
 
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        // If modal was closed from within the app (e.g. click on X or background),
-        // we must manually pop our pushed history state so the browser back stack remains clean
+        // If the modal is closed in-app (not via browser back), manually clean up the history stack
         if (window.history.state?.isModalOpen) {
           window.history.back();
         }
       };
     }
-  }, [selectedResult, isFullscreenImageOpen]);
+  }, [selectedResult]);
+
+  // Synchronize history state for Fullscreen Lightbox (isFullscreenImageOpen)
+  useEffect(() => {
+    if (isFullscreenImageOpen) {
+      // Push history state so there is a state to "go back" from
+      window.history.pushState({ isLightboxOpen: true }, '');
+
+      const handlePopState = (e: PopStateEvent) => {
+        // If the state goes back to anything without isLightboxOpen, close the lightbox
+        if (!window.history.state?.isLightboxOpen) {
+          setIsFullscreenImageOpen(false);
+        }
+      };
+
+      window.addEventListener('popstate', handlePopState);
+
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        // If lightbox is closed in-app, manually clean up history stack
+        if (window.history.state?.isLightboxOpen) {
+          window.history.back();
+        }
+      };
+    }
+  }, [isFullscreenImageOpen]);
 
   // Synchronize path state with popstate
   useEffect(() => {
