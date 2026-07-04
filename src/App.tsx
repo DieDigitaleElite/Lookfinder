@@ -306,86 +306,71 @@ export default function App() {
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const isExitingRef = useRef(false);
 
-  // Refs to read modal and lightbox states inside the results lock effect without re-triggering it
-  const selectedResultRef = useRef(selectedResult);
-  selectedResultRef.current = selectedResult;
-
-  const isFullscreenImageOpenRef = useRef(isFullscreenImageOpen);
-  isFullscreenImageOpenRef.current = isFullscreenImageOpen;
-
   // Verlaufssperre (Prevent exits of results page and prompt saving)
   useEffect(() => {
     if (results.length > 0 && !isExitingRef.current) {
       const handlePopState = (event: PopStateEvent) => {
         if (isExitingRef.current) return;
         
-        // If a modal or lightbox is open, handle popstate closing via the dedicated effects
-        if (selectedResultRef.current || isFullscreenImageOpenRef.current) {
+        // If a modal or lightbox is open, handle popstate closing via the dedicated effect
+        if (selectedResult || isFullscreenImageOpen) {
           return;
         }
         
-        // Push dummy state back onto the stack to lock back behavior
-        window.history.pushState({ isResults: true }, '', window.location.href);
-        
-        // Open custom confirmation dialog
+        // Block popstate navigation and show confirmation
+        window.history.pushState(null, '');
         setShowExitConfirmation(true);
       };
 
-      // Ensure we have a dummy state on top of the stack
-      if (!window.history.state || !window.history.state.isResults) {
-        window.history.pushState({ isResults: true }, '', window.location.href);
-      }
-
+      window.history.pushState(null, '');
+      
       window.addEventListener('popstate', handlePopState);
+
       return () => {
         window.removeEventListener('popstate', handlePopState);
       };
     }
-  }, [results.length]);
+  }, [results.length, selectedResult, isFullscreenImageOpen]);
 
-  // Synchronize history state for Detail Modal (selectedResult)
+  // Handle closing detail modal on browser back click (popstate)
   useEffect(() => {
     if (selectedResult) {
-      // Push history state so there is a state to "go back" from
-      window.history.pushState({ isModalOpen: true }, '');
+      window.history.pushState({ isDetailModalOpen: true }, '');
 
       const handlePopState = (e: PopStateEvent) => {
-        // If the new state is not the modal state or lightbox state, close the modal
-        if (!window.history.state?.isModalOpen && !window.history.state?.isLightboxOpen) {
-          setSelectedResult(null);
+        if (e.state?.isDetailModalOpen) {
+          return;
         }
+        setSelectedResult(null);
       };
 
       window.addEventListener('popstate', handlePopState);
 
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        // If the modal is closed in-app (not via browser back), manually clean up the history stack
-        if (window.history.state?.isModalOpen) {
+        if (window.history.state?.isDetailModalOpen) {
           window.history.back();
         }
       };
     }
   }, [selectedResult]);
 
-  // Synchronize history state for Fullscreen Lightbox (isFullscreenImageOpen)
+  // Handle closing fullscreen lightbox on browser back click (popstate)
   useEffect(() => {
     if (isFullscreenImageOpen) {
-      // Push history state so there is a state to "go back" from
       window.history.pushState({ isLightboxOpen: true }, '');
 
       const handlePopState = (e: PopStateEvent) => {
-        // If the state goes back to anything without isLightboxOpen, close the lightbox
-        if (!window.history.state?.isLightboxOpen) {
-          setIsFullscreenImageOpen(false);
+        if (e.state?.isLightboxOpen) {
+          return;
         }
+        setIsFullscreenImageOpen(false);
       };
 
       window.addEventListener('popstate', handlePopState);
 
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        // If lightbox is closed in-app, manually clean up history stack
         if (window.history.state?.isLightboxOpen) {
           window.history.back();
         }
@@ -1181,8 +1166,10 @@ export default function App() {
         const isStripeSuccess = new URLSearchParams(window.location.search).get('payment') === 'success';
         const hasPendingStudioSelection = localStorage.getItem('frisurenai_pending_studio_selection') !== null;
         const hasPendingCheckout = localStorage.getItem('frisurenai_pending_plan') !== null;
+        const hasPendingResults = localStorage.getItem('frisurenai_pending_results') !== null;
+        const hasActiveImage = localStorage.getItem('frisurenai_pending_image') !== null;
         
-        if (!isStripeSuccess && !hasPendingStudioSelection && !hasPendingCheckout) {
+        if (!isStripeSuccess && !hasPendingStudioSelection && !hasPendingCheckout && !hasPendingResults && !hasActiveImage) {
           console.log("Normal login/load - starting fresh in Styling Studio");
           setImage(null);
           setHdImage(null);
@@ -1301,6 +1288,18 @@ export default function App() {
           const sorted = docs.sort((a, b) => {
             const timeA = (a as any).createdAt?.seconds || 0;
             const timeB = (b as any).createdAt?.seconds || 0;
+            
+            // If they are from the same batch (within 15 seconds) and both are suggestions, sort by index ascending
+            if (Math.abs(timeA - timeB) < 15) {
+              const partsA = a.id.split('-');
+              const partsB = b.id.split('-');
+              const idxA = parseInt(partsA[partsA.length - 1], 10);
+              const idxB = parseInt(partsB[partsB.length - 1], 10);
+              if (!isNaN(idxA) && !isNaN(idxB)) {
+                return idxA - idxB;
+              }
+            }
+            
             return timeB - timeA;
           });
           setSavedResults(sorted as GeneratedResult[]);
@@ -2308,6 +2307,13 @@ export default function App() {
     }
   };
 
+  const isSuggestionFreeIndex = (id: string) => {
+    const parts = id.split('-');
+    const lastPart = parts[parts.length - 1];
+    const index = parseInt(lastPart, 10);
+    return !isNaN(index) && index < 3;
+  };
+
   const isResultSaved = (id: string, imageUrl?: string | null) => {
     const saved = savedResults.find(r => r.id === id);
     if (!saved) return false;
@@ -2653,7 +2659,8 @@ export default function App() {
       return;
     }
 
-    if (!isPremium && userPlan !== 'single') {
+    const isFree = isSuggestionFreeIndex(result.id);
+    if (!isPremium && userPlan !== 'single' && !isFree) {
        handleShowPricing('general');
        return;
     }
@@ -4397,7 +4404,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                         <p className="text-sm font-bold text-brand-primary leading-tight line-clamp-2">{result.name}</p>
                                       </div>
                                       
-                                      {(isPremium || userPlan === 'single') ? (
+                                      {(isPremium || userPlan === 'single' || isSuggestionFreeIndex(result.id)) ? (
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation();
