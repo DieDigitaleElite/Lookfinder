@@ -170,6 +170,7 @@ export default function App() {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportInitialCategory, setSupportInitialCategory] = useState<'general' | 'payment' | 'bug' | 'feedback'>('general');
   const [avatarSketch, setAvatarSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_avatar_sketch'));
+  const [firstAnalysisSketch, setFirstAnalysisSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_first_analysis_sketch'));
   const [baseSketch, setBaseSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_base_sketch'));
   const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_image'));
   const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_mime'));
@@ -423,6 +424,7 @@ export default function App() {
         }
         if (mimeType) localStorage.setItem('frisurenai_pending_mime_type', mimeType || '');
         if (avatarSketch) localStorage.setItem('frisurenai_pending_avatar_sketch', avatarSketch);
+        if (firstAnalysisSketch) localStorage.setItem('frisurenai_first_analysis_sketch', firstAnalysisSketch);
         if (baseSketch) localStorage.setItem('frisurenai_pending_base_sketch', baseSketch);
         if (sketchReferenceImage) localStorage.setItem('frisurenai_pending_sketch_ref_image', sketchReferenceImage);
         if (sketchReferenceMimeType) localStorage.setItem('frisurenai_pending_sketch_ref_mime', sketchReferenceMimeType || '');
@@ -433,7 +435,7 @@ export default function App() {
     }, 500);
     
     return () => clearTimeout(timeout);
-  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
+  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, firstAnalysisSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
 
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -639,6 +641,7 @@ export default function App() {
       const updateData: any = { lastActive: serverTimestamp() };
       
       if (avatarSketch) updateData.avatarSketch = avatarSketch;
+      if (firstAnalysisSketch) updateData.firstAnalysisSketch = firstAnalysisSketch;
       if (baseSketch) updateData.baseSketch = baseSketch;
       if (sketchReferenceImage) updateData.sketchReferenceImage = sketchReferenceImage;
       if (sketchReferenceMimeType) updateData.sketchReferenceMimeType = sketchReferenceMimeType;
@@ -647,7 +650,7 @@ export default function App() {
       setDoc(userRef, updateData, { merge: true })
         .catch(err => console.warn("Failed to sync profile data to user", err));
     }
-  }, [user, !!avatarSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
+  }, [user, !!avatarSketch, !!firstAnalysisSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
 
   // Manage body overflow for full-screen modals - only for actual fixed overlays
   useEffect(() => {
@@ -1229,6 +1232,11 @@ export default function App() {
             studioCreditsRef.current = data.studioCredits || 0;
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
+            if (data.firstAnalysisSketch) {
+              setFirstAnalysisSketch(data.firstAnalysisSketch);
+            } else if (data.avatarSketch) {
+              setFirstAnalysisSketch(data.avatarSketch);
+            }
             if (data.baseSketch) setBaseSketch(data.baseSketch);
             if (data.sketchReferenceImage) {
               setSketchReferenceImage(data.sketchReferenceImage);
@@ -2488,11 +2496,14 @@ export default function App() {
           
           if (styledSketch) {
             setAvatarSketch(styledSketch);
+            setFirstAnalysisSketch(styledSketch);
+            localStorage.setItem('frisurenai_first_analysis_sketch', styledSketch);
             
             if (auth.currentUser) {
               const userRef = doc(db, 'users', auth.currentUser.uid);
               await setDoc(userRef, { 
                 avatarSketch: styledSketch,
+                firstAnalysisSketch: styledSketch,
                 sketchReferenceImage: sourceImageToUse, // Store the reference image used for sketches
                 sketchReferenceMimeType: mimeType,
                 lastActive: serverTimestamp()
@@ -2871,12 +2882,15 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             
             if (styledSketch) {
               setAvatarSketch(styledSketch);
+              setFirstAnalysisSketch(styledSketch);
+              localStorage.setItem('frisurenai_first_analysis_sketch', styledSketch);
               
               // Also persist to DB if user logged in
               if (auth.currentUser) {
                 const userRef = doc(db, 'users', auth.currentUser.uid);
                 setDoc(userRef, { 
                   avatarSketch: styledSketch, 
+                  firstAnalysisSketch: styledSketch,
                   baseSketch: baldSketch,
                   lastActive: serverTimestamp() 
                 }, { merge: true })
@@ -2885,6 +2899,18 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             } else {
               // Fallback to bald if styled fails
               setAvatarSketch(baldSketch);
+              setFirstAnalysisSketch(baldSketch);
+              localStorage.setItem('frisurenai_first_analysis_sketch', baldSketch);
+              if (auth.currentUser) {
+                const userRef = doc(db, 'users', auth.currentUser.uid);
+                setDoc(userRef, { 
+                  avatarSketch: baldSketch, 
+                  firstAnalysisSketch: baldSketch,
+                  baseSketch: baldSketch,
+                  lastActive: serverTimestamp() 
+                }, { merge: true })
+                  .catch(e => console.warn("Failed to persist sketches to Firestore", e));
+              }
             }
           }
         } catch (sketchErr) {
@@ -3094,6 +3120,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setError(null);
     setGenerationProgress(0);
     setAvatarSketch(null);
+    setFirstAnalysisSketch(null);
     setSelectedLibraryStyle(null);
     setSelectedColor(null);
     setShowGallery(false);
@@ -3101,6 +3128,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     // Clear localStorage
     localStorage.removeItem('frisurenai_pending_image');
     localStorage.removeItem('frisurenai_pending_hd_image');
+    localStorage.removeItem('frisurenai_first_analysis_sketch');
   };
 
   const handleCustomTryOn = async () => {
@@ -4340,6 +4368,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         isGenerating={isGenerating}
                         onImageUpload={handleStylingStudioImageUpload}
                         avatarSketch={avatarSketch}
+                        firstAnalysisSketch={firstAnalysisSketch}
                         isPremium={canUseStudio}
                         preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
                         onCategoryChange={setActiveCategory}
