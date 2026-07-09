@@ -306,6 +306,18 @@ export default function App() {
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const isExitingRef = useRef(false);
 
+  // Track modal states in refs so the popstate listeners can access the latest values
+  // without triggering redundant effect cleanup/re-run cycles.
+  const selectedResultRef = useRef(selectedResult);
+  const isFullscreenImageOpenRef = useRef(isFullscreenImageOpen);
+
+  useEffect(() => {
+    selectedResultRef.current = selectedResult;
+    isFullscreenImageOpenRef.current = isFullscreenImageOpen;
+  }, [selectedResult, isFullscreenImageOpen]);
+
+  const isModalActive = !!selectedResult || isFullscreenImageOpen;
+
   // Verlaufssperre (Prevent exits of results page and prompt saving)
   useEffect(() => {
     if (results.length > 0 && !isExitingRef.current) {
@@ -313,7 +325,7 @@ export default function App() {
         if (isExitingRef.current) return;
         
         // If a modal or lightbox is open, handle popstate closing via the dedicated effect
-        if (selectedResult || isFullscreenImageOpen) {
+        if (selectedResultRef.current || isFullscreenImageOpenRef.current) {
           return;
         }
         
@@ -334,23 +346,26 @@ export default function App() {
         window.removeEventListener('popstate', handlePopState);
       };
     }
-  }, [results.length, selectedResult, isFullscreenImageOpen]);
+  }, [results.length]);
 
   // Handle closing detail modal or fullscreen lightbox on browser back click (popstate)
   useEffect(() => {
-    if (selectedResult || isFullscreenImageOpen) {
+    if (isModalActive) {
       // Push a dummy detail state to history so there is something to "go back" from
       window.history.pushState({ isModalOpen: true }, '');
 
       const handlePopState = (e: PopStateEvent) => {
+        const isFullscreen = isFullscreenImageOpenRef.current;
+        const currentResult = selectedResultRef.current;
+
         // If fullscreen is open, close it first
-        if (isFullscreenImageOpen) {
+        if (isFullscreen) {
           setIsFullscreenImageOpen(false);
           // Put the modal state back if the detail modal is still open
-          if (selectedResult) {
+          if (currentResult) {
             window.history.pushState({ isModalOpen: true }, '');
           }
-        } else if (selectedResult) {
+        } else if (currentResult) {
           // Otherwise close the detail modal
           setSelectedResult(null);
         }
@@ -367,7 +382,7 @@ export default function App() {
         }
       };
     }
-  }, [selectedResult, isFullscreenImageOpen]);
+  }, [isModalActive]);
 
   // Synchronize path state with popstate
   useEffect(() => {
