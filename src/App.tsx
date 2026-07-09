@@ -170,7 +170,6 @@ export default function App() {
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportInitialCategory, setSupportInitialCategory] = useState<'general' | 'payment' | 'bug' | 'feedback'>('general');
   const [avatarSketch, setAvatarSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_avatar_sketch'));
-  const [firstAnalysisSketch, setFirstAnalysisSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_first_analysis_sketch'));
   const [baseSketch, setBaseSketch] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_base_sketch'));
   const [sketchReferenceImage, setSketchReferenceImage] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_image'));
   const [sketchReferenceMimeType, setSketchReferenceMimeType] = useState<string | null>(() => localStorage.getItem('frisurenai_pending_sketch_ref_mime'));
@@ -318,66 +317,57 @@ export default function App() {
           return;
         }
         
-        // Block popstate navigation and show confirmation
-        window.history.pushState(null, '');
+        // Push dummy state back onto the stack to lock back behavior
+        window.history.pushState({ isResults: true }, '', window.location.href);
+        
+        // Open custom confirmation dialog
         setShowExitConfirmation(true);
       };
 
-      window.history.pushState(null, '');
-      
-      window.addEventListener('popstate', handlePopState);
+      // Ensure we have a dummy state on top of the stack
+      if (!window.history.state || !window.history.state.isResults) {
+        window.history.pushState({ isResults: true }, '', window.location.href);
+      }
 
+      window.addEventListener('popstate', handlePopState);
       return () => {
         window.removeEventListener('popstate', handlePopState);
       };
     }
   }, [results.length, selectedResult, isFullscreenImageOpen]);
 
-  // Handle closing detail modal on browser back click (popstate)
+  // Handle closing detail modal or fullscreen lightbox on browser back click (popstate)
   useEffect(() => {
-    if (selectedResult) {
-      window.history.pushState({ isDetailModalOpen: true }, '');
+    if (selectedResult || isFullscreenImageOpen) {
+      // Push a dummy detail state to history so there is something to "go back" from
+      window.history.pushState({ isModalOpen: true }, '');
 
       const handlePopState = (e: PopStateEvent) => {
-        if (e.state?.isDetailModalOpen) {
-          return;
+        // If fullscreen is open, close it first
+        if (isFullscreenImageOpen) {
+          setIsFullscreenImageOpen(false);
+          // Put the modal state back if the detail modal is still open
+          if (selectedResult) {
+            window.history.pushState({ isModalOpen: true }, '');
+          }
+        } else if (selectedResult) {
+          // Otherwise close the detail modal
+          setSelectedResult(null);
         }
-        setSelectedResult(null);
       };
 
       window.addEventListener('popstate', handlePopState);
 
       return () => {
         window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.isDetailModalOpen) {
+        // If modal was closed from within the app (e.g. click on X or background),
+        // we must manually pop our pushed history state so the browser back stack remains clean
+        if (window.history.state?.isModalOpen) {
           window.history.back();
         }
       };
     }
-  }, [selectedResult]);
-
-  // Handle closing fullscreen lightbox on browser back click (popstate)
-  useEffect(() => {
-    if (isFullscreenImageOpen) {
-      window.history.pushState({ isLightboxOpen: true }, '');
-
-      const handlePopState = (e: PopStateEvent) => {
-        if (e.state?.isLightboxOpen) {
-          return;
-        }
-        setIsFullscreenImageOpen(false);
-      };
-
-      window.addEventListener('popstate', handlePopState);
-
-      return () => {
-        window.removeEventListener('popstate', handlePopState);
-        if (window.history.state?.isLightboxOpen) {
-          window.history.back();
-        }
-      };
-    }
-  }, [isFullscreenImageOpen]);
+  }, [selectedResult, isFullscreenImageOpen]);
 
   // Synchronize path state with popstate
   useEffect(() => {
@@ -424,7 +414,6 @@ export default function App() {
         }
         if (mimeType) localStorage.setItem('frisurenai_pending_mime_type', mimeType || '');
         if (avatarSketch) localStorage.setItem('frisurenai_pending_avatar_sketch', avatarSketch);
-        if (firstAnalysisSketch) localStorage.setItem('frisurenai_first_analysis_sketch', firstAnalysisSketch);
         if (baseSketch) localStorage.setItem('frisurenai_pending_base_sketch', baseSketch);
         if (sketchReferenceImage) localStorage.setItem('frisurenai_pending_sketch_ref_image', sketchReferenceImage);
         if (sketchReferenceMimeType) localStorage.setItem('frisurenai_pending_sketch_ref_mime', sketchReferenceMimeType || '');
@@ -435,7 +424,7 @@ export default function App() {
     }, 500);
     
     return () => clearTimeout(timeout);
-  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, firstAnalysisSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
+  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
 
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -641,7 +630,6 @@ export default function App() {
       const updateData: any = { lastActive: serverTimestamp() };
       
       if (avatarSketch) updateData.avatarSketch = avatarSketch;
-      if (firstAnalysisSketch) updateData.firstAnalysisSketch = firstAnalysisSketch;
       if (baseSketch) updateData.baseSketch = baseSketch;
       if (sketchReferenceImage) updateData.sketchReferenceImage = sketchReferenceImage;
       if (sketchReferenceMimeType) updateData.sketchReferenceMimeType = sketchReferenceMimeType;
@@ -650,7 +638,7 @@ export default function App() {
       setDoc(userRef, updateData, { merge: true })
         .catch(err => console.warn("Failed to sync profile data to user", err));
     }
-  }, [user, !!avatarSketch, !!firstAnalysisSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
+  }, [user, !!avatarSketch, !!baseSketch, !!sketchReferenceImage, !!faceAnalysis]);
 
   // Manage body overflow for full-screen modals - only for actual fixed overlays
   useEffect(() => {
@@ -1169,10 +1157,8 @@ export default function App() {
         const isStripeSuccess = new URLSearchParams(window.location.search).get('payment') === 'success';
         const hasPendingStudioSelection = localStorage.getItem('frisurenai_pending_studio_selection') !== null;
         const hasPendingCheckout = localStorage.getItem('frisurenai_pending_plan') !== null;
-        const hasPendingResults = localStorage.getItem('frisurenai_pending_results') !== null;
-        const hasActiveImage = localStorage.getItem('frisurenai_pending_image') !== null;
         
-        if (!isStripeSuccess && !hasPendingStudioSelection && !hasPendingCheckout && !hasPendingResults && !hasActiveImage) {
+        if (!isStripeSuccess && !hasPendingStudioSelection && !hasPendingCheckout) {
           console.log("Normal login/load - starting fresh in Styling Studio");
           setImage(null);
           setHdImage(null);
@@ -1232,20 +1218,12 @@ export default function App() {
             studioCreditsRef.current = data.studioCredits || 0;
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
-            if (data.firstAnalysisSketch) {
-              setFirstAnalysisSketch(data.firstAnalysisSketch);
-            } else if (data.avatarSketch) {
-              setFirstAnalysisSketch(data.avatarSketch);
-            }
             if (data.baseSketch) setBaseSketch(data.baseSketch);
             if (data.sketchReferenceImage) {
               setSketchReferenceImage(data.sketchReferenceImage);
-              setImage(prev => prev || data.sketchReferenceImage || null);
-              setHdImage(prev => prev || data.sketchReferenceImage || null);
             }
             if (data.sketchReferenceMimeType) {
               setSketchReferenceMimeType(data.sketchReferenceMimeType);
-              setMimeType(prev => prev || data.sketchReferenceMimeType || '');
             }
             if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
           }
@@ -1299,18 +1277,6 @@ export default function App() {
           const sorted = docs.sort((a, b) => {
             const timeA = (a as any).createdAt?.seconds || 0;
             const timeB = (b as any).createdAt?.seconds || 0;
-            
-            // If they are from the same batch (within 15 seconds) and both are suggestions, sort by index ascending
-            if (Math.abs(timeA - timeB) < 15) {
-              const partsA = a.id.split('-');
-              const partsB = b.id.split('-');
-              const idxA = parseInt(partsA[partsA.length - 1], 10);
-              const idxB = parseInt(partsB[partsB.length - 1], 10);
-              if (!isNaN(idxA) && !isNaN(idxB)) {
-                return idxA - idxB;
-              }
-            }
-            
             return timeB - timeA;
           });
           setSavedResults(sorted as GeneratedResult[]);
@@ -1328,9 +1294,6 @@ export default function App() {
         setIsPremium(false);
         setUserPlan(null);
         setUserData(null);
-        setAvatarSketch(null);
-        setFirstAnalysisSketch(null);
-        setBaseSketch(null);
       }
     });
 
@@ -1775,100 +1738,25 @@ export default function App() {
 
         if (allPending.length === 0) return;
 
-        // Pre-compress the shared source image once to avoid duplicate canvas operations across all 9 parallel writes
-        let compressedSourceImage: string | undefined = undefined;
-        const firstWithSource = allPending.find(r => r.sourceImageUrl && r.sourceImageUrl.startsWith('data:image'));
-        if (firstWithSource && firstWithSource.sourceImageUrl) {
+        console.log(`Syncing ${allPending.length} results to Firestore sequentially...`);
+        
+        // Save each one sequentially to ensure stability and wait for state updates
+        for (const result of allPending) {
+          savingIdsRef.current.set(result.id, result.imageUrl || null);
           try {
-            console.log("Pre-compressing shared source image once for all pending parallel writes...");
-            const mimeType = firstWithSource.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-            compressedSourceImage = await cachedCompressBase64Image(firstWithSource.sourceImageUrl, mimeType, 100000);
-            console.log(`Shared source image pre-compression successful. Size: ${Math.round(compressedSourceImage.length / 1024)}KB`);
-          } catch (compressErr) {
-            console.warn("Shared source image pre-compression failed", compressErr);
+            await saveResult(result, true);
+            console.log(`Synced look ${result.id} to user history`);
+          } catch (err) {
+            console.warn(`Sync failed for look ${result.id}`, err);
+            // If it failed, remove from active flight tracker so it can be retried
+            savingIdsRef.current.delete(result.id);
           }
         }
-
-        console.log(`Syncing ${allPending.length} results to Firestore in parallel...`);
-        
-        // Save each pending result in parallel for instant synchronization
-        await Promise.all(
-          allPending.map(async (result) => {
-            const resultToSave = { ...result };
-            if (compressedSourceImage && resultToSave.sourceImageUrl && resultToSave.sourceImageUrl.startsWith('data:image')) {
-              resultToSave.sourceImageUrl = compressedSourceImage;
-            }
-
-            savingIdsRef.current.set(result.id, result.imageUrl || null);
-            try {
-              await saveResult(resultToSave, true);
-              console.log(`Synced look ${result.id} to user history`);
-            } catch (err) {
-              console.warn(`Sync failed for look ${result.id}`, err);
-              // If it failed, remove from active flight tracker so it can be retried
-              savingIdsRef.current.delete(result.id);
-            }
-          })
-        );
       };
 
       syncResults();
     }
   }, [user, results, customResults]);
-
-  // Restore the primary results and custom results from savedResults on load/refresh if states are empty
-  useEffect(() => {
-    if (user && savedResults.length > 0) {
-      if (results.length === 0) {
-        // Standard analysis results have IDs like 'style-0', 'style-1', etc.
-        const standardSuggestions = savedResults
-          .filter(r => r.id.startsWith('style-'))
-          .sort((a, b) => {
-            const idxA = parseInt(a.id.split('-').pop() || '0', 10);
-            const idxB = parseInt(b.id.split('-').pop() || '0', 10);
-            return idxA - idxB;
-          });
-
-        if (standardSuggestions.length > 0) {
-          console.log(`Restoring primary results from Firestore saved history: ${standardSuggestions.length} items`);
-          setResults(standardSuggestions);
-          
-          if (!selectedResult) {
-            setSelectedResult(standardSuggestions[0]);
-          }
-
-          // Also restore image and hdImage from the first result's source image if they are null
-          const firstSourceImage = standardSuggestions[0]?.sourceImageUrl;
-          if (firstSourceImage) {
-            if (!image) {
-              console.log("Restoring main image from saved result history");
-              setImage(firstSourceImage);
-            }
-            if (!hdImage) {
-              setHdImage(firstSourceImage);
-            }
-          }
-        }
-      }
-
-      if (customResults.length === 0) {
-        // Custom results start with 'custom-' or 'studio-'
-        const savedCustoms = savedResults
-          .filter(r => r.id.startsWith('custom-') || r.id.startsWith('studio-'))
-          .sort((a, b) => {
-            // Sort by creation time if available
-            const timeA = (a as any).createdAt?.seconds || 0;
-            const timeB = (b as any).createdAt?.seconds || 0;
-            return timeB - timeA; // Descending order (newest first)
-          });
-          
-        if (savedCustoms.length > 0) {
-          console.log(`Restoring custom results from Firestore saved history: ${savedCustoms.length} items`);
-          setCustomResults(savedCustoms);
-        }
-      }
-    }
-  }, [user, savedResults, results.length, customResults.length]);
 
   useEffect(() => {
     if (results.length > 0 && !isPremium) {
@@ -2396,13 +2284,6 @@ export default function App() {
     }
   };
 
-  const isSuggestionFreeIndex = (id: string) => {
-    const parts = id.split('-');
-    const lastPart = parts[parts.length - 1];
-    const index = parseInt(lastPart, 10);
-    return !isNaN(index) && index < 3;
-  };
-
   const isResultSaved = (id: string, imageUrl?: string | null) => {
     const saved = savedResults.find(r => r.id === id);
     if (!saved) return false;
@@ -2577,14 +2458,11 @@ export default function App() {
           
           if (styledSketch) {
             setAvatarSketch(styledSketch);
-            setFirstAnalysisSketch(styledSketch);
-            localStorage.setItem('frisurenai_first_analysis_sketch', styledSketch);
             
             if (auth.currentUser) {
               const userRef = doc(db, 'users', auth.currentUser.uid);
               await setDoc(userRef, { 
                 avatarSketch: styledSketch,
-                firstAnalysisSketch: styledSketch,
                 sketchReferenceImage: sourceImageToUse, // Store the reference image used for sketches
                 sketchReferenceMimeType: mimeType,
                 lastActive: serverTimestamp()
@@ -2751,8 +2629,7 @@ export default function App() {
       return;
     }
 
-    const isFree = isSuggestionFreeIndex(result.id);
-    if (!isPremium && userPlan !== 'single' && !isFree) {
+    if (!isPremium && userPlan !== 'single') {
        handleShowPricing('general');
        return;
     }
@@ -2963,15 +2840,12 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             
             if (styledSketch) {
               setAvatarSketch(styledSketch);
-              setFirstAnalysisSketch(styledSketch);
-              localStorage.setItem('frisurenai_first_analysis_sketch', styledSketch);
               
               // Also persist to DB if user logged in
               if (auth.currentUser) {
                 const userRef = doc(db, 'users', auth.currentUser.uid);
                 setDoc(userRef, { 
                   avatarSketch: styledSketch, 
-                  firstAnalysisSketch: styledSketch,
                   baseSketch: baldSketch,
                   lastActive: serverTimestamp() 
                 }, { merge: true })
@@ -2980,18 +2854,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             } else {
               // Fallback to bald if styled fails
               setAvatarSketch(baldSketch);
-              setFirstAnalysisSketch(baldSketch);
-              localStorage.setItem('frisurenai_first_analysis_sketch', baldSketch);
-              if (auth.currentUser) {
-                const userRef = doc(db, 'users', auth.currentUser.uid);
-                setDoc(userRef, { 
-                  avatarSketch: baldSketch, 
-                  firstAnalysisSketch: baldSketch,
-                  baseSketch: baldSketch,
-                  lastActive: serverTimestamp() 
-                }, { merge: true })
-                  .catch(e => console.warn("Failed to persist sketches to Firestore", e));
-              }
             }
           }
         } catch (sketchErr) {
@@ -3034,7 +2896,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setMimeType(type);
     
     // Check if there is an existing sketch in state, Firestore or cached guest state from the first analysis
-    const existingAvatarSketch = firstAnalysisSketch || avatarSketch || userData?.firstAnalysisSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_first_analysis_sketch') || localStorage.getItem('frisurenai_pending_avatar_sketch');
+    const existingAvatarSketch = avatarSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
     const existingBaseSketch = baseSketch || userData?.baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
     
     // Detect mobile to optimize memory impact and network payload.
@@ -3055,7 +2917,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     if (existingAvatarSketch) {
       console.log("Preserving original first-analysis sketch in Styling Studio. Skipping sketch regeneration.");
       setAvatarSketch(existingAvatarSketch);
-      setFirstAnalysisSketch(existingAvatarSketch);
       if (existingBaseSketch) setBaseSketch(existingBaseSketch);
       
       if (auth.currentUser) {
@@ -3145,31 +3006,12 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         updatedAt: serverTimestamp()
       };
       
-      let imgToUse = overrideValues?.image !== undefined ? overrideValues.image : image;
-      let hdToUse = overrideValues?.hdImage !== undefined ? overrideValues.hdImage : hdImage;
+      const imgToUse = overrideValues?.image !== undefined ? overrideValues.image : image;
+      const hdToUse = overrideValues?.hdImage !== undefined ? overrideValues.hdImage : hdImage;
       const mimeToUse = overrideValues?.mimeType !== undefined ? overrideValues.mimeType : mimeType;
       const avatarSketchToUse = overrideValues?.avatarSketch !== undefined ? overrideValues.avatarSketch : avatarSketch;
       const baseSketchToUse = overrideValues?.baseSketch !== undefined ? overrideValues.baseSketch : baseSketch;
       
-      // Compress draft images to stay under the Firestore 1MB document size limit
-      if (hdToUse && hdToUse.startsWith('data:image')) {
-        try {
-          const type = mimeToUse || hdToUse.split(';')[0].split(':')[1] || 'image/jpeg';
-          hdToUse = await cachedCompressBase64Image(hdToUse, type, 300000); // max 300KB
-        } catch (e) {
-          console.warn("Failed to compress HD draft image before save", e);
-        }
-      }
-
-      if (imgToUse && imgToUse.startsWith('data:image')) {
-        try {
-          const type = mimeToUse || imgToUse.split(';')[0].split(':')[1] || 'image/jpeg';
-          imgToUse = await cachedCompressBase64Image(imgToUse, type, 150000); // max 150KB
-        } catch (e) {
-          console.warn("Failed to compress draft image before save", e);
-        }
-      }
-
       if (hdToUse) draftData.hdImage = hdToUse;
       if (imgToUse) draftData.image = imgToUse;
       if (mimeToUse) draftData.mimeType = mimeToUse;
@@ -4467,7 +4309,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         isGenerating={isGenerating}
                         onImageUpload={handleStylingStudioImageUpload}
                         avatarSketch={avatarSketch}
-                        firstAnalysisSketch={firstAnalysisSketch}
                         isPremium={canUseStudio}
                         preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
                         onCategoryChange={setActiveCategory}
@@ -4532,7 +4373,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                         <p className="text-sm font-bold text-brand-primary leading-tight line-clamp-2">{result.name}</p>
                                       </div>
                                       
-                                      {(isPremium || userPlan === 'single' || isSuggestionFreeIndex(result.id)) ? (
+                                      {(isPremium || userPlan === 'single') ? (
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation();

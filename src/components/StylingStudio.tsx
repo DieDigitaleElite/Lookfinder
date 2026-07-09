@@ -32,7 +32,6 @@ interface StylingStudioProps {
   isGenerating: boolean;
   onImageUpload: (image: string, mimeType: string) => void;
   avatarSketch?: string | null;
-  firstAnalysisSketch?: string | null;
   isPremium?: boolean;
   preGeneratedSketches?: Record<string, string>;
   isPremiumFetching?: boolean;
@@ -54,7 +53,6 @@ export default function StylingStudio({
   isGenerating, 
   onImageUpload,
   avatarSketch,
-  firstAnalysisSketch,
   isPremium = false,
   preGeneratedSketches = {},
   isGeneratingBackground = false,
@@ -200,23 +198,15 @@ export default function StylingStudio({
           
           {/* Header */}
           <header className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center gap-8 pb-8 border-b border-black/5">
-              {(firstAnalysisSketch || avatarSketch) && (
-                <div className="relative shrink-0 group">
-                  {/* Decorative soft glowing back shadow */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-[#FF9EBE] to-[#FF9EBE]/40 rounded-[2.2rem] blur-xl opacity-35 group-hover:opacity-50 transition-opacity duration-500" />
-                  
-                  {/* Outer premium dual-bordered image container */}
-                  <div className="relative w-36 h-36 md:w-48 md:h-48 p-1 bg-gradient-to-tr from-[#FF9EBE] via-black/10 to-[#FF9EBE] rounded-[2.2rem] shadow-2xl bg-white flex items-center justify-center transition-all duration-500 hover:scale-[1.03] hover:shadow-3xl">
-                    <div className="w-full h-full rounded-[1.9rem] overflow-hidden bg-gradient-to-b from-white to-neutral-50 relative flex items-center justify-center border border-white/40">
-                      <img 
-                        src={firstAnalysisSketch || avatarSketch || undefined} 
-                        alt="Deine Erstanalyse" 
-                        className="w-full h-full object-cover animate-fade-in group-hover:scale-105 transition-transform duration-700" 
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  </div>
+            <div className="flex flex-col md:flex-row md:items-center gap-6 pb-6 border-b border-black/5">
+              {avatarSketch && (
+                <div className="w-24 h-24 md:w-32 md:h-32 rounded-3xl border-2 border-black/10 shadow-md overflow-hidden bg-white shrink-0 flex items-center justify-center transition-all duration-300 hover:scale-[1.03]">
+                  <img 
+                    src={avatarSketch} 
+                    alt="Deine Erstanalyse" 
+                    className="w-full h-full object-cover animate-fade-in" 
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
               )}
               <div className="space-y-2">
