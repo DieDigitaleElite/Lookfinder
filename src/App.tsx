@@ -641,6 +641,12 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
+      // Only write to Firestore if we have actual state to write!
+      // If all fields are null/empty, do NOT write to Firestore on page load!
+      if (!avatarSketch && !baseSketch && !sketchReferenceImage && !faceAnalysis) {
+        return;
+      }
+
       const userRef = doc(db, 'users', user.uid);
       const updateData: any = { lastActive: serverTimestamp() };
       
@@ -1950,7 +1956,49 @@ export default function App() {
           setTimeout(() => setShowLoginModal(false), 4000);
         }
       } else {
-        await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+        const userCredential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
+        const loggedInUser = userCredential.user;
+        
+        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
+        try {
+          const userRef = doc(db, 'users', loggedInUser.uid);
+          const userSnap = await getDoc(userRef);
+          
+          const userDataToMerge: any = {
+            uid: loggedInUser.uid,
+            email: loggedInUser.email,
+            lastLogin: serverTimestamp(),
+          };
+
+          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+          let currentFaceAnalysis = faceAnalysis;
+          if (!currentFaceAnalysis) {
+            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+            if (savedAnalysis) {
+              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+            }
+          }
+
+          if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
+          if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
+          if (currentSketchRefImage) userDataToMerge.sketchReferenceImage = currentSketchRefImage;
+          if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
+          if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
+
+          if (!userSnap.exists()) {
+            userDataToMerge.createdAt = serverTimestamp();
+            userDataToMerge.isPremium = false;
+            await setDoc(userRef, userDataToMerge, { merge: true });
+          } else {
+            await setDoc(userRef, userDataToMerge, { merge: true });
+          }
+        } catch (dbErr) {
+          console.error("Failed to sync/merge user profile to Firestore on email login", dbErr);
+        }
+
         // Track Login
         trackEvent('login', 'Auth', 'Email');
         setShowLoginModal(false);
