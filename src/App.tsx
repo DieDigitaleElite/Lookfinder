@@ -2911,8 +2911,25 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     setMimeType(type);
     
     // Check if there is an existing sketch in state, Firestore or cached guest state from the first analysis
-    const existingAvatarSketch = avatarSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-    const existingBaseSketch = baseSketch || userData?.baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+    let dbAvatarSketch: string | null = null;
+    let dbBaseSketch: string | null = null;
+    
+    if (auth.currentUser) {
+      try {
+        const userDocRef = doc(db, 'users', auth.currentUser.uid);
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.avatarSketch) dbAvatarSketch = data.avatarSketch;
+          if (data.baseSketch) dbBaseSketch = data.baseSketch;
+        }
+      } catch (e) {
+        console.warn("Direct fetch of user sketch failed", e);
+      }
+    }
+
+    const existingAvatarSketch = avatarSketch || dbAvatarSketch || userData?.avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+    const existingBaseSketch = baseSketch || dbBaseSketch || userData?.baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
     
     // Detect mobile to optimize memory impact and network payload.
     // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
@@ -3054,8 +3071,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         if (data.hdImage) setHdImage(data.hdImage);
         if (data.image) setImage(data.image);
         if (data.mimeType) setMimeType(data.mimeType);
-        if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
-        if (data.baseSketch) setBaseSketch(data.baseSketch);
+        // Do NOT load or overwrite first-analysis sketches from the studio draft document!
+        // These must always come from the canonical user profile document.
+        // if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
+        // if (data.baseSketch) setBaseSketch(data.baseSketch);
         if (data.sketchReferenceImage) setSketchReferenceImage(data.sketchReferenceImage);
         if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
         if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
@@ -6272,7 +6291,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               className="relative w-full max-w-5xl bg-white rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto"
             >
               <div 
-                onClick={() => setIsFullscreenImageOpen(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFullscreenImageOpen(true);
+                }}
                 className="w-full md:w-1/2 h-64 md:h-auto relative cursor-zoom-in group/img overflow-hidden bg-black/5"
               >
                 <img 
