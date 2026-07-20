@@ -6715,29 +6715,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   </motion.div>
                 )}
 
-                {!isForgotPassword && (
-                  <div className="grid grid-cols-1 gap-3">
-                    <button 
-                      onClick={handleLogin}
-                      disabled={authLoading}
-                      className="flex items-center justify-center gap-3 w-full py-3 px-4 bg-white border border-black/10 rounded-xl font-medium hover:bg-black/5 transition-all disabled:opacity-50"
-                    >
-                      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                      Mit Google fortfahren
-                    </button>
-                  </div>
-                )}
 
-                {!isForgotPassword && (
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-black/5"></div>
-                    </div>
-                    <div className="relative flex justify-center text-xs uppercase tracking-widest">
-                      <span className="bg-white px-4 text-brand-primary/30">oder mit E-Mail</span>
-                    </div>
-                  </div>
-                )}
 
                 <form onSubmit={handleEmailAuth} className="space-y-4">
                   {isRegistering && !isForgotPassword && (
