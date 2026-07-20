@@ -305,6 +305,7 @@ export default function App() {
 
   const [showExitConfirmation, setShowExitConfirmation] = useState(false);
   const isExitingRef = useRef(false);
+  const isCleaningUpModalHistoryRef = useRef(false);
 
   // Track modal states in refs so the popstate listeners can access the latest values
   // without triggering redundant effect cleanup/re-run cycles.
@@ -324,6 +325,12 @@ export default function App() {
       const handlePopState = (event: PopStateEvent) => {
         if (isExitingRef.current) return;
         
+        // If we are currently cleaning up modal history state, skip warning
+        if (isCleaningUpModalHistoryRef.current) {
+          isCleaningUpModalHistoryRef.current = false;
+          return;
+        }
+
         // If a modal or lightbox is open, handle popstate closing via the dedicated effect
         if (selectedResultRef.current || isFullscreenImageOpenRef.current) {
           return;
@@ -378,6 +385,7 @@ export default function App() {
         // If modal was closed from within the app (e.g. click on X or background),
         // we must manually pop our pushed history state so the browser back stack remains clean
         if (window.history.state?.isModalOpen) {
+          isCleaningUpModalHistoryRef.current = true;
           window.history.back();
         }
       };
