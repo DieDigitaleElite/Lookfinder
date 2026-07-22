@@ -482,22 +482,66 @@ app.post("/api/webhook/stripe", async (req, res) => {
 app.get("/api/subscription-status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
+    const email = req.query.email as string | undefined;
     const stripeClient = getStripe();
     
-    // Search for subscriptions that are either active or trialing for this user
-    let searchResult = await stripeClient.subscriptions.search({
-      query: `metadata['userId']:'${userId}' AND (status:'active' OR status:'trialing')`,
-    });
+    let sub: Stripe.Subscription | null = null;
 
-    let sub = searchResult.data.length > 0 ? searchResult.data[0] : null;
+    // 1. Search for subscriptions by metadata userId
+    try {
+      const searchResult = await stripeClient.subscriptions.search({
+        query: `metadata['userId']:'${userId}' AND (status:'active' OR status:'trialing')`,
+      });
+      if (searchResult.data.length > 0) {
+        sub = searchResult.data[0];
+      }
+    } catch (searchErr) {
+      console.warn("Stripe subscription search failed, falling back to list:", searchErr);
+    }
 
+    // 2. Fallback: list active subscriptions and check metadata
     if (!sub) {
-      // Fallback: list active subscriptions and check metadata
       const activeSubs = await stripeClient.subscriptions.list({
         status: 'active',
-        limit: 50,
+        limit: 100,
       });
       sub = activeSubs.data.find(s => s.metadata?.userId === userId) || null;
+    }
+
+    // 3. Fallback by Email: Search Stripe customers by email and check their active subscriptions
+    if (!sub && email) {
+      try {
+        const customers = await stripeClient.customers.list({
+          email: email.trim().toLowerCase(),
+          limit: 10,
+        });
+
+        for (const customer of customers.data) {
+          const customerSubs = await stripeClient.subscriptions.list({
+            customer: customer.id,
+            status: 'active',
+            limit: 5,
+          });
+
+          if (customerSubs.data.length > 0) {
+            sub = customerSubs.data[0];
+            // Link this subscription to the userId in Stripe metadata for future fast lookup
+            try {
+              await stripeClient.subscriptions.update(sub.id, {
+                metadata: {
+                  ...sub.metadata,
+                  userId: userId,
+                },
+              });
+            } catch (updateErr) {
+              console.warn("Failed to update subscription metadata with userId:", updateErr);
+            }
+            break;
+          }
+        }
+      } catch (emailErr) {
+        console.warn("Error searching customer by email in Stripe:", emailErr);
+      }
     }
 
     if (!sub) {

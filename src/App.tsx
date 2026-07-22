@@ -460,7 +460,8 @@ export default function App() {
   const fetchSubscriptionStatus = async () => {
     if (!user) return;
     try {
-      const response = await fetch(`/api/subscription-status/${user.uid}`);
+      const emailParam = user.email ? `?email=${encodeURIComponent(user.email)}` : '';
+      const response = await fetch(`/api/subscription-status/${user.uid}${emailParam}`);
       if (response.ok) {
         const data = await response.json();
         setSubscriptionStatus(data);
