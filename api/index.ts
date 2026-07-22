@@ -424,6 +424,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
       allow_promotion_codes: true,
       customer_email: email || undefined,
       client_reference_id: userId,
+      subscription_data: mode === 'subscription' ? { metadata: { userId, plan: plan || 'monthly' } } : undefined,
       success_url: `${baseUrl}/?payment=success&plan=${plan || 'single'}&uid=${userId}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/?payment=cancel`,
       metadata: { userId, plan: plan || 'single' },
@@ -436,31 +437,82 @@ app.post("/api/create-checkout-session", async (req, res) => {
   }
 });
 
+app.post("/api/webhook/stripe", async (req, res) => {
+  const stripeClient = getStripe();
+  const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  let event = req.body;
+
+  if (endpointSecret) {
+    const sig = req.headers["stripe-signature"];
+    try {
+      if (typeof req.body === "string" || Buffer.isBuffer(req.body)) {
+        event = stripeClient.webhooks.constructEvent(req.body, sig as string, endpointSecret);
+      } else {
+        event = stripeClient.webhooks.constructEvent(JSON.stringify(req.body), sig as string, endpointSecret);
+      }
+    } catch (err: any) {
+      console.error("Webhook signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+  }
+
+  console.log("Received Stripe Webhook Event:", event?.type);
+
+  try {
+    switch (event?.type) {
+      case "invoice.payment_succeeded": {
+        const invoice = event.data.object as Stripe.Invoice;
+        console.log("Invoice payment succeeded for customer:", invoice.customer, "subscription:", invoice.subscription);
+        break;
+      }
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        console.log("Subscription status updated:", subscription.id, "status:", subscription.status);
+        break;
+      }
+    }
+  } catch (err) {
+    console.error("Error processing Stripe webhook event:", err);
+  }
+
+  res.json({ received: true });
+});
+
 app.get("/api/subscription-status/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
     const stripeClient = getStripe();
     
     // Search for subscriptions that are either active or trialing for this user
-    // Subscriptions that are 'active' but 'cancel_at_period_end' are still returned here
-    const searchResult = await stripeClient.subscriptions.search({
+    let searchResult = await stripeClient.subscriptions.search({
       query: `metadata['userId']:'${userId}' AND (status:'active' OR status:'trialing')`,
     });
 
-    if (searchResult.data.length === 0) {
+    let sub = searchResult.data.length > 0 ? searchResult.data[0] : null;
+
+    if (!sub) {
+      // Fallback: list active subscriptions and check metadata
+      const activeSubs = await stripeClient.subscriptions.list({
+        status: 'active',
+        limit: 50,
+      });
+      sub = activeSubs.data.find(s => s.metadata?.userId === userId) || null;
+    }
+
+    if (!sub) {
       return res.json({ 
         active: false,
         status: 'none'
       });
     }
 
-    const sub = searchResult.data[0];
     res.json({
       active: true,
       id: sub.id,
       cancel_at_period_end: sub.cancel_at_period_end,
       current_period_end: sub.current_period_end,
-      plan: sub.metadata.plan || 'monthly',
+      plan: sub.metadata?.plan || 'monthly',
       status: sub.status
     });
   } catch (error: any) {

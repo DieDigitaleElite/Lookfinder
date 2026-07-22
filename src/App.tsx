@@ -465,17 +465,25 @@ export default function App() {
         const data = await response.json();
         setSubscriptionStatus(data);
 
-        // LAZY SYNC: If backend says subscription is NOT active, but frontend thinks user is Pro (monthly/yearly),
-        // we must downgrade them in Firestore.
-        if (!data.active && isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) {
+        // SYNC & EXTEND: If Stripe reports an active subscription, ensure Firestore premium status and expiry date are up-to-date with Stripe's current_period_end
+        if (data.active && data.current_period_end) {
+          const stripeExpiryDate = new Date(data.current_period_end * 1000);
+          console.log("Stripe active subscription verified. Period ends at:", stripeExpiryDate);
+
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, {
+            isPremium: true,
+            plan: data.plan || userPlan || 'monthly',
+            premiumExpiresAt: Timestamp.fromDate(stripeExpiryDate)
+          }).catch(err => console.warn("Failed to auto-extend subscription in Firestore:", err));
+        } else if (!data.active && isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) {
           console.log("Lazy Sync: Downgrading user as subscription is no longer active in Stripe");
           const userDocRef = doc(db, 'users', user.uid);
           await updateDoc(userDocRef, {
             isPremium: false,
             plan: null,
             premiumExpiresAt: null
-          });
-          // State will be updated via the onSnapshot listener in App.tsx
+          }).catch(err => console.warn("Failed to downgrade user in Firestore:", err));
         }
       }
     } catch (err) {
@@ -484,10 +492,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (dashboardTab === 'account' && isPremium && (userPlan === 'monthly' || userPlan === 'yearly')) {
+    if (user) {
       fetchSubscriptionStatus();
     }
-  }, [dashboardTab, isPremium, userPlan]);
+  }, [user, dashboardTab]);
 
   // Handle post-login redirects
   useEffect(() => {
