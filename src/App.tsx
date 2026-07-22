@@ -5639,6 +5639,51 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                           {result.suitabilityReason}
                         </p>
                       </div>
+                      {index === 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-3 p-4 bg-gradient-to-br from-[#FF9EBE]/15 via-pink-50 to-amber-50/50 rounded-2xl border border-[#FF9EBE]/30 space-y-2 shadow-sm"
+                        >
+                          <div className="flex items-center gap-1.5 text-[#FF9EBE] text-xs font-black uppercase tracking-wider">
+                            <Sparkles size={14} className="animate-pulse" />
+                            <span>KI-Analyse-Empfehlung ✨</span>
+                          </div>
+                          <p className="text-xs text-brand-primary/90 font-medium leading-relaxed">
+                            <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 2 weitere perfekt abgestimmte Styles – darunter ein echter Hingucker-Kurzhaarschnitt.
+                          </p>
+                          {!user ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setIsRegistering(true);
+                                setShowLoginModal(true);
+                              }}
+                              className="w-full mt-2 py-2.5 px-3 bg-[#FF9EBE] hover:bg-[#FF9EBE]/90 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                            >
+                              <Sparkles size={13} />
+                              <span>Kostenlos anmelden & weitere Looks ansehen</span>
+                              <ChevronRight size={13} />
+                            </button>
+                          ) : !results[1]?.imageUrl ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (results[1]) {
+                                  handleGenerateLockedResult(results[1], 1);
+                                }
+                              }}
+                              className="w-full mt-2 py-2.5 px-3 bg-[#FF9EBE] hover:bg-[#FF9EBE]/90 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                            >
+                              <Sparkles size={13} />
+                              <span>2. Gratis-Look jetzt erstellen</span>
+                              <ChevronRight size={13} />
+                            </button>
+                          ) : null}
+                        </motion.div>
+                      )}
                     </motion.div>
                   </React.Fragment>
                 );
