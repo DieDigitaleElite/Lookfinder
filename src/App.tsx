@@ -2518,7 +2518,7 @@ export default function App() {
       // Initialize results with suggestions but no images yet to show placeholders
       setResults(suggestions.map(s => ({ ...s, imageUrl: null, sourceImageUrl: sourceImageToUse })));
 
-      const maxToGenerate = isPremium ? suggestions.length : 3;
+      const maxToGenerate = isPremium ? suggestions.length : 1;
       
       // Teaser sketch generator - will be executed after the main images to prevent API overlap
       const generateTeaserSketch = async () => {
@@ -2694,13 +2694,17 @@ export default function App() {
     }
   };
 
-  const handleGenerateLockedResult = async (result: GeneratedResult) => {
+  const handleGenerateLockedResult = async (result: GeneratedResult, index?: number) => {
     if (!user) {
+      setIsRegistering(true);
       setShowLoginModal(true);
       return;
     }
 
-    if (!isPremium && userPlan !== 'single') {
+    const resultIdx = typeof index === 'number' ? index : results.findIndex(r => r.id === result.id);
+    const isFreeSlot = resultIdx !== -1 ? resultIdx < 3 : false;
+
+    if (!isFreeSlot && !isPremium && userPlan !== 'single') {
        handleShowPricing('general');
        return;
     }
@@ -4463,17 +4467,17 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                         <p className="text-sm font-bold text-brand-primary leading-tight line-clamp-2">{result.name}</p>
                                       </div>
                                       
-                                      {(isPremium || userPlan === 'single') ? (
+                                      {(isPremium || userPlan === 'single' || index < 3) ? (
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            handleGenerateLockedResult(result);
+                                            handleGenerateLockedResult(result, index);
                                           }}
                                           disabled={isGenerating}
                                           className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
                                         >
                                           {generatingResultId === result.id ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
-                                          Bild erstellen
+                                          {index < 3 ? "Gratis-Look erstellen" : "Bild erstellen"}
                                         </button>
                                       ) : (
                                         <button 
@@ -5202,8 +5206,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {results.map((result, index) => {
+                  const isFreeSlot = index < 3;
                   const isLocked = !isPremium && index >= 3;
-                  const isBlurred = false; // Disabled blurred look for better performance
+                  const needsFreeGeneration = isFreeSlot && index > 0 && !result.imageUrl;
                   
                   return (
                     <React.Fragment key={result.id}>
@@ -5417,142 +5422,170 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.1 }}
                         onClick={() => {
-                          if (isLocked || isBlurred) {
+                          if (isLocked) {
                             setShowPricingModal(true);
+                          } else if (needsFreeGeneration) {
+                            if (!user) {
+                              setIsRegistering(true);
+                              setShowLoginModal(true);
+                            } else {
+                              handleGenerateLockedResult(result, index);
+                            }
                           } else if (result.imageUrl) {
                             setSelectedResult(result);
                           }
                         }}
-                        className={`group space-y-4 ${result.imageUrl ? 'cursor-pointer' : 'cursor-wait'} relative`}
+                        className={`group space-y-4 ${result.imageUrl ? 'cursor-pointer' : 'cursor-pointer'} relative`}
                       >
                       <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-lg relative bg-black/5">
-                        {result.imageUrl || isLocked ? (
+                        {result.imageUrl ? (
                           <>
                             <img 
-                              src={result.imageUrl || `https://picsum.photos/seed/hairstyle-${index}/600/800?blur=10`} 
+                              src={result.imageUrl} 
                               alt={result.name} 
-                              className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${isLocked ? 'blur-2xl grayscale' : isBlurred ? 'blur-md' : ''}`} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                               referrerPolicy="no-referrer"
                             />
-                            
-                            {/* Conversion Badges for Locked/Blurred Styles */}
-                            {isLocked && index === 3 && (
+                            <div className="absolute top-4 left-4 flex gap-2">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownload(result.imageUrl!, result.name);
+                                }}
+                                className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-brand-primary hover:text-[#FF9EBE] shadow-sm transition-colors"
+                                title="Bild herunterladen"
+                              >
+                                <Download size={18} />
+                              </button>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  saveResult(result);
+                                }}
+                                disabled={isSaving === result.id}
+                                className={`w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm transition-colors ${isResultSaved(result.id) ? 'text-[#FF9EBE]' : 'text-brand-primary hover:text-[#FF9EBE]'}`}
+                                title={isResultSaved(result.id) ? "Gespeichert" : "Look speichern"}
+                              >
+                                {isSaving === result.id ? <Loader2 className="animate-spin" size={18} /> : isResultSaved(result.id) ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+                              </button>
+                            </div>
+                            <div 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedEnhancerId(expandedEnhancerId === result.id ? null : result.id);
+                              }}
+                              className={`absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden cursor-pointer ${expandedEnhancerId === result.id ? 'pr-3' : 'group-hover:pr-3'}`}
+                            >
+                              <div className="flex items-center gap-1 px-3 py-1 shrink-0">
+                                <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
+                                <span className="text-sm font-bold">{result.rating}% Match</span>
+                              </div>
+                              {result.emotionalEnhancer && (
+                                <div className={`flex items-center transition-all duration-500 ease-in-out ${expandedEnhancerId === result.id ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100'}`}>
+                                  <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
+                                  <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
+                              <span className="text-white font-medium flex items-center gap-2">
+                                Details ansehen <ChevronRight size={16} />
+                              </span>
+                            </div>
+                          </>
+                        ) : isLocked ? (
+                          <>
+                            <img 
+                              src={`https://picsum.photos/seed/hairstyle-${index}/600/800?blur=10`} 
+                              alt={result.name} 
+                              className="w-full h-full object-cover blur-2xl grayscale" 
+                              referrerPolicy="no-referrer"
+                            />
+                            {/* Conversion Badges for Locked Premium Styles */}
+                            {index === 3 && (
                               <div className="absolute top-4 left-4 bg-[#FF9EBE] text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10 animate-bounce">
                                 KI-FAVORIT (98% MATCH) ★
                               </div>
                             )}
-                            {isLocked && index === 5 && (
+                            {index === 5 && (
                               <div className="absolute top-4 left-4 bg-blue-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
                                 TOP-BEWERTUNG (98% Match) ⭐
                               </div>
                             )}
-                            {isLocked && index === 6 && (
+                            {index === 6 && (
                               <div className="absolute top-4 left-4 bg-purple-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
                                 TREND 2026 🔥
                               </div>
                             )}
-                            {isBlurred && (
-                              <div className="absolute top-4 left-4 bg-amber-500 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
-                                DEIN GEHEIM-TIPP ✨
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/40 backdrop-blur-sm">
+                              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-4">
+                                <Lock size={32} />
                               </div>
-                            )}
-                            
-                            {isLocked ? (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/40 backdrop-blur-sm">
-                                <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-4">
-                                  <Lock size={32} />
-                                </div>
-                                <h4 className="text-white font-bold text-xl mb-2">Premium Look</h4>
-                                <p className="text-white/80 text-sm mb-6">Schalte alle 9 Styles & Profi-Tipps frei.</p>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowPricingModal(true);
-                                  }}
-                                  disabled={isCheckingOut}
-                                  className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105"
-                                >
-                                  {isCheckingOut ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
-                                  {result.name} jetzt freischalten
-                                </button>
+                              <h4 className="text-white font-bold text-xl mb-2">Premium Look</h4>
+                              <p className="text-white/80 text-sm mb-6">Schalte alle 9 Styles & Profi-Tipps frei.</p>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowPricingModal(true);
+                                }}
+                                disabled={isCheckingOut}
+                                className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105"
+                              >
+                                {isCheckingOut ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
+                                {result.name} jetzt freischalten
+                              </button>
+                            </div>
+                          </>
+                        ) : needsFreeGeneration ? (
+                          <>
+                            <img 
+                              src={`https://picsum.photos/seed/free-style-${index}/600/800?blur=10`} 
+                              alt={result.name} 
+                              className="w-full h-full object-cover blur-xl grayscale" 
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
+                              GRATIS-LOOK 🎁
+                            </div>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/30 backdrop-blur-sm">
+                              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3">
+                                {isGenerating && generatingResultId === result.id ? <Loader2 className="animate-spin" size={28} /> : <Sparkles size={28} />}
                               </div>
-                            ) : isBlurred ? (
-                              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/20 backdrop-blur-sm">
-                                <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3">
-                                  <Sparkles size={24} />
-                                </div>
-                                <h4 className="text-white font-bold text-lg mb-4">Premium-Vorschau</h4>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowPricingModal(true);
-                                  }}
-                                  className="px-8 py-4 bg-[#FF9EBE] text-white rounded-2xl text-sm font-black hover:bg-[#FF9EBE]/90 transition-all shadow-lg leading-tight max-w-[280px]"
-                                >
-                                  {result.name} schaut auch super aus bei dir! 😍
-                                </button>
-                                <p className="text-white/90 text-[10px] mt-4 font-medium leading-relaxed">
-                                  Entdecke diesen und 5 weitere Styles die perfekt zu dir passen - Jetzt für nur 2,99€
-                                </p>
-                                <div className="mt-4 flex flex-col items-center gap-2">
-                                  <div className="flex items-center gap-1 text-[8px] text-white/60 font-bold uppercase tracking-widest">
-                                    <Users size={10} /> 432 Personen haben diesen Style gewählt
-                                  </div>
-                                  <div className="flex items-center gap-1 text-[8px] text-[#FF9EBE] font-bold uppercase tracking-widest animate-pulse">
-                                    <Eye size={10} /> Gerade 14 Personen schauen sich diesen Style an
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="absolute top-4 left-4 flex gap-2">
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDownload(result.imageUrl, result.name);
-                                    }}
-                                    className="w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-brand-primary hover:text-[#FF9EBE] shadow-sm transition-colors"
-                                    title="Bild herunterladen"
-                                  >
-                                    <Download size={18} />
-                                  </button>
-                                  <button 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      saveResult(result);
-                                    }}
-                                    disabled={isSaving === result.id}
-                                    className={`w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-sm transition-colors ${isResultSaved(result.id) ? 'text-[#FF9EBE]' : 'text-brand-primary hover:text-[#FF9EBE]'}`}
-                                    title={isResultSaved(result.id) ? "Gespeichert" : "Look speichern"}
-                                  >
-                                    {isSaving === result.id ? <Loader2 className="animate-spin" size={18} /> : isResultSaved(result.id) ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
-                                  </button>
-                                </div>
-                                <div 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedEnhancerId(expandedEnhancerId === result.id ? null : result.id);
-                                  }}
-                                  className={`absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-full flex items-center shadow-sm transition-all duration-500 overflow-hidden cursor-pointer ${expandedEnhancerId === result.id ? 'pr-3' : 'group-hover:pr-3'}`}
-                                >
-                                  <div className="flex items-center gap-1 px-3 py-1 shrink-0">
-                                    <Star size={14} className="text-[#FF9EBE] fill-[#FF9EBE]" />
-                                    <span className="text-sm font-bold">{result.rating}% Match</span>
-                                  </div>
-                                  {result.emotionalEnhancer && (
-                                    <div className={`flex items-center transition-all duration-500 ease-in-out ${expandedEnhancerId === result.id ? 'max-w-[200px] opacity-100' : 'max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100'}`}>
-                                      <div className="w-[1px] h-3 bg-black/10 mx-1 shrink-0" />
-                                      <span className="text-[10px] font-bold text-[#FF9EBE] italic whitespace-nowrap">{result.emotionalEnhancer}</span>
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
-                                  <span className="text-white font-medium flex items-center gap-2">
-                                    Details ansehen <ChevronRight size={16} />
-                                  </span>
-                                </div>
-                              </>
-                            )}
+                              <h4 className="text-white font-bold text-lg mb-1">{result.name}</h4>
+                              <p className="text-white/80 text-xs mb-4 max-w-[220px]">
+                                {!user ? "Kostenlos anmelden, um diesen 2. Look freizuschalten & zu erstellen." : "Dein kostenloser Style aus deiner Erstanalyse."}
+                              </p>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!user) {
+                                    setIsRegistering(true);
+                                    setShowLoginModal(true);
+                                  } else {
+                                    handleGenerateLockedResult(result, index);
+                                  }
+                                }}
+                                disabled={isGenerating && generatingResultId === result.id}
+                                className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105 text-sm"
+                              >
+                                {isGenerating && generatingResultId === result.id ? (
+                                  <>
+                                    <Loader2 className="animate-spin" size={16} />
+                                    Wird erstellt...
+                                  </>
+                                ) : !user ? (
+                                  <>
+                                    <Sparkles size={16} />
+                                    Kostenlos freischalten
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles size={16} />
+                                    Jetzt gratis erstellen
+                                  </>
+                                )}
+                              </button>
+                            </div>
                           </>
                         ) : result.failed ? (
                           <div 
@@ -5599,13 +5632,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         )}
                       </div>
                       <div className="space-y-1">
-                        <h3 className={`text-xl font-bold ${isLocked ? 'opacity-30' : ''}`}>
-                          {result.name} {isBlurred && <span className="text-[#FF9EBE] text-xs ml-1 font-black">(98% Match)</span>}
+                        <h3 className="text-xl font-bold">
+                          {result.name}
                         </h3>
-                        <p className={`text-sm text-brand-primary/60 line-clamp-2 ${isLocked ? 'opacity-30' : ''}`}>
-                          {isLocked || isBlurred 
-                            ? `${result.suitabilityReason.substring(0, 40)}...` 
-                            : result.suitabilityReason}
+                        <p className="text-sm text-brand-primary/60 line-clamp-2">
+                          {result.suitabilityReason}
                         </p>
                       </div>
                     </motion.div>
