@@ -1389,7 +1389,7 @@ export default function App() {
       
       if (isPaymentSuccess) {
         let message = "Zahlung erfolgreich! Dein Premium-Zugang ist jetzt aktiv.";
-        if (plan === 'single') message = "Erfolg! Deine 6 zusätzlichen Styles wurden freigeschaltet.";
+        if (plan === 'single') message = "Erfolg! Deine 8 zusätzlichen Styles wurden freigeschaltet.";
         if (plan === 'studio-single') message = "Erfolg! Dein Einzel-Look im Styling Studio wurde freigeschaltet.";
         if (plan === 'monthly' || plan === 'yearly') message = "Willkommen bei Frisuren.ai Pro! Du hast jetzt unbegrenzten Zugriff.";
         
@@ -2711,7 +2711,7 @@ export default function App() {
     }
 
     const resultIdx = typeof index === 'number' ? index : results.findIndex(r => r.id === result.id);
-    const isFreeSlot = resultIdx !== -1 ? resultIdx < 3 : false;
+    const isFreeSlot = resultIdx !== -1 ? resultIdx < 1 : false;
 
     if (!isFreeSlot && !isPremium && userPlan !== 'single') {
        handleShowPricing('general');
@@ -4476,7 +4476,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                         <p className="text-sm font-bold text-brand-primary leading-tight line-clamp-2">{result.name}</p>
                                       </div>
                                       
-                                      {(isPremium || userPlan === 'single' || index < 3) ? (
+                                      {(isPremium || userPlan === 'single' || index < 1) ? (
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -4486,7 +4486,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                           className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
                                         >
                                           {generatingResultId === result.id ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
-                                          {index < 3 ? "Gratis-Look erstellen" : "Bild erstellen"}
+                                          {index < 1 ? "Gratis-Look erstellen" : "Bild erstellen"}
                                         </button>
                                       ) : (
                                         <button 
@@ -5178,7 +5178,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     >
                       <div className="flex items-center gap-3">
                         {isGenerating ? <Loader2 className="animate-spin" size={24} /> : <Sparkles className="group-hover:rotate-12 transition-transform" size={24} />}
-                        <span className="text-lg uppercase tracking-widest">Alle 6 weiteren Styles laden</span>
+                        <span className="text-lg uppercase tracking-widest">Alle 8 weiteren Styles laden</span>
                       </div>
                       <span className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Kostenlos in Pro enthalten</span>
                     </motion.button>
@@ -5186,7 +5186,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   
                   <button 
                     onClick={() => handleCreatePoll(results[0])}
-                    disabled={isCreatingPoll || results.filter(r => r.imageUrl).length < 2}
+                    disabled={isCreatingPoll || results.filter(r => r.imageUrl).length < 1}
                     className="px-6 py-3 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2 text-sm uppercase tracking-widest"
                   >
                     {isCreatingPoll ? <Loader2 className="animate-spin" size={16} /> : <Users size={16} />}
@@ -5215,8 +5215,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {results.map((result, index) => {
-                  const isFreeSlot = index < 3;
-                  const isLocked = !isPremium && index >= 3;
+                  const isFreeSlot = index < 1;
+                  const isLocked = !isPremium && userPlan !== 'single' && index >= 1;
                   const needsFreeGeneration = isFreeSlot && index > 0 && !result.imageUrl;
                   
                   return (
@@ -5247,7 +5247,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </h3>
                             <div className="space-y-6 text-lg lg:text-xl text-brand-primary/70 font-medium max-w-2xl mx-auto mt-4">
                               <p>
-                                Entdecke jetzt alle <span className="text-[#FF9EBE] font-black">6 weitere personalisierte Styles</span> dieser Analyse – für nur <span className="font-black">2,99 € einmalig</span>. 🚀
+                                Entdecke jetzt alle <span className="text-[#FF9EBE] font-black">8 weitere personalisierte Styles</span> dieser Analyse – für nur <span className="font-black">2,99 € einmalig</span>. 🚀
                               </p>
                               <p className="text-base lg:text-lg opacity-80 italic">
                                 Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
@@ -5659,38 +5659,22 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             <span>KI-Analyse-Empfehlung ✨</span>
                           </div>
                           <p className="text-xs text-brand-primary/90 font-medium leading-relaxed">
-                            <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 2 weitere perfekt abgestimmte Styles – darunter ein echter Hingucker-Kurzhaarschnitt.
+                            <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 8 weitere perfekt abgestimmte Styles – darunter echte Hingucker-Haarschnitte.
                           </p>
-                          {!user ? (
+                          {(!isPremium && userPlan !== 'single') && (
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setIsRegistering(true);
-                                setShowLoginModal(true);
+                                setShowPricingModal(true);
                               }}
                               className="w-full mt-2 py-2.5 px-3 bg-[#FF9EBE] hover:bg-[#FF9EBE]/90 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                             >
                               <Sparkles size={13} />
-                              <span>Kostenlos anmelden & weitere Looks ansehen</span>
+                              <span>Alle 8 weiteren Styles freischalten (2,99 €)</span>
                               <ChevronRight size={13} />
                             </button>
-                          ) : !results[1]?.imageUrl ? (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (results[1]) {
-                                  handleGenerateLockedResult(results[1], 1);
-                                }
-                              }}
-                              className="w-full mt-2 py-2.5 px-3 bg-[#FF9EBE] hover:bg-[#FF9EBE]/90 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
-                            >
-                              <Sparkles size={13} />
-                              <span>2. Gratis-Look jetzt erstellen</span>
-                              <ChevronRight size={13} />
-                            </button>
-                          ) : null}
+                          )}
                         </motion.div>
                       )}
                     </motion.div>
@@ -6652,7 +6636,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     </h2>
                     
                     <p className="text-white/80 mb-6 text-sm lg:text-base">
-                      Entdecke jetzt alle 6 weitere personalisierte Styles dieser Analyse – für nur 2,99 € einmalig. Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
+                      Entdecke jetzt alle 8 weitere personalisierte Styles dieser Analyse – für nur 2,99 € einmalig. Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
                     </p>
                     
                     <p className="text-[#FF9EBE] font-bold mb-4 text-sm lg:text-base">
