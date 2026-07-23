@@ -5652,15 +5652,35 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          className="mt-3 p-4 bg-gradient-to-br from-[#FF9EBE]/15 via-pink-50 to-amber-50/50 rounded-2xl border border-[#FF9EBE]/30 space-y-2 shadow-sm"
+                          className="mt-3 p-4 bg-gradient-to-br from-[#FF9EBE]/15 via-pink-50 to-amber-50/50 rounded-2xl border border-[#FF9EBE]/30 space-y-3 shadow-sm"
                         >
                           <div className="flex items-center gap-1.5 text-[#FF9EBE] text-xs font-black uppercase tracking-wider">
                             <Sparkles size={14} className="animate-pulse" />
                             <span>KI-Analyse-Empfehlung ✨</span>
                           </div>
                           <p className="text-xs text-brand-primary/90 font-medium leading-relaxed">
-                            <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 8 weitere perfekt abgestimmte Styles – darunter echte Hingucker-Haarschnitte.
+                            <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 8 weitere perfekt abgestimmte Styles – darunter eine echte Hingucker-Kurzhaarfrisur.
                           </p>
+
+                          {/* List 4 of the actual AI suggested styles */}
+                          {results.length > 1 && (
+                            <div className="p-2.5 bg-white/80 backdrop-blur-sm rounded-xl border border-[#FF9EBE]/20 space-y-2">
+                              <span className="text-[10px] font-bold text-brand-primary/70 uppercase tracking-wider block">
+                                In deiner persönlichen Analyse enthalten:
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                {results.slice(1, 5).map((res, i) => (
+                                  <div key={res.id || i} className="flex items-center gap-2 text-xs font-semibold text-brand-primary/90 bg-white p-2 rounded-lg border border-black/5 shadow-2xs">
+                                    <div className="p-1 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] shrink-0">
+                                      <Lock size={12} />
+                                    </div>
+                                    <span className="truncate">{res.name}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {(!isPremium && userPlan !== 'single') && (
                             <button
                               type="button"
@@ -5668,11 +5688,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 e.stopPropagation();
                                 setShowPricingModal(true);
                               }}
-                              className="w-full mt-2 py-2.5 px-3 bg-[#FF9EBE] hover:bg-[#FF9EBE]/90 text-white font-black text-[11px] uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
+                              className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white font-black text-xs lg:text-sm uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] group"
                             >
-                              <Sparkles size={13} />
+                              <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
                               <span>Alle 8 weiteren Styles freischalten (2,99 €)</span>
-                              <ChevronRight size={13} />
+                              <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
                             </button>
                           )}
                         </motion.div>
