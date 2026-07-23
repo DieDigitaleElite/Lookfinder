@@ -5664,7 +5664,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
                           {/* List 4 of the actual AI suggested styles */}
                           {results.length > 1 && (
-                            <div className="p-2.5 bg-white/80 backdrop-blur-sm rounded-xl border border-[#FF9EBE]/20 space-y-2">
+                            <div 
+                              onClick={(e) => e.stopPropagation()}
+                              className="p-2.5 bg-white/80 backdrop-blur-sm rounded-xl border border-[#FF9EBE]/20 space-y-2 cursor-default"
+                            >
                               <span className="text-[10px] font-bold text-brand-primary/70 uppercase tracking-wider block">
                                 In deiner persönlichen Analyse enthalten:
                               </span>
@@ -5691,7 +5694,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white font-black text-xs lg:text-sm uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] group"
                             >
                               <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
-                              <span>Alle 8 weiteren Styles freischalten (2,99 €)</span>
+                              <span>Entdecke jetzt alle 8 weiteren Styles für nur einmalig 2,99€</span>
                               <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
                             </button>
                           )}
