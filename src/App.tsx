@@ -5150,7 +5150,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   <h2 className="text-3xl md:text-4xl font-serif font-bold">
                     {isPremium 
                       ? "Deine exklusiven Premium-Styles ✨" 
-                      : "Das sind deine ersten 3 personalisierten Styles🔥"}
+                      : "Das sind deine personalisierten Styles🔥"}
                   </h2>
                   <p className="text-brand-primary/80 text-base md:text-lg font-medium">
                     {isPremium 
@@ -5393,18 +5393,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                           </div>
                           
                           <div className="flex flex-col items-center gap-4">
-                            <div className="bg-white px-8 py-4 rounded-2xl shadow-sm border border-[#FF9EBE]/10 flex flex-col items-center gap-2">
-                              <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[#FF9EBE]">Zeitlich begrenztes Angebot</span>
-                              <div className="flex items-center gap-4">
-                                <span className="text-3xl font-mono font-bold text-brand-primary">{formatTime(timeLeft)}</span>
-                                <div className="h-8 w-px bg-black/10" />
-                                <div className="text-left">
-                                  <span className="block text-xs font-bold text-brand-primary/40 line-through">119,88€</span>
-                                  <span className="text-xl font-black text-[#FF9EBE]">Nur 39,99 € / Jahr</span>
-                                </div>
-                              </div>
-                            </div>
-
                             <div className="flex items-center gap-2 text-xs font-bold text-brand-primary/60 bg-white px-4 py-2 rounded-full border border-[#FF9EBE]/10">
                               <Users size={14} className="text-[#FF9EBE]" />
                               Über 12.482 Styles heute generiert
