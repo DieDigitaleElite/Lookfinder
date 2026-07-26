@@ -90,43 +90,58 @@ app.post("/api/gemini", async (req, res) => {
         const { base64Image } = payload;
         const mimeType = "image/jpeg"; // Enforce JPEG as all resized images are JPEGs. Fixes HEIC/PNG issues.
         
-        const prompt = `Analysiere die Gesichtsform und Merkmale dieser Person auf dem Foto. Schlage genau 9 verschiedene Frisuren vor.
-        REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (ABSOLUTE PFLICHT - KEEP IT SIMPLE):
-        - Die ersten 3 Vorschläge MÜSSEN einfache, klassische und alltagstaugliche Frisuren sein, welche die ursprüngliche Naturhaarfarbe und Struktur des Nutzers zu 100% absolut unverändert beibehalten. Mit diesen Frisuren soll sich der Nutzer direkt perfekt wiedererkennen!
-        - Es dürfen KEINE Farbexperimente oder Strähnen vorgeschlagen werden!
-        - Die 3 Vorschläge müssen genau diesen Frisuren-Kategorien entsprechen:
-          1. VORSCHLAG (Index 0): Mittellange Frisur (Ein schöner mittellanger Schnitt, z.B. ein eleganter klassischer Bob oder schulterlanger Schnitt in der exakten Naturhaarfarbe des Nutzers).
-          2. VORSCHLAG (Index 1): Lange Frisur (Ein schöner Langhaarschnitt mit sanften Stufen in der exakten Naturhaarfarbe des Nutzers).
-          3. VORSCHLAG (Index 2): Kurze Frisur (Eine schöne Kurzhaarfrisur, z.B. ein zeitloser, weicher Kurzhaarschnitt oder ein sanfter Pixie-Schnitt in der exakten Naturhaarfarbe des Nutzers, ohne Farbänderungen).
-        
-        STRICT IDENTITY GUIDELINES:
-        - Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) sowie die Gesichts- und Körperhaltung (kein Neigen nach vorne, Beugen oder Verzerren des Körpers) zu 100% EXAKT.
-        - Behalte die Original-Haarfarbe und -Haarstruktur des Nutzers komplett bei (Farbe und Textur müssen exakt übereinstimmen).
-        - Die Augenfarbe und Blickrichtung dürfen NIEMALS verändert werden.
-        - Der Fokus liegt auf der Erhaltung der Wiedererkennbarkeit und absoluten Einfachheit.
-        
-        NEUES FELD "emotionalEnhancer":
-        Erstelle für JEDEN Vorschlag einen kurzen, emotionalen Verstärker (max. 5-7 Wörter), der den User begeistert.
-        Beispiele: "Betont deine Gesichtszüge perfekt", "Verleiht dir einen modernen, frischen Glow", "Bringt deine Augen optimal zur Geltung", "Ein eleganter Statement-Look für dich".
-        Dieser Text wird direkt neben dem Score angezeigt.
-        
-        BEWERTUNG (rating):
-        Bewerte wie gut diese Frisur zur Person passt. Berücksichtige: Gesichtsform, Proportionen, Harmonie, Trends, Natürlichkeit und Gesamtwirkung.
-        Gib eine realistische Bewertung als GANZAHL zwischen 80 und 99 zurück.
-        - 95–99: außergewöhnlich starke Matches
-        - 90–94: sehr passende Looks
-        - 85–89: gute Looks
-        WICHTIG: Nutze niemals für alle Bilder den gleichen Wert (z.B. überall 98), das wirkt unglaubwürdig. Variiere die Zahlen.
+        const prompt = `Analysiere die Gesichtsform, Haare und optischen Merkmale dieser Person auf dem Foto. Schlage genau 9 verschiedene Frisuren vor UND erstelle eine persönliche KI-Haaranalyse mit Pflegetipps und Farbtipps.
 
-        TONALITÄT FÜR "description" UND "suitabilityReason":
-        - Du bist ein moderner Premium-Hairstylist und Beauty-Consultant.
-        - Stimme: Positiv, glaubwürdig, modern, emotional, persönlich, nicht zu technisch.
-        - Mix aus prof. Beratung, stylischer Freundin und moderner Beauty-App.
-        - Vermeide generische Aussagen ("Sieht gut aus") oder Fachbegriffe.
-        - "description": Fokus auf das "Gute Gefühl" und den Look.
-        - "suitabilityReason": Maximal 4 kurze Sätze. Starte positiv, erkläre kurz den Fit zur Gesichtsform, nenne ein optisches Highlight und beschreibe den Vibe.
-        
-        Antworte ausschließlich im JSON-Format (Array von Objekten) mit: name, description, rating, emotionalEnhancer, barberInstructions, suitabilityReason, recommendedProducts, faceShape.`;
+REGELN FÜR DIE ERSTEN 3 VORSCHLÄGE (ABSOLUTE PFLICHT - KEEP IT SIMPLE):
+- Die ersten 3 Vorschläge MÜSSEN einfache, klassische und alltagstaugliche Frisuren sein, welche die ursprüngliche Naturhaarfarbe und Struktur des Nutzers zu 100% absolut unverändert beibehalten. Mit diesen Frisuren soll sich der Nutzer direkt perfekt wiedererkennen!
+- Es dürfen KEINE Farbexperimente oder Strähnen vorgeschlagen werden!
+- Die 3 Vorschläge müssen genau diesen Frisuren-Kategorien entsprechen:
+  1. VORSCHLAG (Index 0): Mittellange Frisur (Ein schöner mittellanger Schnitt, z.B. ein eleganter klassischer Bob oder schulterlanger Schnitt in der exakten Naturhaarfarbe des Nutzers).
+  2. VORSCHLAG (Index 1): Lange Frisur (Ein schöner Langhaarschnitt mit sanften Stufen in der exakten Naturhaarfarbe des Nutzers).
+  3. VORSCHLAG (Index 2): Kurze Frisur (Eine schöne Kurzhaarfrisur, z.B. ein zeitloser, weicher Kurzhaarschnitt oder ein sanfter Pixie-Schnitt in der exakten Naturhaarfarbe des Nutzers, ohne Farbänderungen).
+
+STRICT IDENTITY GUIDELINES:
+- Erhalte die Gesichtsmerkmale (Augen, Nase, Mund, Gesichtsform) sowie die Gesichts- und Körperhaltung (kein Neigen nach vorne, Beugen oder Verzerren des Körpers) zu 100% EXAKT.
+- Behalte die Original-Haarfarbe und -Haarstruktur des Nutzers komplett bei (Farbe und Textur müssen exakt übereinstimmen).
+- Die Augenfarbe und Blickrichtung dürfen NIEMALS verändert werden.
+- Der Fokus liegt auf der Erhaltung der Wiedererkennbarkeit und absoluten Einfachheit.
+
+NEUES FELD "emotionalEnhancer":
+Erstelle für JEDEN Vorschlag einen kurzen, emotionalen Verstärker (max. 5-7 Wörter), der den User begeistert.
+Beispiele: "Betont deine Gesichtszüge perfekt", "Verleiht dir einen modernen, frischen Glow", "Bringt deine Augen optimal zur Geltung", "Ein eleganter Statement-Look für dich".
+
+BEWERTUNG (rating):
+Bewerte wie gut diese Frisur zur Person passt (80 bis 99).
+
+ZUSÄTZLICHE PFLICHT-AUFGABE: "hairAnalysis" (Persönliche Haaranalyse & Tipps auf Basis des Fotos)
+- Erstelle ein Objekt "hairAnalysis" mit folgenden Feldern:
+  1. "structureAndHealthSummary": Kurze, sehr positive und ermutigungsvolle Beobachtung der auf dem Foto erkennbaren Haarstruktur (z.B. "Volles, sanft geschwungenes Haar mit schöner natürlicher Vitalität und gesunden Längen.").
+  2. "careTips": Array mit genau 3 leicht umsetzbaren, sympathischen Pflegetipps (z.B. ["Feuchtigkeitsspendenden Conditioner für sanfte Geschmeidigkeit nutzen", "Hitzeschutz-Spray vor dem Föhnen verwenden", "Wöchentliche Intensivkur für strahlenden Glanz"]).
+  3. "colorTips": Array von genau 3 individuellen Farbtipps, die perfekt zum Teint und Augen der Person passen. Jedes Farb-Objekt hat:
+     - "colorName": Name der Farbnuance (z.B. "Warmes Honigblond", "Sanftes Schokobraun", "Kupferglanz / Warm Copper")
+     - "colorHex": Hex-Code der Farbe für die Visualisierung (z.B. "#D4A359", "#4A2E2B", "#B85B35")
+     - "whyItSuits": Kurze, begeisternde Erläuterung (1-2 Sätze), warum diese Farbe laut KI perfekt zur Person passt.
+  4. "disclaimer": "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."
+
+TONALITÄT:
+- Positiv, hilfsbereit, wertschätzend, modern, keinesfalls medizinisch oder zu technisch.
+
+Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
+{
+  "suggestions": [
+    /* Array von 9 Objekten mit: name, description, rating, emotionalEnhancer, barberInstructions, suitabilityReason, recommendedProducts, faceShape */
+  ],
+  "hairAnalysis": {
+    "structureAndHealthSummary": "...",
+    "careTips": ["...", "...", "..."],
+    "colorTips": [
+      { "colorName": "...", "colorHex": "...", "whyItSuits": "..." },
+      { "colorName": "...", "colorHex": "...", "whyItSuits": "..." },
+      { "colorName": "...", "colorHex": "...", "whyItSuits": "..." }
+    ],
+    "disclaimer": "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."
+  }
+};`;
 
         const response = await ai.models.generateContent({
           model: "gemini-3.5-flash",

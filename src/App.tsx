@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Camera, Scissors, Star, Info, ChevronRight, Loader2, CheckCircle2, RefreshCcw, Download, Lock, ShoppingBag, FileText, Sparkles, User, LogOut, History, Bookmark, BookmarkCheck, Mail, Eye, EyeOff, UserPlus, X, XCircle, Trash2, ShieldCheck, AlertCircle, Bell, Settings, Users, MessageSquare, Shield, Scale, ArrowRightLeft, Heart, Zap, Target, Calendar, RefreshCw, Check, Share2, LayoutGrid, Plus, Clock, Scan, Columns, Lightbulb, Sun, Moon, Palette, Maximize2, TrendingUp, Award, Instagram, ExternalLink, AlertTriangle, Save, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata } from './services/geminiService';
+import { analyzeFaceAndSuggestStyles, generateHairstyleImage, generateBaseAvatarSketch, generateFashionSketch, GeneratedResult, HairstyleSuggestion, getAIPoweredStylingMetadata, HairAnalysisResult } from './services/geminiService';
 import { compressBase64Image, fastResizeImage } from './services/imageUtils';
 
 // Global cache for in-flight compression promises to prevent redundant concurrent canvas compressions for the same image
@@ -279,6 +279,17 @@ export default function App() {
     }
     return null;
   });
+  const [hairAnalysis, setHairAnalysis] = useState<HairAnalysisResult | null>(() => {
+    const saved = localStorage.getItem('frisurenai_pending_hair_analysis');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [isGeneratingSketch, setIsGeneratingSketch] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [studioCredits, setStudioCredits] = useState(() => {
@@ -299,7 +310,7 @@ export default function App() {
   const [userPolls, setUserPolls] = useState<any[]>([]);
   const [showPollCreator, setShowPollCreator] = useState(false);
   const [pollInitialSelectedIds, setPollInitialSelectedIds] = useState<string[]>([]);
-  const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account'>('overview');
+  const [dashboardTab, setDashboardTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'hairAnalysis' | 'account'>('overview');
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const [activeCategory, setActiveCategory] = useState<string>('short');
 
@@ -441,13 +452,14 @@ export default function App() {
         if (sketchReferenceImage) localStorage.setItem('frisurenai_pending_sketch_ref_image', sketchReferenceImage);
         if (sketchReferenceMimeType) localStorage.setItem('frisurenai_pending_sketch_ref_mime', sketchReferenceMimeType || '');
         if (faceAnalysis) localStorage.setItem('frisurenai_pending_face_analysis', JSON.stringify(faceAnalysis));
+        if (hairAnalysis) localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(hairAnalysis));
       } catch (e) {
         // Silently fail if quota exceeded
       }
     }, 500);
     
     return () => clearTimeout(timeout);
-  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis]);
+  }, [user, results, customResults, selectedResult, image, hdImage, mimeType, avatarSketch, baseSketch, sketchReferenceImage, sketchReferenceMimeType, faceAnalysis, hairAnalysis]);
 
   const [isCancellingSubscription, setIsCancellingSubscription] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<{
@@ -487,8 +499,8 @@ export default function App() {
           }).catch(err => console.warn("Failed to downgrade user in Firestore:", err));
         }
       }
-    } catch (err) {
-      console.error("Failed to fetch subscription status:", err);
+    } catch (err: any) {
+      console.warn("Failed to fetch subscription status:", err?.message || err);
     }
   };
 
@@ -1170,16 +1182,27 @@ export default function App() {
 
   useEffect(() => {
     // Fetch client IP for usage tracking
+    let isMounted = true;
     fetch('/api/get-client-ip')
       .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           return res.json();
         }
         throw new Error("Invalid response from server");
       })
-      .then(data => setClientIp(data.ip))
-      .catch(err => console.error("Failed to fetch IP", err));
+      .then(data => {
+        if (isMounted && data && data.ip) {
+          setClientIp(data.ip);
+        }
+      })
+      .catch(err => {
+        if (isMounted) {
+          setClientIp("127.0.0.1");
+        }
+        console.warn("Could not fetch IP, using fallback:", err?.message || err);
+      });
 
     // Auth Listener
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -1264,6 +1287,7 @@ export default function App() {
               setSketchReferenceMimeType(data.sketchReferenceMimeType);
             }
             if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
+            if (data.hairAnalysis) setHairAnalysis(data.hairAnalysis);
           }
         }, (error) => {
           const err = handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
@@ -1872,12 +1896,20 @@ export default function App() {
             try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
           }
         }
+        let currentHairAnalysis = hairAnalysis;
+        if (!currentHairAnalysis) {
+          const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+          if (savedHair) {
+            try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+          }
+        }
 
         if (currentAvatarSketch) userData.avatarSketch = currentAvatarSketch;
         if (currentBaseSketch) userData.baseSketch = currentBaseSketch;
         if (currentSketchRefImage) userData.sketchReferenceImage = currentSketchRefImage;
         if (currentSketchRefMime) userData.sketchReferenceMimeType = currentSketchRefMime;
         if (currentFaceAnalysis) userData.faceAnalysis = currentFaceAnalysis;
+        if (currentHairAnalysis) userData.hairAnalysis = currentHairAnalysis;
 
         if (!userSnap.exists()) {
           userData.createdAt = serverTimestamp();
@@ -1942,6 +1974,13 @@ export default function App() {
               try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
             }
           }
+          let currentHairAnalysis = hairAnalysis;
+          if (!currentHairAnalysis) {
+            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+            if (savedHair) {
+              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+            }
+          }
 
           const userProfileData: any = {
             uid: userCredential.user.uid,
@@ -1956,6 +1995,7 @@ export default function App() {
           if (currentSketchRefImage) userProfileData.sketchReferenceImage = currentSketchRefImage;
           if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
           if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
+          if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
 
           await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData, { merge: true });
         } catch (dbErr) {
@@ -1998,12 +2038,20 @@ export default function App() {
               try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
             }
           }
+          let currentHairAnalysis = hairAnalysis;
+          if (!currentHairAnalysis) {
+            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+            if (savedHair) {
+              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+            }
+          }
 
           if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
           if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
           if (currentSketchRefImage) userDataToMerge.sketchReferenceImage = currentSketchRefImage;
           if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
           if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
+          if (currentHairAnalysis) userDataToMerge.hairAnalysis = currentHairAnalysis;
 
           if (!userSnap.exists()) {
             userDataToMerge.createdAt = serverTimestamp();
@@ -2507,7 +2555,11 @@ export default function App() {
       const sourceImageToUse = hdImage || image;
       if (!sourceImageToUse) return;
       const base64Data = sourceImageToUse.split(',')[1];
-      const suggestions = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
+      const { suggestions, hairAnalysis: newHairAnalysis } = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
+      if (newHairAnalysis) {
+        setHairAnalysis(newHairAnalysis);
+        try { localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(newHairAnalysis)); } catch (e) {}
+      }
       
       if (suggestions.length === 0) {
         throw new Error("Keine Frisuren-Vorschläge erhalten. Bitte versuche es mit einem anderen Bild.");
@@ -2900,9 +2952,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     try {
       const sourceImageToUse = hdImage || image;
       const base64Data = sourceImageToUse.split(',')[1];
-      const analysis = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
+      const { suggestions: analysisSuggestions, hairAnalysis: newHairAnalysis } = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
+      if (newHairAnalysis) {
+        setHairAnalysis(newHairAnalysis);
+        try { localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(newHairAnalysis)); } catch (e) {}
+      }
       
-      const faceShape = analysis[0]?.faceShape || 'Oval';
+      const faceShape = analysisSuggestions[0]?.faceShape || 'Oval';
       setFaceAnalysis({
         faceShape,
         summary: `Basierend auf deiner ${faceShape}en Gesichtsform empfehlen wir Styles, die deine Symmetrie betonen und für ein harmonisches Gesamtbild sorgen.`,
@@ -2919,7 +2975,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             setBaseSketch(baldSketch);
             
             // If we have an analysis, use the first suggestion to create a styled preview sketch
-            const styleName = analysis[0]?.name || 'Modern Hairstyle';
+            const styleName = analysisSuggestions[0]?.name || 'Modern Hairstyle';
             const styledSketch = await generateFashionSketch(base64Data, mimeType, styleName, baldSketch);
             
             if (styledSketch) {
@@ -3121,6 +3177,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       if (sketchReferenceImage) draftData.sketchReferenceImage = sketchReferenceImage;
       if (sketchReferenceMimeType) draftData.sketchReferenceMimeType = sketchReferenceMimeType;
       if (faceAnalysis) draftData.faceAnalysis = faceAnalysis;
+      if (hairAnalysis) draftData.hairAnalysis = hairAnalysis;
       
       await setDoc(draftRef, draftData, { merge: true });
       console.log("HD studio draft successfully saved to Firestore.");
@@ -3147,6 +3204,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         if (data.sketchReferenceImage) setSketchReferenceImage(data.sketchReferenceImage);
         if (data.sketchReferenceMimeType) setSketchReferenceMimeType(data.sketchReferenceMimeType);
         if (data.faceAnalysis) setFaceAnalysis(data.faceAnalysis);
+        if (data.hairAnalysis) setHairAnalysis(data.hairAnalysis);
         console.log("HD studio draft successfully loaded.");
         return data;
       }
@@ -4007,7 +4065,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       <p className="text-brand-primary/60">Willkommen in deinem persönlichen Frisuren.ai Bereich.</p>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {/* Quick Actions */}
                       <button 
                         onClick={() => setDashboardTab('studio')}
@@ -4019,6 +4077,19 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <div className="space-y-1">
                           <h4 className="font-bold text-lg text-brand-primary">Styling Studio</h4>
                           <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Experimentiere mit Schnitten & Farben in HD.</p>
+                        </div>
+                      </button>
+
+                      <button 
+                        onClick={() => setDashboardTab('hairAnalysis')}
+                        className="p-8 bg-white rounded-[2.5rem] border border-black/5 shadow-xl shadow-black/[0.02] text-left space-y-4 hover:border-[#FF9EBE]/50 transition-all group"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-[#FF9EBE]/10 flex items-center justify-center text-[#FF9EBE] group-hover:scale-110 transition-transform">
+                          <Sparkles size={24} />
+                        </div>
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-lg text-brand-primary">Haaranalyse</h4>
+                          <p className="text-xs text-brand-primary/40 leading-relaxed text-balance">Analyse, Pflegetipps & 3 Farbempfehlungen.</p>
                         </div>
                       </button>
 
@@ -4369,6 +4440,141 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         Studio öffnen
                       </button>
                     </div>
+                  </motion.div>
+                )}
+
+                {dashboardTab === 'hairAnalysis' && (
+                  <motion.div 
+                    key="hair-analysis-tab"
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="p-8 lg:p-12 space-y-8 bg-white rounded-[3rem] border border-black/5"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="p-2 rounded-xl bg-[#FF9EBE]/10 text-[#FF9EBE]">
+                          <Sparkles size={20} />
+                        </span>
+                        <h2 className="text-3xl font-serif font-bold italic text-brand-primary">Deine KI-Haaranalyse</h2>
+                      </div>
+                      <p className="text-xs lg:text-sm text-brand-primary/60">
+                        Hier findest du deine persönliche Haarstruktur-Analyse, Pflegetipps und abgestimmte Farbempfehlungen auf Basis deines Fotos.
+                      </p>
+                    </div>
+
+                    {hairAnalysis ? (
+                      <div className="space-y-6">
+                        {/* Main Hair Structure Overview Card */}
+                        <div className="p-8 bg-gradient-to-br from-brand-primary to-[#2A2A2A] text-white rounded-[2.5rem] space-y-4 relative overflow-hidden shadow-xl shadow-brand-primary/10">
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF9EBE]/10 rounded-full blur-3xl pointer-events-none -mr-32 -mt-32" />
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-2xl bg-[#FF9EBE] text-white">
+                              <Scissors size={20} />
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE]">KI-Diagnose & Struktur</p>
+                              <h3 className="text-xl font-serif font-bold">Deine Haarstruktur</h3>
+                            </div>
+                          </div>
+                          <p className="text-sm text-white/90 leading-relaxed font-medium bg-white/10 p-5 rounded-2xl border border-white/10">
+                            {hairAnalysis.structureAndHealthSummary}
+                          </p>
+                        </div>
+
+                        {/* Pflegetipps */}
+                        <div className="p-8 bg-black/[0.02] border border-black/5 rounded-[2.5rem] space-y-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600">
+                              <Lightbulb size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-lg text-brand-primary">Empfohlene KI-Pflegetipps</h4>
+                              <p className="text-xs text-brand-primary/50">Optimal abgestimmt auf deinen Haartyp</p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {hairAnalysis.careTips?.map((tip, idx) => (
+                              <div key={idx} className="p-5 bg-white rounded-2xl border border-black/5 shadow-sm space-y-3 flex flex-col justify-between">
+                                <span className="w-8 h-8 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] font-black text-xs flex items-center justify-center">
+                                  0{idx + 1}
+                                </span>
+                                <p className="text-xs font-semibold text-brand-primary/90 leading-relaxed">
+                                  {tip}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Farbtipps */}
+                        <div className="p-8 bg-black/[0.02] border border-black/5 rounded-[2.5rem] space-y-4">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-xl bg-[#FF9EBE]/10 text-[#FF9EBE]">
+                              <Sun size={20} />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-lg text-brand-primary">Empfohlene Farbtipps der KI</h4>
+                              <p className="text-xs text-brand-primary/50">Diese Nuancen harmonieren hervorragend mit deinem Teint</p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {hairAnalysis.colorTips?.map((color, idx) => (
+                              <div key={idx} className="p-6 bg-white rounded-2xl border border-black/5 shadow-sm space-y-3">
+                                <div className="flex items-center gap-3">
+                                  <span 
+                                    className="w-6 h-6 rounded-full border-2 border-white shadow-md shrink-0" 
+                                    style={{ backgroundColor: color.colorHex || '#FF9EBE' }} 
+                                  />
+                                  <h5 className="font-bold text-sm text-brand-primary">{color.colorName}</h5>
+                                </div>
+                                <p className="text-xs text-brand-primary/70 leading-relaxed">
+                                  {color.whyItSuits}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Disclaimer Card */}
+                        <div className="p-5 bg-amber-50/60 border border-amber-200/60 rounded-2xl flex items-start gap-3 text-xs text-amber-900/80">
+                          <Info size={16} className="shrink-0 mt-0.5 text-amber-600" />
+                          <p className="leading-relaxed">
+                            {hairAnalysis.disclaimer || "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."}
+                          </p>
+                        </div>
+
+                        {/* CTA */}
+                        <div className="text-center pt-4">
+                          <button 
+                            onClick={() => setDashboardTab('studio')}
+                            className="px-8 py-3.5 bg-brand-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all shadow-lg"
+                          >
+                            Neues Foto analysieren
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-12 text-center bg-black/[0.01] border-2 border-dashed border-black/10 rounded-[2.5rem] space-y-6">
+                        <div className="w-16 h-16 rounded-full bg-[#FF9EBE]/10 text-[#FF9EBE] flex items-center justify-center mx-auto">
+                          <Sparkles size={32} />
+                        </div>
+                        <div className="max-w-md mx-auto space-y-2">
+                          <h3 className="text-xl font-serif font-bold text-brand-primary">Noch keine Haaranalyse vorhanden</h3>
+                          <p className="text-xs text-brand-primary/60 leading-relaxed">
+                            Lade ein Foto im Styling Studio hoch, um deine automatische KI-Haaranalyse mit Pflegetipps und individuellen Farbempfehlungen freizuschalten!
+                          </p>
+                        </div>
+                        <button 
+                          onClick={() => setDashboardTab('studio')}
+                          className="px-10 py-4 bg-[#FF9EBE] text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl shadow-[#FF9EBE]/20"
+                        >
+                          Jetzt Foto analysieren
+                        </button>
+                      </div>
+                    )}
                   </motion.div>
                 )}
 
@@ -5500,6 +5706,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         </p>
                       </div>
                       {index === 0 && (
+                        <>
                         <motion.div 
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
@@ -5550,6 +5757,105 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </button>
                           )}
                         </motion.div>
+
+                        {/* BONUS BOX: Haaranalyse, Pflegetipps & 3 Farbtipps */}
+                        {hairAnalysis && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.15 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-3 p-5 bg-gradient-to-br from-white via-pink-50/50 to-purple-50/30 rounded-2xl border-2 border-[#FF9EBE]/40 space-y-4 shadow-sm text-left cursor-default"
+                          >
+                            {/* Header Badge */}
+                            <div className="flex items-center justify-between border-b border-black/5 pb-3">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 rounded-xl bg-[#FF9EBE] text-white shadow-sm shadow-[#FF9EBE]/20">
+                                  <Sparkles size={16} />
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block">
+                                    Bonus-Analyse ✨
+                                  </span>
+                                  <h4 className="text-sm font-bold text-brand-primary">
+                                    Haaranalyse & Pflegetipps
+                                  </h4>
+                                </div>
+                              </div>
+                              <span className="px-2.5 py-1 bg-[#FF9EBE]/15 text-[#FF9EBE] rounded-full text-[10px] font-black uppercase tracking-wider">
+                                Exklusiv
+                              </span>
+                            </div>
+
+                            {/* Section 1: Haarstruktur Beobachtung */}
+                            {hairAnalysis.structureAndHealthSummary && (
+                              <div className="p-3 bg-white/90 rounded-xl border border-black/5 space-y-1">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary">
+                                  <Scissors size={14} className="text-[#FF9EBE]" />
+                                  <span>Haarstruktur auf deinem Foto:</span>
+                                </div>
+                                <p className="text-xs text-brand-primary/80 leading-relaxed font-medium">
+                                  {hairAnalysis.structureAndHealthSummary}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Section 2: 3 Pflegetipps */}
+                            {hairAnalysis.careTips && hairAnalysis.careTips.length > 0 && (
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
+                                  <Lightbulb size={14} className="text-amber-500" />
+                                  <span>3 KI-Pflegetipps für dich:</span>
+                                </h5>
+                                <div className="space-y-1.5">
+                                  {hairAnalysis.careTips.map((tip, idx) => (
+                                    <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-black/5 text-xs text-brand-primary/90 font-medium shadow-2xs">
+                                      <span className="w-5 h-5 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                                        {idx + 1}
+                                      </span>
+                                      <span className="leading-snug">{tip}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Section 3: 3 Farbtipps */}
+                            {hairAnalysis.colorTips && hairAnalysis.colorTips.length > 0 && (
+                              <div className="space-y-2 pt-1">
+                                <h5 className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
+                                  <Sun size={14} className="text-[#FF9EBE]" />
+                                  <span>3 Farbtipps, die ideal zu dir passen:</span>
+                                </h5>
+                                <div className="grid grid-cols-1 gap-2">
+                                  {hairAnalysis.colorTips.map((color, idx) => (
+                                    <div key={idx} className="p-3 bg-white rounded-xl border border-black/5 space-y-1 shadow-2xs">
+                                      <div className="flex items-center gap-2">
+                                        <span 
+                                          className="w-4 h-4 rounded-full border border-black/10 shadow-sm shrink-0" 
+                                          style={{ backgroundColor: color.colorHex || '#FF9EBE' }} 
+                                        />
+                                        <span className="text-xs font-bold text-brand-primary">{color.colorName}</span>
+                                      </div>
+                                      <p className="text-[11px] text-brand-primary/70 leading-relaxed pl-6">
+                                        {color.whyItSuits}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Disclaimer Note */}
+                            <div className="pt-2 border-t border-black/5 flex items-start gap-2 text-[10px] text-brand-primary/50 leading-normal">
+                              <Info size={12} className="shrink-0 mt-0.5 text-brand-primary/40" />
+                              <span>
+                                {hairAnalysis.disclaimer || "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."}
+                              </span>
+                            </div>
+                          </motion.div>
+                        )}
+                        </>
                       )}
                     </motion.div>
                   </React.Fragment>

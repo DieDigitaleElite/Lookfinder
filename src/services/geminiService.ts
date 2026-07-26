@@ -43,6 +43,51 @@ const callGeminiProxy = async (action: string, payload: any, maxRetries = 4): Pr
   throw lastError;
 };
 
+export interface HairColorTip {
+  colorName: string;
+  colorHex: string;
+  whyItSuits: string;
+}
+
+export interface HairAnalysisResult {
+  structureAndHealthSummary: string;
+  careTips: string[];
+  colorTips: HairColorTip[];
+  disclaimer?: string;
+}
+
+export interface FaceAnalysisResponse {
+  suggestions: HairstyleSuggestion[];
+  hairAnalysis: HairAnalysisResult;
+}
+
+export const createDefaultHairAnalysis = (faceShape?: string): HairAnalysisResult => ({
+  structureAndHealthSummary: "Auf dem analysierten Foto zeigt dein Haar eine schöne Grundfülle mit natürlichem Glanz und geschmeidigen Längen.",
+  careTips: [
+    "Nutze feuchtigkeitsspendende Pflege für seidige Geschmeidigkeit und natürliche Elastizität",
+    "Verwende beim Föhnen sanfte Hitze sowie ein Hitzeschutz-Spray",
+    "Verwöhne deine Haarspitzen einmal wöchentlich mit einer leicht pflegenden Intensivkur"
+  ],
+  colorTips: [
+    {
+      colorName: "Warmes Honigblond",
+      colorHex: "#D4A359",
+      whyItSuits: "Schmeichelt deinem Teint besonders sanft und lässt deine Augenpartie frischer und strahlender wirken."
+    },
+    {
+      colorName: "Sanftes Schokobraun",
+      colorHex: "#4A2E2B",
+      whyItSuits: "Verleiht deiner Frisur eine zeitlose, edle Tiefe mit seidig glänzendem Finish."
+    },
+    {
+      colorName: "Caramel / Sonniges Balayage",
+      colorHex: "#C68B59",
+      whyItSuits: "Setzt natürliche Lichtakzente, die deine Gesichtskonturen weich umspielen."
+    }
+  ],
+  disclaimer: "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."
+});
+
 export interface HairstyleSuggestion {
   id: string;
   name: string;
@@ -72,16 +117,48 @@ export interface StylingMetadata {
   rating: number;
 }
 
-export const analyzeFaceAndSuggestStyles = async (base64Image: string, mimeType: string): Promise<HairstyleSuggestion[]> => {
+export const analyzeFaceAndSuggestStyles = async (
+  base64Image: string, 
+  mimeType: string
+): Promise<FaceAnalysisResponse> => {
   try {
     const data = await callGeminiProxy("analyzeFace", { base64Image, mimeType });
-    let text = data.text || "[]";
+    let text = data.text || "{}";
     text = text.replace(/```json\n?|```/g, "").trim();
-    const suggestions = JSON.parse(text);
-    return suggestions.map((s: any, index: number) => ({
+    const parsed = JSON.parse(text);
+
+    let rawSuggestions: any[] = [];
+    let hairAnalysis: HairAnalysisResult | null = null;
+
+    if (Array.isArray(parsed)) {
+      rawSuggestions = parsed;
+    } else if (parsed && typeof parsed === 'object') {
+      if (Array.isArray(parsed.suggestions)) {
+        rawSuggestions = parsed.suggestions;
+      }
+      if (parsed.hairAnalysis && typeof parsed.hairAnalysis === 'object') {
+        hairAnalysis = {
+          structureAndHealthSummary: parsed.hairAnalysis.structureAndHealthSummary || "",
+          careTips: Array.isArray(parsed.hairAnalysis.careTips) ? parsed.hairAnalysis.careTips : [],
+          colorTips: Array.isArray(parsed.hairAnalysis.colorTips) ? parsed.hairAnalysis.colorTips : [],
+          disclaimer: parsed.hairAnalysis.disclaimer || "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."
+        };
+      }
+    }
+
+    const suggestions = rawSuggestions.map((s: any, index: number) => ({
       ...s,
       id: `style-${Date.now()}-${index}`
     }));
+
+    if (!hairAnalysis || !hairAnalysis.structureAndHealthSummary) {
+      hairAnalysis = createDefaultHairAnalysis(suggestions[0]?.faceShape);
+    }
+
+    return {
+      suggestions,
+      hairAnalysis
+    };
   } catch (e) {
     console.error("Failed to analyze face via proxy", e);
     throw e; // Bubble up for UI to handle (with sanitized message)

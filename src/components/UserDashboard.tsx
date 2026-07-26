@@ -11,13 +11,14 @@ import {
   Camera,
   Star,
   Users,
-  User,
+  Sparkles,
+  User as UserIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface UserDashboardProps {
   user: any;
-  activeTab: 'overview' | 'studio' | 'gallery' | 'polls' | 'account';
+  activeTab: 'overview' | 'studio' | 'gallery' | 'polls' | 'hairAnalysis' | 'account';
   setActiveTab: (tab: any) => void;
   children: React.ReactNode;
   onLogout: () => void;
@@ -44,10 +45,11 @@ export default function UserDashboard({
 }: UserDashboardProps) {
   const navItems = [
     { id: 'overview', name: 'Übersicht', icon: LayoutDashboard },
+    { id: 'hairAnalysis', name: 'Haaranalyse', icon: Sparkles },
     { id: 'studio', name: 'Styling Studio', icon: Palette },
     { id: 'gallery', name: 'Meine Looks', icon: History },
     { id: 'polls', name: 'Umfragen', icon: MessageSquare },
-    { id: 'account', name: 'Mein Account', icon: User },
+    { id: 'account', name: 'Mein Account', icon: UserIcon },
   ];
 
   return (
