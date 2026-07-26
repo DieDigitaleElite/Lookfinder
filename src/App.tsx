@@ -4552,7 +4552,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             onClick={() => setDashboardTab('studio')}
                             className="px-8 py-3.5 bg-brand-primary text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-brand-primary/90 transition-all shadow-lg"
                           >
-                            Neues Foto analysieren
+                            Entdecke jetzt eine neue Haarfarbe an dir
                           </button>
                         </div>
                       </div>
