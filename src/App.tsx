@@ -132,22 +132,7 @@ export default function App() {
     }
     return [];
   });
-  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(() => {
-    const saved = localStorage.getItem('frisurenai_pending_selected_result');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const pendingImage = localStorage.getItem('frisurenai_pending_image');
-        return {
-          ...parsed,
-          sourceImageUrl: parsed.sourceImageUrl || pendingImage || undefined
-        };
-      } catch (e) {
-        console.error("Failed to parse pending selected result", e);
-      }
-    }
-    return null;
-  });
+  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(null);
   const [isFullscreenImageOpen, setIsFullscreenImageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -1403,6 +1388,8 @@ export default function App() {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid, "SessionId:", sessionId);
         isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid, sessionId });
+        setSelectedResult(null);
+        localStorage.removeItem('frisurenai_pending_selected_result');
 
         // Track Purchase Event
         ReactGA.event('purchase', {
