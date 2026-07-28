@@ -2618,8 +2618,10 @@ export default function App() {
     try {
       const sourceImageToUse = hdImage || image;
       if (!sourceImageToUse) return;
-      const base64Data = sourceImageToUse.split(',')[1];
-      const { suggestions, hairAnalysis: newHairAnalysis } = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
+      const base64Data = sourceImageToUse.includes(',') ? sourceImageToUse.split(',')[1] : sourceImageToUse;
+      const imageMimeType = sourceImageToUse.includes(';') ? (sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg') : (mimeType || 'image/jpeg');
+      
+      const { suggestions, hairAnalysis: newHairAnalysis } = await analyzeFaceAndSuggestStyles(base64Data, imageMimeType);
       if (newHairAnalysis) {
         setHairAnalysis(newHairAnalysis);
         try { localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(newHairAnalysis)); } catch (e) {}
@@ -2650,7 +2652,7 @@ export default function App() {
         try {
           console.log("Starting delayed teaser sketch generation...");
           // Speed optimization: Generate first style sketch directly from the original photo without first generating a bald sketch!
-          const styledSketch = await generateFashionSketch(base64Data, mimeType, suggestions[0].name, null);
+          const styledSketch = await generateFashionSketch(base64Data, imageMimeType, suggestions[0].name, null);
           
           if (styledSketch) {
             setAvatarSketch(styledSketch);
@@ -2660,11 +2662,11 @@ export default function App() {
               await setDoc(userRef, { 
                 avatarSketch: styledSketch,
                 sketchReferenceImage: sourceImageToUse, // Store the reference image used for sketches
-                sketchReferenceMimeType: mimeType,
+                sketchReferenceMimeType: imageMimeType,
                 lastActive: serverTimestamp()
               }, { merge: true }).catch(err => console.warn("Failed to persist styled sketch to user profile", err));
               setSketchReferenceImage(sourceImageToUse);
-              setSketchReferenceMimeType(mimeType);
+              setSketchReferenceMimeType(imageMimeType);
               console.log("Teaser sketch and reference image successfully persisted to user profile.");
             }
           }
@@ -2689,7 +2691,7 @@ export default function App() {
           console.log(`Generating image in sequential slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
           const imageUrl = await withTimeout(
-            generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
+            generateHairstyleImage(base64Data, imageMimeType, suggestion.name, suggestion.description),
             30000,
             "Timeout"
           );
