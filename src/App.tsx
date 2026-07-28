@@ -2687,6 +2687,9 @@ export default function App() {
 
       const generateWithStaggerAndTimeout = async (i: number) => {
         const suggestion = suggestions[i];
+        if (suggestion?.id) {
+          setGeneratingResultId(suggestion.id);
+        }
         try {
           console.log(`Generating image in sequential slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
@@ -2718,6 +2721,7 @@ export default function App() {
             return newResults;
           });
         } finally {
+          setGeneratingResultId(null);
           // Update progress bar based on completed counts
           setResults(prev => {
             const completed = prev.filter(r => r.imageUrl || r.failed).length;
@@ -5527,6 +5531,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   const isFreeSlot = index < 1;
                   const isLocked = !isPremium && userPlan !== 'single' && index >= 1;
                   const needsFreeGeneration = isFreeSlot && index > 0 && !result.imageUrl;
+                  const isGeneratingThisCard = generatingResultId === result.id || (isGenerating && !result.imageUrl && (index === 0 || generatingResultId === result.id));
                   
                   return (
                     <React.Fragment key={result.id}>
@@ -5716,44 +5721,45 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
                               GRATIS-LOOK 🎁
                             </div>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/30 backdrop-blur-sm">
-                              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3">
-                                {isGenerating && generatingResultId === result.id ? <Loader2 className="animate-spin" size={28} /> : <Sparkles size={28} />}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/40 backdrop-blur-md">
+                              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3 shadow-inner">
+                                {isGeneratingThisCard ? <Sparkles size={28} className="animate-spin text-[#FF9EBE]" /> : <Sparkles size={28} />}
                               </div>
                               <h4 className="text-white font-bold text-lg mb-1">{result.name}</h4>
-                              <p className="text-white/80 text-xs mb-4 max-w-[220px]">
-                                {!user ? "Kostenlos anmelden, um diesen 2. Look freizuschalten & zu erstellen." : "Dein kostenloser Style aus deiner Erstanalyse."}
+                              <p className="text-white/90 text-xs mb-4 max-w-[220px]">
+                                {isGeneratingThisCard 
+                                  ? "Dein neuer Look wird zum Leben erweckt ✨" 
+                                  : !user 
+                                    ? "Kostenlos anmelden, um diesen 2. Look freizuschalten & zu erstellen." 
+                                    : "Dein kostenloser Style aus deiner Erstanalyse."}
                               </p>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!user) {
-                                    setIsRegistering(true);
-                                    setShowLoginModal(true);
-                                  } else {
-                                    handleGenerateLockedResult(result, index);
-                                  }
-                                }}
-                                disabled={isGenerating && generatingResultId === result.id}
-                                className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105 text-sm"
-                              >
-                                {isGenerating && generatingResultId === result.id ? (
-                                  <>
-                                    <Loader2 className="animate-spin" size={16} />
-                                    Wird erstellt...
-                                  </>
-                                ) : !user ? (
-                                  <>
-                                    <Sparkles size={16} />
-                                    Kostenlos freischalten
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles size={16} />
-                                    Jetzt gratis erstellen
-                                  </>
-                                )}
-                              </button>
+                              {!isGeneratingThisCard && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!user) {
+                                      setIsRegistering(true);
+                                      setShowLoginModal(true);
+                                    } else {
+                                      handleGenerateLockedResult(result, index);
+                                    }
+                                  }}
+                                  disabled={isGenerating}
+                                  className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105 text-sm"
+                                >
+                                  {!user ? (
+                                    <>
+                                      <Sparkles size={16} />
+                                      Kostenlos freischalten
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles size={16} />
+                                      Jetzt gratis erstellen
+                                    </>
+                                  )}
+                                </button>
+                              )}
                             </div>
                           </>
                         ) : result.failed ? (
@@ -5783,37 +5789,52 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </div>
                           </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center bg-brand-primary/5">
-                            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-brand-primary/30 shadow-sm">
-                              {generatingResultId === result.id ? <Loader2 className="animate-spin text-[#FF9EBE]" size={24} /> : <Zap size={24} className="text-brand-primary" />}
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest text-brand-primary">
-                                {generatingResultId === result.id ? "Wird erstellt..." : "Bereit zum Generieren ✨"}
-                              </p>
-                              <p className="text-[10px] text-brand-primary/60 leading-tight max-w-[200px]">
-                                {generatingResultId === result.id 
-                                  ? "Deine Frisur wird hochauflösend gerendert."
-                                  : "Klicke hier, um dieses Bild jetzt zu erstellen."}
-                              </p>
-                            </div>
-                            {generatingResultId !== result.id && (
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!user) {
-                                    setIsRegistering(true);
-                                    setShowLoginModal(true);
-                                  } else {
-                                    handleGenerateLockedResult(result, index);
-                                  }
-                                }}
-                                disabled={isGenerating}
-                                className="px-5 py-2 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md flex items-center gap-1.5"
-                              >
-                                <Zap size={12} />
-                                Bild erstellen
-                              </button>
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center bg-gradient-to-b from-[#FF9EBE]/10 to-brand-primary/5 relative overflow-hidden">
+                            {isGeneratingThisCard ? (
+                              <>
+                                <div className="absolute inset-0 bg-[#FF9EBE]/5 animate-pulse" />
+                                <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-[#FF9EBE] shadow-lg shadow-[#FF9EBE]/20 z-10">
+                                  <Sparkles size={28} className="animate-spin" />
+                                </div>
+                                <div className="space-y-1.5 z-10">
+                                  <p className="text-xs font-black uppercase tracking-widest text-brand-primary">
+                                    Dein neuer Look wird zum Leben erweckt ✨
+                                  </p>
+                                  <p className="text-[11px] text-brand-primary/70 leading-relaxed max-w-[220px]">
+                                    Deine Frisur wird in hoher Qualität gerendert. Bitte habe einen kurzen Moment Geduld...
+                                  </p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-brand-primary/30 shadow-sm">
+                                  <Zap size={24} className="text-brand-primary" />
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="text-xs font-bold uppercase tracking-widest text-brand-primary">
+                                    Bereit zum Generieren ✨
+                                  </p>
+                                  <p className="text-[10px] text-brand-primary/60 leading-tight max-w-[200px]">
+                                    Klicke hier, um dieses Bild jetzt zu erstellen.
+                                  </p>
+                                </div>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!user) {
+                                      setIsRegistering(true);
+                                      setShowLoginModal(true);
+                                    } else {
+                                      handleGenerateLockedResult(result, index);
+                                    }
+                                  }}
+                                  disabled={isGenerating}
+                                  className="px-5 py-2 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                  <Zap size={12} />
+                                  Bild erstellen
+                                </button>
+                              </>
                             )}
                           </div>
                         )}
