@@ -64,13 +64,6 @@ export default function KostenloseFrisurenAppLanding({
             "priceCurrency": "EUR",
             "availability": "https://schema.org/InStock"
           },
-          "aggregateRating": {
-            "@type": "AggregateRating",
-            "ratingValue": "4.9",
-            "ratingCount": "14820",
-            "bestRating": "5",
-            "worstRating": "1"
-          },
           "featureList": [
             "Kostenlose KI Gesichtsform-Analyse",
             "100+ Frisuren für Frauen & Männer kostenlos anprobieren",
@@ -274,11 +267,7 @@ export default function KostenloseFrisurenAppLanding({
           {/* Top Rating Badge */}
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#FF9EBE]/15 via-purple-500/10 to-[#FF9EBE]/15 border border-[#FF9EBE]/30 rounded-full text-xs font-black uppercase tracking-widest text-[#FF9EBE] shadow-sm">
             <Sparkles size={14} className="animate-pulse" />
-            <span>#1 Kostenlose Frisuren App mit KI (2026)</span>
-            <span className="hidden sm:inline-block opacity-40">•</span>
-            <span className="hidden sm:inline-flex items-center gap-1 text-brand-primary/80 font-bold">
-              <Star size={12} className="fill-amber-400 text-amber-400" /> 4.9 (14.800+ Votes)
-            </span>
+            <span>Kostenlose Frisuren App mit KI (2026)</span>
           </div>
           
           {/* Main H1 Title optimized for target keywords */}
@@ -368,7 +357,7 @@ export default function KostenloseFrisurenAppLanding({
               Die Vorteile unserer kostenlosen Frisuren App
             </h2>
             <p className="text-sm text-brand-primary/60">
-              Schluss mit Fehlkäufen beim Friseur. Erfahre, warum hunderttausende Nutzer Frisuren.ai als ihre bevorzugte Frisuren App kostenlos nutzen.
+              Schluss mit Fehlkäufen beim Friseur. Erfahre, warum tausende Nutzer Frisuren.ai als ihre bevorzugte Frisuren App kostenlos nutzen.
             </p>
           </div>
 
@@ -643,7 +632,7 @@ export default function KostenloseFrisurenAppLanding({
             Das sagen unsere Nutzer über die kostenlose Frisuren App
           </h2>
           <p className="text-xs sm:text-sm text-brand-primary/60">
-            Über 300.000 erfolgreich durchgeführte Frisuren-Analysen in Deutschland, Österreich & der Schweiz.
+            Tausende erfolgreich durchgeführte Frisuren-Analysen in Deutschland, Österreich & der Schweiz.
           </p>
         </div>
 
