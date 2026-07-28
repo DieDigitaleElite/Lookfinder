@@ -120,7 +120,12 @@ export default function App() {
     const saved = localStorage.getItem('frisurenai_pending_results');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        const pendingImage = localStorage.getItem('frisurenai_pending_image');
+        return parsed.map((r: any) => ({
+          ...r,
+          sourceImageUrl: r.sourceImageUrl || pendingImage || undefined
+        }));
       } catch (e) {
         console.error("Failed to parse pending results", e);
       }
@@ -131,7 +136,12 @@ export default function App() {
     const saved = localStorage.getItem('frisurenai_pending_selected_result');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        const pendingImage = localStorage.getItem('frisurenai_pending_image');
+        return {
+          ...parsed,
+          sourceImageUrl: parsed.sourceImageUrl || pendingImage || undefined
+        };
       } catch (e) {
         console.error("Failed to parse pending selected result", e);
       }
@@ -438,9 +448,18 @@ export default function App() {
     
     const timeout = setTimeout(() => {
       try {
-        if (results.length > 0) localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
-        if (customResults.length > 0) localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
-        if (selectedResult) localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
+        if (results.length > 0) {
+          const cleanResults = results.map(({ sourceImageUrl, ...rest }) => rest);
+          localStorage.setItem('frisurenai_pending_results', JSON.stringify(cleanResults));
+        }
+        if (customResults.length > 0) {
+          const cleanCustom = customResults.map(({ sourceImageUrl, ...rest }) => rest);
+          localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(cleanCustom));
+        }
+        if (selectedResult) {
+          const { sourceImageUrl, ...cleanSelected } = selectedResult;
+          localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(cleanSelected));
+        }
         if (image) localStorage.setItem('frisurenai_pending_image', image);
         if (hdImage) {
           fastResizeImage(hdImage, 1200, 0.75)
@@ -1649,7 +1668,7 @@ export default function App() {
     const sketchesSynced = !avatarSketch || (userData && userData.avatarSketch);
     const faceAnalysisSynced = !faceAnalysis || (userData && userData.faceAnalysis);
 
-    const isProcessingOrAutoGenerating = isAutoGeneratingFromStripe || !!pendingStudioSelection || isPaymentProcessingRef.current;
+    const isProcessingOrAutoGenerating = isAutoGeneratingFromStripe || !!pendingStudioSelection || isPaymentProcessingRef.current || isCheckingOut || !!pendingCheckoutPlan;
 
     if (user && resultsSynced && customResultsSynced && sketchesSynced && faceAnalysisSynced && !isProcessingOrAutoGenerating) {
       console.log("All data synced to Firestore. Clearing localStorage backup.");
@@ -1923,6 +1942,18 @@ export default function App() {
           // Track Login
           trackEvent('login', 'Auth', 'Google');
         }
+
+        // Instantly sync guest analysis results to Firestore
+        if (results.length > 0 || customResults.length > 0) {
+          const pendingToSync = [...results, ...customResults];
+          for (const r of pendingToSync) {
+            const resToSave = {
+              ...r,
+              sourceImageUrl: r.sourceImageUrl || image || localStorage.getItem('frisurenai_pending_image') || undefined
+            };
+            saveResult(resToSave, true).catch(() => {});
+          }
+        }
       } catch (dbErr) {
         console.error("Failed to sync user profile to Firestore", dbErr);
       }
@@ -1999,6 +2030,18 @@ export default function App() {
           if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
 
           await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData, { merge: true });
+
+          // Instantly sync guest analysis results to Firestore
+          if (results.length > 0 || customResults.length > 0) {
+            const pendingToSync = [...results, ...customResults];
+            for (const r of pendingToSync) {
+              const resToSave = {
+                ...r,
+                sourceImageUrl: r.sourceImageUrl || image || localStorage.getItem('frisurenai_pending_image') || undefined
+              };
+              saveResult(resToSave, true).catch(() => {});
+            }
+          }
         } catch (dbErr) {
           console.error("Failed to initialize user profile document", dbErr);
         }
@@ -2060,6 +2103,18 @@ export default function App() {
             await setDoc(userRef, userDataToMerge, { merge: true });
           } else {
             await setDoc(userRef, userDataToMerge, { merge: true });
+          }
+
+          // Instantly sync guest analysis results to Firestore
+          if (results.length > 0 || customResults.length > 0) {
+            const pendingToSync = [...results, ...customResults];
+            for (const r of pendingToSync) {
+              const resToSave = {
+                ...r,
+                sourceImageUrl: r.sourceImageUrl || image || localStorage.getItem('frisurenai_pending_image') || undefined
+              };
+              saveResult(resToSave, true).catch(() => {});
+            }
           }
         } catch (dbErr) {
           console.error("Failed to sync/merge user profile to Firestore on email login", dbErr);
@@ -2320,6 +2375,9 @@ export default function App() {
       try {
         // Compress image before saving to Firestore to stay under 1MB limit
         let finalResult = { ...result };
+        if (!finalResult.sourceImageUrl) {
+          finalResult.sourceImageUrl = image || hdImage || localStorage.getItem('frisurenai_pending_image') || undefined;
+        }
         
         // Compress generated hairstyle image to ~500KB for maximum definition
         if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
@@ -3461,13 +3519,16 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         // Save current results to localStorage before redirecting (as backup)
         try {
           if (results && results.length > 0) {
-            localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
+            const cleanResults = results.map(({ sourceImageUrl, ...rest }) => rest);
+            localStorage.setItem('frisurenai_pending_results', JSON.stringify(cleanResults));
           }
           if (customResults && customResults.length > 0) {
-            localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
+            const cleanCustom = customResults.map(({ sourceImageUrl, ...rest }) => rest);
+            localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(cleanCustom));
           }
           if (selectedResult) {
-            localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
+            const { sourceImageUrl, ...cleanSelected } = selectedResult;
+            localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(cleanSelected));
           }
           if (image) {
             localStorage.setItem('frisurenai_pending_image', image);
