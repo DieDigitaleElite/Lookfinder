@@ -45,7 +45,6 @@ import AdminDashboard from './components/AdminDashboard';
 import PollCreator from './components/PollCreator';
 import SupportModal from './components/SupportModal';
 import SeoLandingPage from './components/SeoLandingPage';
-import KostenloseFrisurenAppLanding from './components/KostenloseFrisurenAppLanding';
 
 declare global {
   interface Window {
@@ -120,19 +119,24 @@ export default function App() {
     const saved = localStorage.getItem('frisurenai_pending_results');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        const pendingImage = localStorage.getItem('frisurenai_pending_image');
-        return parsed.map((r: any) => ({
-          ...r,
-          sourceImageUrl: r.sourceImageUrl || pendingImage || undefined
-        }));
+        return JSON.parse(saved);
       } catch (e) {
         console.error("Failed to parse pending results", e);
       }
     }
     return [];
   });
-  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(null);
+  const [selectedResult, setSelectedResult] = useState<GeneratedResult | null>(() => {
+    const saved = localStorage.getItem('frisurenai_pending_selected_result');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Failed to parse pending selected result", e);
+      }
+    }
+    return null;
+  });
   const [isFullscreenImageOpen, setIsFullscreenImageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -433,18 +437,9 @@ export default function App() {
     
     const timeout = setTimeout(() => {
       try {
-        if (results.length > 0) {
-          const cleanResults = results.map(({ sourceImageUrl, ...rest }) => rest);
-          localStorage.setItem('frisurenai_pending_results', JSON.stringify(cleanResults));
-        }
-        if (customResults.length > 0) {
-          const cleanCustom = customResults.map(({ sourceImageUrl, ...rest }) => rest);
-          localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(cleanCustom));
-        }
-        if (selectedResult) {
-          const { sourceImageUrl, ...cleanSelected } = selectedResult;
-          localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(cleanSelected));
-        }
+        if (results.length > 0) localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
+        if (customResults.length > 0) localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
+        if (selectedResult) localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
         if (image) localStorage.setItem('frisurenai_pending_image', image);
         if (hdImage) {
           fastResizeImage(hdImage, 1200, 0.75)
@@ -1285,10 +1280,8 @@ export default function App() {
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
             if (data.baseSketch) setBaseSketch(data.baseSketch);
-            if (data.sketchReferenceImage || (data as any).userImage) {
-              const refImg = data.sketchReferenceImage || (data as any).userImage;
-              setSketchReferenceImage(refImg);
-              setImage(prev => prev || refImg);
+            if (data.sketchReferenceImage) {
+              setSketchReferenceImage(data.sketchReferenceImage);
             }
             if (data.sketchReferenceMimeType) {
               setSketchReferenceMimeType(data.sketchReferenceMimeType);
@@ -1388,8 +1381,6 @@ export default function App() {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid, "SessionId:", sessionId);
         isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid, sessionId });
-        setSelectedResult(null);
-        localStorage.removeItem('frisurenai_pending_selected_result');
 
         // Track Purchase Event
         ReactGA.event('purchase', {
@@ -1657,7 +1648,7 @@ export default function App() {
     const sketchesSynced = !avatarSketch || (userData && userData.avatarSketch);
     const faceAnalysisSynced = !faceAnalysis || (userData && userData.faceAnalysis);
 
-    const isProcessingOrAutoGenerating = isAutoGeneratingFromStripe || !!pendingStudioSelection || isPaymentProcessingRef.current || isCheckingOut || !!pendingCheckoutPlan;
+    const isProcessingOrAutoGenerating = isAutoGeneratingFromStripe || !!pendingStudioSelection || isPaymentProcessingRef.current;
 
     if (user && resultsSynced && customResultsSynced && sketchesSynced && faceAnalysisSynced && !isProcessingOrAutoGenerating) {
       console.log("All data synced to Firestore. Clearing localStorage backup.");
@@ -1850,14 +1841,7 @@ export default function App() {
       console.log("User logged in, resuming checkout for plan:", pendingCheckoutPlan);
       const planToResume = pendingCheckoutPlan;
       setPendingCheckoutPlan(null);
-      setAuthMessage({ type: 'info', text: "Konto & Analyse gesichert! Du wirst zur Zahlungsabwicklung weitergeleitet..." });
-      
-      syncGuestDataToAccount(user).then(() => {
-        handleCheckout(planToResume, pendingStudioSelection);
-      }).catch(err => {
-        console.warn("Sync prior to checkout failed, proceeding with checkout", err);
-        handleCheckout(planToResume, pendingStudioSelection);
-      });
+      handleCheckout(planToResume, pendingStudioSelection);
     }
   }, [user, pendingCheckoutPlan]);
 
@@ -1881,99 +1865,67 @@ export default function App() {
 
 
 
-  const syncGuestDataToAccount = async (targetUser: FirebaseUser) => {
-    if (!targetUser) return;
-    console.log("Syncing all guest data to account for user:", targetUser.uid);
-    
-    const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-    const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-    const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
-    const currentSketchRefMime = sketchReferenceMimeType || mimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime') || localStorage.getItem('frisurenai_pending_mime_type');
-    
-    let currentFaceAnalysis = faceAnalysis;
-    if (!currentFaceAnalysis) {
-      const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-      if (savedAnalysis) {
-        try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) {}
-      }
-    }
-    
-    let currentHairAnalysis = hairAnalysis;
-    if (!currentHairAnalysis) {
-      const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-      if (savedHair) {
-        try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) {}
-      }
-    }
-
-    try {
-      const userRef = doc(db, 'users', targetUser.uid);
-      const userSnap = await getDoc(userRef).catch(() => null);
-      
-      const userDataToMerge: any = {
-        uid: targetUser.uid,
-        email: targetUser.email || '',
-        displayName: targetUser.displayName || loginName || '',
-        photoURL: targetUser.photoURL || null,
-        lastLogin: serverTimestamp()
-      };
-
-      if (!userSnap || !userSnap.exists()) {
-        userDataToMerge.createdAt = serverTimestamp();
-        userDataToMerge.isPremium = false;
-      }
-
-      if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
-      if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
-      if (currentSketchRefImage) {
-        userDataToMerge.sketchReferenceImage = currentSketchRefImage;
-        userDataToMerge.image = currentSketchRefImage;
-      }
-      if (hdImage || currentSketchRefImage) {
-        userDataToMerge.hdImage = hdImage || currentSketchRefImage;
-      }
-      if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
-      if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
-      if (currentHairAnalysis) userDataToMerge.hairAnalysis = currentHairAnalysis;
-
-      // Save main user profile doc
-      await setDoc(userRef, userDataToMerge, { merge: true });
-
-      // Save studio draft
-      await saveStudioDraftToFirestore(targetUser.uid, {
-        image: currentSketchRefImage,
-        hdImage: hdImage || currentSketchRefImage,
-        mimeType: currentSketchRefMime,
-        avatarSketch: currentAvatarSketch,
-        baseSketch: currentBaseSketch
-      });
-
-      // Save all initial analysis results & custom results to Firestore subcollection
-      const pendingToSync = [...results, ...customResults];
-      if (pendingToSync.length > 0) {
-        console.log(`Syncing ${pendingToSync.length} guest results to Firestore for user ${targetUser.uid}...`);
-        for (const r of pendingToSync) {
-          const resToSave = {
-            ...r,
-            sourceImageUrl: r.sourceImageUrl || currentSketchRefImage || undefined
-          };
-          await saveResult(resToSave, true, targetUser).catch(err => console.warn("Failed saving result during account sync", err));
-        }
-      }
-      console.log("Sync of guest data to account finished successfully.");
-    } catch (err) {
-      console.error("Error in syncGuestDataToAccount:", err);
-    }
-  };
-
   const handleLogin = async () => {
     setAuthLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const googleUser = result.user;
+      const user = result.user;
       
-      await syncGuestDataToAccount(googleUser);
-      trackEvent('login', 'Auth', 'Google');
+      // Initialize or update user profile in Firestore
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        
+        const userData: any = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          lastLogin: serverTimestamp(),
+        };
+
+        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
+        const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+        const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+        const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+        const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+        let currentFaceAnalysis = faceAnalysis;
+        if (!currentFaceAnalysis) {
+          const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+          if (savedAnalysis) {
+            try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+          }
+        }
+        let currentHairAnalysis = hairAnalysis;
+        if (!currentHairAnalysis) {
+          const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+          if (savedHair) {
+            try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+          }
+        }
+
+        if (currentAvatarSketch) userData.avatarSketch = currentAvatarSketch;
+        if (currentBaseSketch) userData.baseSketch = currentBaseSketch;
+        if (currentSketchRefImage) userData.sketchReferenceImage = currentSketchRefImage;
+        if (currentSketchRefMime) userData.sketchReferenceMimeType = currentSketchRefMime;
+        if (currentFaceAnalysis) userData.faceAnalysis = currentFaceAnalysis;
+        if (currentHairAnalysis) userData.hairAnalysis = currentHairAnalysis;
+
+        if (!userSnap.exists()) {
+          userData.createdAt = serverTimestamp();
+          userData.isPremium = false;
+          await setDoc(userRef, userData, { merge: true });
+          // Track Sign Up
+          trackEvent('sign_up', 'Auth', 'Google');
+        } else {
+          await setDoc(userRef, userData, { merge: true });
+          // Track Login
+          trackEvent('login', 'Auth', 'Google');
+        }
+      } catch (dbErr) {
+        console.error("Failed to sync user profile to Firestore", dbErr);
+      }
+      
       setError(null);
       setShowLoginModal(false);
     } catch (err: any) {
@@ -2009,12 +1961,51 @@ export default function App() {
         const displayName = loginName.trim();
         await updateProfile(userCredential.user, { displayName });
         
-        await syncGuestDataToAccount(userCredential.user);
+        // Initialize user profile in Firestore
+        try {
+          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+          let currentFaceAnalysis = faceAnalysis;
+          if (!currentFaceAnalysis) {
+            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+            if (savedAnalysis) {
+              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+            }
+          }
+          let currentHairAnalysis = hairAnalysis;
+          if (!currentHairAnalysis) {
+            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+            if (savedHair) {
+              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+            }
+          }
+
+          const userProfileData: any = {
+            uid: userCredential.user.uid,
+            email: userCredential.user.email,
+            displayName: displayName,
+            createdAt: serverTimestamp(),
+            isPremium: false
+          };
+
+          if (currentAvatarSketch) userProfileData.avatarSketch = currentAvatarSketch;
+          if (currentBaseSketch) userProfileData.baseSketch = currentBaseSketch;
+          if (currentSketchRefImage) userProfileData.sketchReferenceImage = currentSketchRefImage;
+          if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
+          if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
+          if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
+
+          await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData, { merge: true });
+        } catch (dbErr) {
+          console.error("Failed to initialize user profile document", dbErr);
+        }
 
         // Track Sign Up
         trackEvent('sign_up', 'Auth', 'Email');
 
-        await sendEmailVerification(userCredential.user).catch(() => {});
+        await sendEmailVerification(userCredential.user);
         if (pendingCheckoutPlan) {
           setShowLoginModal(false);
         } else {
@@ -2025,7 +2016,53 @@ export default function App() {
         const userCredential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
         const loggedInUser = userCredential.user;
         
-        await syncGuestDataToAccount(loggedInUser);
+        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
+        try {
+          const userRef = doc(db, 'users', loggedInUser.uid);
+          const userSnap = await getDoc(userRef);
+          
+          const userDataToMerge: any = {
+            uid: loggedInUser.uid,
+            email: loggedInUser.email,
+            lastLogin: serverTimestamp(),
+          };
+
+          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+          let currentFaceAnalysis = faceAnalysis;
+          if (!currentFaceAnalysis) {
+            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+            if (savedAnalysis) {
+              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+            }
+          }
+          let currentHairAnalysis = hairAnalysis;
+          if (!currentHairAnalysis) {
+            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+            if (savedHair) {
+              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+            }
+          }
+
+          if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
+          if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
+          if (currentSketchRefImage) userDataToMerge.sketchReferenceImage = currentSketchRefImage;
+          if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
+          if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
+          if (currentHairAnalysis) userDataToMerge.hairAnalysis = currentHairAnalysis;
+
+          if (!userSnap.exists()) {
+            userDataToMerge.createdAt = serverTimestamp();
+            userDataToMerge.isPremium = false;
+            await setDoc(userRef, userDataToMerge, { merge: true });
+          } else {
+            await setDoc(userRef, userDataToMerge, { merge: true });
+          }
+        } catch (dbErr) {
+          console.error("Failed to sync/merge user profile to Firestore on email login", dbErr);
+        }
 
         // Track Login
         trackEvent('login', 'Auth', 'Email');
@@ -2261,10 +2298,9 @@ export default function App() {
     });
   };
 
-  const saveResult = async (result: GeneratedResult, silent = false, targetUser?: FirebaseUser | null) => {
-    const activeUser = targetUser || user || auth.currentUser;
-    if (!activeUser || failedSaves.has(result.id)) {
-      if (!activeUser && !silent) {
+  const saveResult = async (result: GeneratedResult, silent = false) => {
+    if (!user || failedSaves.has(result.id)) {
+      if (!user && !silent) {
         setIsRegistering(true);
         setShowLoginModal(true);
       }
@@ -2283,9 +2319,6 @@ export default function App() {
       try {
         // Compress image before saving to Firestore to stay under 1MB limit
         let finalResult = { ...result };
-        if (!finalResult.sourceImageUrl) {
-          finalResult.sourceImageUrl = image || hdImage || localStorage.getItem('frisurenai_pending_image') || undefined;
-        }
         
         // Compress generated hairstyle image to ~500KB for maximum definition
         if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
@@ -2312,12 +2345,12 @@ export default function App() {
           }
         }
 
-        const resultRef = doc(db, 'users', activeUser.uid, 'results', result.id);
-        console.log(`Saving result ${result.id} to Firestore for user ${activeUser.uid}`);
+        const resultRef = doc(db, 'users', user.uid, 'results', result.id);
+        console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
         
         const saveData = {
           ...finalResult,
-          userId: activeUser.uid,
+          userId: user.uid,
           createdAt: (result as any).createdAt || serverTimestamp(),
           id: result.id // Explicitly ensure id is present
         };
@@ -2386,47 +2419,44 @@ export default function App() {
     return true;
   };
 
-  const processUploadedFile = (file: File) => {
-    // Track event
-    trackEvent('click_upload_button', 'User', file.type);
-
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const base64 = event.target?.result as string;
-      
-      // Reset current generation state immediately
-      setResults([]);
-      setError(null);
-      setMimeType(file.type);
-      setAvatarSketch(null);
-      setBaseSketch(null);
-      localStorage.removeItem('frisurenai_pending_avatar_sketch');
-      localStorage.removeItem('frisurenai_pending_base_sketch');
-      
-      // Detect mobile to optimize memory impact and network payload.
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-      const hdMaxDim = 1600;
-      const stdMaxDim = 1200;
-      const resizeQuality = isMobileDevice ? 0.92 : 0.95;
-
-      // Keep high-quality HD Image
-      const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
-      setHdImage(processedHD);
-
-      // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
-      const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
-      setImage(processedImage);
-
-      // Track complete
-      trackEvent('upload_completed', 'User', file.type);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      processUploadedFile(file);
+      // Track event
+      trackEvent('click_upload_button', 'User', file.type);
+ 
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = event.target?.result as string;
+        
+        // Reset current generation state immediately
+        setResults([]);
+        setError(null);
+        setMimeType(file.type);
+        setAvatarSketch(null);
+        setBaseSketch(null);
+        localStorage.removeItem('frisurenai_pending_avatar_sketch');
+        localStorage.removeItem('frisurenai_pending_base_sketch');
+        
+        // Detect mobile to optimize memory impact and network payload.
+        // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        const hdMaxDim = 1600;
+        const stdMaxDim = 1200;
+        const resizeQuality = isMobileDevice ? 0.92 : 0.95;
+
+        // Keep high-quality HD Image
+        const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
+        setHdImage(processedHD);
+ 
+        // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
+        const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
+        setImage(processedImage);
+ 
+        // Track complete
+        trackEvent('upload_completed', 'User', file.type);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -2524,10 +2554,8 @@ export default function App() {
     try {
       const sourceImageToUse = hdImage || image;
       if (!sourceImageToUse) return;
-      const base64Data = sourceImageToUse.includes(',') ? sourceImageToUse.split(',')[1] : sourceImageToUse;
-      const imageMimeType = sourceImageToUse.includes(';') ? (sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg') : (mimeType || 'image/jpeg');
-      
-      const { suggestions, hairAnalysis: newHairAnalysis } = await analyzeFaceAndSuggestStyles(base64Data, imageMimeType);
+      const base64Data = sourceImageToUse.split(',')[1];
+      const { suggestions, hairAnalysis: newHairAnalysis } = await analyzeFaceAndSuggestStyles(base64Data, mimeType);
       if (newHairAnalysis) {
         setHairAnalysis(newHairAnalysis);
         try { localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(newHairAnalysis)); } catch (e) {}
@@ -2558,7 +2586,7 @@ export default function App() {
         try {
           console.log("Starting delayed teaser sketch generation...");
           // Speed optimization: Generate first style sketch directly from the original photo without first generating a bald sketch!
-          const styledSketch = await generateFashionSketch(base64Data, imageMimeType, suggestions[0].name, null);
+          const styledSketch = await generateFashionSketch(base64Data, mimeType, suggestions[0].name, null);
           
           if (styledSketch) {
             setAvatarSketch(styledSketch);
@@ -2568,11 +2596,11 @@ export default function App() {
               await setDoc(userRef, { 
                 avatarSketch: styledSketch,
                 sketchReferenceImage: sourceImageToUse, // Store the reference image used for sketches
-                sketchReferenceMimeType: imageMimeType,
+                sketchReferenceMimeType: mimeType,
                 lastActive: serverTimestamp()
               }, { merge: true }).catch(err => console.warn("Failed to persist styled sketch to user profile", err));
               setSketchReferenceImage(sourceImageToUse);
-              setSketchReferenceMimeType(imageMimeType);
+              setSketchReferenceMimeType(mimeType);
               console.log("Teaser sketch and reference image successfully persisted to user profile.");
             }
           }
@@ -2593,14 +2621,11 @@ export default function App() {
 
       const generateWithStaggerAndTimeout = async (i: number) => {
         const suggestion = suggestions[i];
-        if (suggestion?.id) {
-          setGeneratingResultId(suggestion.id);
-        }
         try {
           console.log(`Generating image in sequential slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
           const imageUrl = await withTimeout(
-            generateHairstyleImage(base64Data, imageMimeType, suggestion.name, suggestion.description),
+            generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
             30000,
             "Timeout"
           );
@@ -2627,7 +2652,6 @@ export default function App() {
             return newResults;
           });
         } finally {
-          setGeneratingResultId(null);
           // Update progress bar based on completed counts
           setResults(prev => {
             const completed = prev.filter(r => r.imageUrl || r.failed).length;
@@ -2689,18 +2713,7 @@ export default function App() {
     const suggestion = results[index];
     if (!suggestion) return;
     
-    const sourceImageToUse = 
-      suggestion.sourceImageUrl || 
-      image || 
-      hdImage || 
-      sketchReferenceImage || 
-      userData?.sketchReferenceImage || 
-      (userData as any)?.userImage || 
-      userData?.studioDraft?.image ||
-      userData?.studioDraft?.hdImage ||
-      localStorage.getItem('frisurenai_pending_image') || 
-      localStorage.getItem('frisurenai_pending_hd_image') ||
-      localStorage.getItem('frisurenai_pending_sketch_ref_image');
+    const sourceImageToUse = suggestion.sourceImageUrl || image || hdImage || localStorage.getItem('frisurenai_pending_image');
     if (!sourceImageToUse) return;
     
     // Reset failed state for this style
@@ -2711,8 +2724,8 @@ export default function App() {
     });
 
     try {
-      const base64Data = sourceImageToUse.includes(',') ? sourceImageToUse.split(',')[1] : sourceImageToUse;
-      const resMimeType = sourceImageToUse.includes(';') ? (sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg') : 'image/jpeg';
+      const base64Data = sourceImageToUse.split(',')[1];
+      const resMimeType = sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg';
       
       const timeoutPromise = new Promise<null>((_, reject) => 
         setTimeout(() => reject(new Error("Timeout")), 18000)
@@ -2762,26 +2775,14 @@ export default function App() {
     setError(null);
 
     try {
-      // ALWAYS prioritize the specific original source image recorded for this style recommendation or user photo
-      const sourceImage = 
-        result.sourceImageUrl || 
-        image || 
-        hdImage || 
-        sketchReferenceImage || 
-        userData?.sketchReferenceImage || 
-        (userData as any)?.userImage || 
-        userData?.studioDraft?.image ||
-        userData?.studioDraft?.hdImage ||
-        localStorage.getItem('frisurenai_pending_image') || 
-        localStorage.getItem('frisurenai_pending_hd_image') ||
-        localStorage.getItem('frisurenai_pending_sketch_ref_image');
-
+      // ALWAYS prioritize the specific original source image recorded for this style recommendation
+      const sourceImage = result.sourceImageUrl || image || hdImage || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
       if (!sourceImage) {
-        throw new Error("Originalfoto nicht gefunden. Bitte lade auf der Startseite oder im Styling Studio dein Foto erneut hoch.");
+        throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
       }
       
-      const base64Data = sourceImage.includes(',') ? sourceImage.split(',')[1] : sourceImage;
-      const resMimeType = sourceImage.includes(';') ? sourceImage.split(';')[0].split(':')[1] || 'image/jpeg' : 'image/jpeg';
+      const base64Data = sourceImage.split(',')[1];
+      const resMimeType = sourceImage.split(';')[0].split(':')[1] || 'image/jpeg';
       
       // Use the description or suitabilityReason as prompt supplement
       const promptSupplement = result.description || result.suitabilityReason;
@@ -2795,7 +2796,7 @@ export default function App() {
 
       if (!imageUrl) throw new Error("KI konnte kein Bild generieren.");
 
-      const updatedResult = { ...result, imageUrl, sourceImageUrl: result.sourceImageUrl || sourceImage };
+      const updatedResult = { ...result, imageUrl };
       
       // Update ALL local React states
       setSavedResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
@@ -3456,16 +3457,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         // Save current results to localStorage before redirecting (as backup)
         try {
           if (results && results.length > 0) {
-            const cleanResults = results.map(({ sourceImageUrl, ...rest }) => rest);
-            localStorage.setItem('frisurenai_pending_results', JSON.stringify(cleanResults));
+            localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
           }
           if (customResults && customResults.length > 0) {
-            const cleanCustom = customResults.map(({ sourceImageUrl, ...rest }) => rest);
-            localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(cleanCustom));
+            localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
           }
           if (selectedResult) {
-            const { sourceImageUrl, ...cleanSelected } = selectedResult;
-            localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(cleanSelected));
+            localStorage.setItem('frisurenai_pending_selected_result', JSON.stringify(selectedResult));
           }
           if (image) {
             localStorage.setItem('frisurenai_pending_image', image);
@@ -4174,7 +4172,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div className="p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
                         <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Gespeicherte Looks</p>
-                        <p className="text-2xl font-serif font-bold">{[...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).length}</p>
+                        <p className="text-2xl font-serif font-bold">{savedResults.length}</p>
                       </div>
                       <div className="p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
                         <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Umfragen</p>
@@ -4643,16 +4641,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <h2 className="text-4xl font-serif font-bold italic">Gespeicherte Looks</h2>
                         <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
                       </div>
-
-                      {error && (
-                        <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm border border-red-100 flex items-start gap-3 shadow-sm">
-                          <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
-                          <span className="font-medium">{error}</span>
-                        </div>
-                      )}
-
                       {(() => {
-                        const allGalleryResults = [...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+                        const allGalleryResults = [...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
                         return allGalleryResults.length === 0 ? (
                           <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
                             <Bookmark className="mx-auto text-brand-primary/20" size={48} />
@@ -4699,10 +4689,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                             handleGenerateLockedResult(result, index);
                                           }}
                                           disabled={isGenerating}
-                                          className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
+                                          className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
                                         >
                                           {generatingResultId === result.id ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
-                                          {generatingResultId === result.id ? "Wird erstellt..." : (index < 1 ? "Gratis-Look erstellen" : "Bild erstellen")}
+                                          {index < 1 ? "Gratis-Look erstellen" : "Bild erstellen"}
                                         </button>
                                       ) : (
                                         <button 
@@ -4917,16 +4907,14 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 </button>
               </div>
 
-              {(() => {
-                const allGalleryResults = [...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-                return allGalleryResults.length === 0 ? (
-                  <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
-                    <Bookmark className="mx-auto text-brand-primary/20" size={48} />
-                    <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {allGalleryResults.map((result, index) => (
+              {savedResults.length === 0 ? (
+                <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
+                  <Bookmark className="mx-auto text-brand-primary/20" size={48} />
+                  <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {savedResults.map((result, index) => (
                     <motion.div
                       key={result.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -4968,22 +4956,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     </motion.div>
                   ))}
                 </div>
-              );
-            })()}
-          </motion.div>
+              )}
+            </motion.div>
           ) : !image ? (
-            currentPath === '/frisuren-app-kostenlos' ? (
-              <KostenloseFrisurenAppLanding 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                onFileUpload={(file) => {
-                  processUploadedFile(file);
-                }}
-              />
-            ) : currentPath === '/frisuren-am-bildschirm-ausprobieren' ? (
+            currentPath === '/frisuren-am-bildschirm-ausprobieren' ? (
               <SeoLandingPage 
                 onStartAnalysis={() => {
                   window.history.pushState({}, '', '/');
@@ -5448,7 +5424,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   const isFreeSlot = index < 1;
                   const isLocked = !isPremium && userPlan !== 'single' && index >= 1;
                   const needsFreeGeneration = isFreeSlot && index > 0 && !result.imageUrl;
-                  const isGeneratingThisCard = generatingResultId === result.id || (isGenerating && !result.imageUrl && (index === 0 || generatingResultId === result.id));
                   
                   return (
                     <React.Fragment key={result.id}>
@@ -5515,7 +5490,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         onClick={() => {
                           if (isLocked) {
                             setShowPricingModal(true);
-                          } else if (needsFreeGeneration || !result.imageUrl) {
+                          } else if (needsFreeGeneration) {
                             if (!user) {
                               setIsRegistering(true);
                               setShowLoginModal(true);
@@ -5638,45 +5613,44 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
                               GRATIS-LOOK 🎁
                             </div>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/40 backdrop-blur-md">
-                              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3 shadow-inner">
-                                {isGeneratingThisCard ? <Sparkles size={28} className="animate-spin text-[#FF9EBE]" /> : <Sparkles size={28} />}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/30 backdrop-blur-sm">
+                              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3">
+                                {isGenerating && generatingResultId === result.id ? <Loader2 className="animate-spin" size={28} /> : <Sparkles size={28} />}
                               </div>
                               <h4 className="text-white font-bold text-lg mb-1">{result.name}</h4>
-                              <p className="text-white/90 text-xs mb-4 max-w-[220px]">
-                                {isGeneratingThisCard 
-                                  ? "Dein neuer Look wird zum Leben erweckt ✨" 
-                                  : !user 
-                                    ? "Kostenlos anmelden, um diesen 2. Look freizuschalten & zu erstellen." 
-                                    : "Dein kostenloser Style aus deiner Erstanalyse."}
+                              <p className="text-white/80 text-xs mb-4 max-w-[220px]">
+                                {!user ? "Kostenlos anmelden, um diesen 2. Look freizuschalten & zu erstellen." : "Dein kostenloser Style aus deiner Erstanalyse."}
                               </p>
-                              {!isGeneratingThisCard && (
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!user) {
-                                      setIsRegistering(true);
-                                      setShowLoginModal(true);
-                                    } else {
-                                      handleGenerateLockedResult(result, index);
-                                    }
-                                  }}
-                                  disabled={isGenerating}
-                                  className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105 text-sm"
-                                >
-                                  {!user ? (
-                                    <>
-                                      <Sparkles size={16} />
-                                      Kostenlos freischalten
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles size={16} />
-                                      Jetzt gratis erstellen
-                                    </>
-                                  )}
-                                </button>
-                              )}
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!user) {
+                                    setIsRegistering(true);
+                                    setShowLoginModal(true);
+                                  } else {
+                                    handleGenerateLockedResult(result, index);
+                                  }
+                                }}
+                                disabled={isGenerating && generatingResultId === result.id}
+                                className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105 text-sm"
+                              >
+                                {isGenerating && generatingResultId === result.id ? (
+                                  <>
+                                    <Loader2 className="animate-spin" size={16} />
+                                    Wird erstellt...
+                                  </>
+                                ) : !user ? (
+                                  <>
+                                    <Sparkles size={16} />
+                                    Kostenlos freischalten
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles size={16} />
+                                    Jetzt gratis erstellen
+                                  </>
+                                )}
+                              </button>
                             </div>
                           </>
                         ) : result.failed ? (
@@ -5706,53 +5680,20 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </div>
                           </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center bg-gradient-to-b from-[#FF9EBE]/10 to-brand-primary/5 relative overflow-hidden">
-                            {isGeneratingThisCard ? (
-                              <>
-                                <div className="absolute inset-0 bg-[#FF9EBE]/5 animate-pulse" />
-                                <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center text-[#FF9EBE] shadow-lg shadow-[#FF9EBE]/20 z-10">
-                                  <Sparkles size={28} className="animate-spin" />
-                                </div>
-                                <div className="space-y-1.5 z-10">
-                                  <p className="text-xs font-black uppercase tracking-widest text-brand-primary">
-                                    Dein neuer Look wird zum Leben erweckt ✨
-                                  </p>
-                                  <p className="text-[11px] text-brand-primary/70 leading-relaxed max-w-[220px]">
-                                    Deine Frisur wird in hoher Qualität gerendert. Bitte habe einen kurzen Moment Geduld...
-                                  </p>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-brand-primary/30 shadow-sm">
-                                  <Zap size={24} className="text-brand-primary" />
-                                </div>
-                                <div className="space-y-1">
-                                  <p className="text-xs font-bold uppercase tracking-widest text-brand-primary">
-                                    Bereit zum Generieren ✨
-                                  </p>
-                                  <p className="text-[10px] text-brand-primary/60 leading-tight max-w-[200px]">
-                                    Klicke hier, um dieses Bild jetzt zu erstellen.
-                                  </p>
-                                </div>
-                                <button 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!user) {
-                                      setIsRegistering(true);
-                                      setShowLoginModal(true);
-                                    } else {
-                                      handleGenerateLockedResult(result, index);
-                                    }
-                                  }}
-                                  disabled={isGenerating}
-                                  className="px-5 py-2 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
-                                >
-                                  <Zap size={12} />
-                                  Bild erstellen
-                                </button>
-                              </>
-                            )}
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
+                            <Loader2 className={`animate-spin text-[#FF9EBE] ${generatingResultId === result.id ? 'opacity-100' : 'opacity-20'}`} size={32} />
+                            <div className="space-y-1">
+                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">
+                                {generatingResultId === result.id ? "Dein exklusiver Look wird erstellt..." : "Bereit zum Generieren ✨"}
+                              </p>
+                              <p className="text-[8px] text-brand-primary/40 leading-tight">
+                                {generatingResultId === result.id 
+                                  ? "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."
+                                  : isPremium 
+                                    ? "Klicke oben auf 'Alle Styles laden', um deine Premium-Beratung zu vervollständigen."
+                                    : "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."}
+                              </p>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -6148,20 +6089,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           </div>
           
           <div className="flex flex-wrap justify-center gap-6 md:gap-10">
-            <button onClick={() => {
-              window.history.pushState({}, '', '/frisuren-app-kostenlos');
-              setCurrentPath('/frisuren-app-kostenlos');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">
-              Kostenlose Frisuren App
-            </button>
-            <button onClick={() => {
-              window.history.pushState({}, '', '/frisuren-am-bildschirm-ausprobieren');
-              setCurrentPath('/frisuren-am-bildschirm-ausprobieren');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">
-              Frisuren am Bildschirm
-            </button>
             <button onClick={() => { setSupportInitialCategory('general'); setShowSupportModal(true); }} className="text-xs font-bold uppercase tracking-widest text-[#FF9EBE] hover:underline transition-colors shrink-0">Support & Kontakt</button>
             <button onClick={() => setActiveLegalModal('about')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Über uns</button>
             <button onClick={() => setActiveLegalModal('impressum')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Impressum</button>
@@ -7538,7 +7465,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
         {showPollCreator && (
           <PollCreator 
-            userHistory={[...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            userHistory={[...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
             onClose={() => {
               setShowPollCreator(false);
               setPollInitialSelectedIds([]);

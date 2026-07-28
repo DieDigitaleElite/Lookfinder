@@ -144,7 +144,7 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
 };`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-3.5-flash",
           contents: {
             parts: [
               { inlineData: { data: base64Image, mimeType } },
@@ -181,7 +181,7 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
         Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.6-flash",
+          model: "gemini-3.5-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json"
@@ -193,8 +193,7 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
 
       case "generateImage": {
         const { base64Image, styleName, description, isSketch, baseSketch } = payload;
-        const cleanBase64 = base64Image ? (base64Image.includes(',') ? base64Image.split(',')[1] : base64Image) : "";
-        const mimeType = payload.mimeType || (base64Image && base64Image.includes(';') ? base64Image.split(';')[0].split(':')[1] : "image/jpeg") || "image/jpeg";
+        const mimeType = "image/jpeg"; // Enforce JPEG for the resized original image
         
         const safetySettings = [
           {
@@ -263,10 +262,10 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
 - Return the finished image in crystal-clear high definition.`;
         }
 
-        const parts: any[] = [{ inlineData: { data: cleanBase64, mimeType } }];
+        const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
         if (baseSketch) {
-           const sketchMimeType = baseSketch.includes(';') ? baseSketch.split(";")[0].split(":")[1] : "image/jpeg";
-           const sketchData = baseSketch.includes(',') ? baseSketch.split(",")[1] : baseSketch;
+           const sketchMimeType = baseSketch.split(";")[0].split(":")[1];
+           const sketchData = baseSketch.split(",")[1];
            parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
         }
         parts.push({ text: promptSnippet });
@@ -274,10 +273,10 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
         let result;
         if (isSketch) {
           try {
-            // Attempt 1: gemini-3.1-flash-lite-image (fast and lightweight for sketches)
-            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-lite-image", parts, safetySettings);
+            // Attempt 1: gemini-2.5-flash-image (lighter, standard for simple pencil sketches)
+            result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
           } catch (err1: any) {
-            console.warn("Attempt 1 with gemini-3.1-flash-lite-image failed, retrying with gemini-3.1-flash-image...");
+            console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image...");
             try {
               // Attempt 2: gemini-3.1-flash-image
               result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
@@ -288,7 +287,7 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
           }
         } else {
           try {
-            // Attempt 1 for photorealistic is gemini-3.1-flash-image
+            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 1K HD premium quality (extremely snappy and reliable)
             result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings, {
               imageConfig: {
                 imageSize: "1K",
@@ -297,10 +296,10 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
               outputMimeType: "image/png"
             });
           } catch (err1: any) {
-            console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-3.1-flash-lite-image as fallback...");
+            console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-2.5-flash-image as fallback...");
             try {
-              // Attempt 2: gemini-3.1-flash-lite-image
-              result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-lite-image", parts, safetySettings, {
+              // Attempt 2: gemini-2.5-flash-image
+              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings, {
                 imageConfig: {
                   imageFormat: "image/png"
                 },
