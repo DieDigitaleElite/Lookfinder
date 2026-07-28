@@ -1300,8 +1300,10 @@ export default function App() {
             setPremiumExpiresAt(data.premiumExpiresAt || null);
             if (data.avatarSketch) setAvatarSketch(data.avatarSketch);
             if (data.baseSketch) setBaseSketch(data.baseSketch);
-            if (data.sketchReferenceImage) {
-              setSketchReferenceImage(data.sketchReferenceImage);
+            if (data.sketchReferenceImage || (data as any).userImage) {
+              const refImg = data.sketchReferenceImage || (data as any).userImage;
+              setSketchReferenceImage(refImg);
+              setImage(prev => prev || refImg);
             }
             if (data.sketchReferenceMimeType) {
               setSketchReferenceMimeType(data.sketchReferenceMimeType);
@@ -1907,7 +1909,7 @@ export default function App() {
         // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
         const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
         const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-        const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+        const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
         const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
         let currentFaceAnalysis = faceAnalysis;
         if (!currentFaceAnalysis) {
@@ -1997,7 +1999,7 @@ export default function App() {
         try {
           const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
           const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+          const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
           const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
           let currentFaceAnalysis = faceAnalysis;
           if (!currentFaceAnalysis) {
@@ -2073,7 +2075,7 @@ export default function App() {
 
           const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
           const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+          const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
           const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
           let currentFaceAnalysis = faceAnalysis;
           if (!currentFaceAnalysis) {
@@ -2837,14 +2839,26 @@ export default function App() {
     setError(null);
 
     try {
-      // ALWAYS prioritize the specific original source image recorded for this style recommendation
-      const sourceImage = result.sourceImageUrl || image || hdImage || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
+      // ALWAYS prioritize the specific original source image recorded for this style recommendation or user photo
+      const sourceImage = 
+        result.sourceImageUrl || 
+        image || 
+        hdImage || 
+        sketchReferenceImage || 
+        userData?.sketchReferenceImage || 
+        (userData as any)?.userImage || 
+        userData?.studioDraft?.image ||
+        userData?.studioDraft?.hdImage ||
+        localStorage.getItem('frisurenai_pending_image') || 
+        localStorage.getItem('frisurenai_pending_hd_image') ||
+        localStorage.getItem('frisurenai_pending_sketch_ref_image');
+
       if (!sourceImage) {
-        throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
+        throw new Error("Originalfoto nicht gefunden. Bitte lade auf der Startseite oder im Styling Studio dein Foto erneut hoch.");
       }
       
-      const base64Data = sourceImage.split(',')[1];
-      const resMimeType = sourceImage.split(';')[0].split(':')[1] || 'image/jpeg';
+      const base64Data = sourceImage.includes(',') ? sourceImage.split(',')[1] : sourceImage;
+      const resMimeType = sourceImage.includes(';') ? sourceImage.split(';')[0].split(':')[1] || 'image/jpeg' : 'image/jpeg';
       
       // Use the description or suitabilityReason as prompt supplement
       const promptSupplement = result.description || result.suitabilityReason;
@@ -2858,7 +2872,7 @@ export default function App() {
 
       if (!imageUrl) throw new Error("KI konnte kein Bild generieren.");
 
-      const updatedResult = { ...result, imageUrl };
+      const updatedResult = { ...result, imageUrl, sourceImageUrl: result.sourceImageUrl || sourceImage };
       
       // Update ALL local React states
       setSavedResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
@@ -4706,6 +4720,14 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <h2 className="text-4xl font-serif font-bold italic">Gespeicherte Looks</h2>
                         <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
                       </div>
+
+                      {error && (
+                        <div className="p-4 bg-red-50 text-red-600 rounded-2xl text-sm border border-red-100 flex items-start gap-3 shadow-sm">
+                          <AlertCircle size={18} className="mt-0.5 shrink-0 text-red-500" />
+                          <span className="font-medium">{error}</span>
+                        </div>
+                      )}
+
                       {(() => {
                         const allGalleryResults = [...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
                         return allGalleryResults.length === 0 ? (
@@ -4754,10 +4776,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                             handleGenerateLockedResult(result, index);
                                           }}
                                           disabled={isGenerating}
-                                          className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
+                                          className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
                                         >
                                           {generatingResultId === result.id ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
-                                          {index < 1 ? "Gratis-Look erstellen" : "Bild erstellen"}
+                                          {generatingResultId === result.id ? "Wird erstellt..." : (index < 1 ? "Gratis-Look erstellen" : "Bild erstellen")}
                                         </button>
                                       ) : (
                                         <button 
@@ -5569,7 +5591,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         onClick={() => {
                           if (isLocked) {
                             setShowPricingModal(true);
-                          } else if (needsFreeGeneration) {
+                          } else if (needsFreeGeneration || !result.imageUrl) {
                             if (!user) {
                               setIsRegistering(true);
                               setShowLoginModal(true);
@@ -5759,20 +5781,38 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </div>
                           </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
-                            <Loader2 className={`animate-spin text-[#FF9EBE] ${generatingResultId === result.id ? 'opacity-100' : 'opacity-20'}`} size={32} />
+                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-6 text-center bg-brand-primary/5">
+                            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-brand-primary/30 shadow-sm">
+                              {generatingResultId === result.id ? <Loader2 className="animate-spin text-[#FF9EBE]" size={24} /> : <Zap size={24} className="text-brand-primary" />}
+                            </div>
                             <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">
-                                {generatingResultId === result.id ? "Dein exklusiver Look wird erstellt..." : "Bereit zum Generieren ✨"}
+                              <p className="text-xs font-bold uppercase tracking-widest text-brand-primary">
+                                {generatingResultId === result.id ? "Wird erstellt..." : "Bereit zum Generieren ✨"}
                               </p>
-                              <p className="text-[8px] text-brand-primary/40 leading-tight">
+                              <p className="text-[10px] text-brand-primary/60 leading-tight max-w-[200px]">
                                 {generatingResultId === result.id 
-                                  ? "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."
-                                  : isPremium 
-                                    ? "Klicke oben auf 'Alle Styles laden', um deine Premium-Beratung zu vervollständigen."
-                                    : "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."}
+                                  ? "Deine Frisur wird hochauflösend gerendert."
+                                  : "Klicke hier, um dieses Bild jetzt zu erstellen."}
                               </p>
                             </div>
+                            {generatingResultId !== result.id && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!user) {
+                                    setIsRegistering(true);
+                                    setShowLoginModal(true);
+                                  } else {
+                                    handleGenerateLockedResult(result, index);
+                                  }
+                                }}
+                                disabled={isGenerating}
+                                className="px-5 py-2 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md flex items-center gap-1.5"
+                              >
+                                <Zap size={12} />
+                                Bild erstellen
+                              </button>
+                            )}
                           </div>
                         )}
                       </div>
