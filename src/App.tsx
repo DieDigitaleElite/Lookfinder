@@ -1850,7 +1850,14 @@ export default function App() {
       console.log("User logged in, resuming checkout for plan:", pendingCheckoutPlan);
       const planToResume = pendingCheckoutPlan;
       setPendingCheckoutPlan(null);
-      handleCheckout(planToResume, pendingStudioSelection);
+      setAuthMessage({ type: 'info', text: "Konto & Analyse gesichert! Du wirst zur Zahlungsabwicklung weitergeleitet..." });
+      
+      syncGuestDataToAccount(user).then(() => {
+        handleCheckout(planToResume, pendingStudioSelection);
+      }).catch(err => {
+        console.warn("Sync prior to checkout failed, proceeding with checkout", err);
+        handleCheckout(planToResume, pendingStudioSelection);
+      });
     }
   }, [user, pendingCheckoutPlan]);
 
@@ -1874,79 +1881,99 @@ export default function App() {
 
 
 
+  const syncGuestDataToAccount = async (targetUser: FirebaseUser) => {
+    if (!targetUser) return;
+    console.log("Syncing all guest data to account for user:", targetUser.uid);
+    
+    const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+    const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+    const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
+    const currentSketchRefMime = sketchReferenceMimeType || mimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime') || localStorage.getItem('frisurenai_pending_mime_type');
+    
+    let currentFaceAnalysis = faceAnalysis;
+    if (!currentFaceAnalysis) {
+      const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+      if (savedAnalysis) {
+        try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) {}
+      }
+    }
+    
+    let currentHairAnalysis = hairAnalysis;
+    if (!currentHairAnalysis) {
+      const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+      if (savedHair) {
+        try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) {}
+      }
+    }
+
+    try {
+      const userRef = doc(db, 'users', targetUser.uid);
+      const userSnap = await getDoc(userRef).catch(() => null);
+      
+      const userDataToMerge: any = {
+        uid: targetUser.uid,
+        email: targetUser.email || '',
+        displayName: targetUser.displayName || loginName || '',
+        photoURL: targetUser.photoURL || null,
+        lastLogin: serverTimestamp()
+      };
+
+      if (!userSnap || !userSnap.exists()) {
+        userDataToMerge.createdAt = serverTimestamp();
+        userDataToMerge.isPremium = false;
+      }
+
+      if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
+      if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
+      if (currentSketchRefImage) {
+        userDataToMerge.sketchReferenceImage = currentSketchRefImage;
+        userDataToMerge.image = currentSketchRefImage;
+      }
+      if (hdImage || currentSketchRefImage) {
+        userDataToMerge.hdImage = hdImage || currentSketchRefImage;
+      }
+      if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
+      if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
+      if (currentHairAnalysis) userDataToMerge.hairAnalysis = currentHairAnalysis;
+
+      // Save main user profile doc
+      await setDoc(userRef, userDataToMerge, { merge: true });
+
+      // Save studio draft
+      await saveStudioDraftToFirestore(targetUser.uid, {
+        image: currentSketchRefImage,
+        hdImage: hdImage || currentSketchRefImage,
+        mimeType: currentSketchRefMime,
+        avatarSketch: currentAvatarSketch,
+        baseSketch: currentBaseSketch
+      });
+
+      // Save all initial analysis results & custom results to Firestore subcollection
+      const pendingToSync = [...results, ...customResults];
+      if (pendingToSync.length > 0) {
+        console.log(`Syncing ${pendingToSync.length} guest results to Firestore for user ${targetUser.uid}...`);
+        for (const r of pendingToSync) {
+          const resToSave = {
+            ...r,
+            sourceImageUrl: r.sourceImageUrl || currentSketchRefImage || undefined
+          };
+          await saveResult(resToSave, true, targetUser).catch(err => console.warn("Failed saving result during account sync", err));
+        }
+      }
+      console.log("Sync of guest data to account finished successfully.");
+    } catch (err) {
+      console.error("Error in syncGuestDataToAccount:", err);
+    }
+  };
+
   const handleLogin = async () => {
     setAuthLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      const googleUser = result.user;
       
-      // Initialize or update user profile in Firestore
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        const userData: any = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          lastLogin: serverTimestamp(),
-        };
-
-        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
-        const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-        const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-        const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
-        const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
-        let currentFaceAnalysis = faceAnalysis;
-        if (!currentFaceAnalysis) {
-          const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-          if (savedAnalysis) {
-            try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
-          }
-        }
-        let currentHairAnalysis = hairAnalysis;
-        if (!currentHairAnalysis) {
-          const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-          if (savedHair) {
-            try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
-          }
-        }
-
-        if (currentAvatarSketch) userData.avatarSketch = currentAvatarSketch;
-        if (currentBaseSketch) userData.baseSketch = currentBaseSketch;
-        if (currentSketchRefImage) userData.sketchReferenceImage = currentSketchRefImage;
-        if (currentSketchRefMime) userData.sketchReferenceMimeType = currentSketchRefMime;
-        if (currentFaceAnalysis) userData.faceAnalysis = currentFaceAnalysis;
-        if (currentHairAnalysis) userData.hairAnalysis = currentHairAnalysis;
-
-        if (!userSnap.exists()) {
-          userData.createdAt = serverTimestamp();
-          userData.isPremium = false;
-          await setDoc(userRef, userData, { merge: true });
-          // Track Sign Up
-          trackEvent('sign_up', 'Auth', 'Google');
-        } else {
-          await setDoc(userRef, userData, { merge: true });
-          // Track Login
-          trackEvent('login', 'Auth', 'Google');
-        }
-
-        // Instantly sync guest analysis results to Firestore
-        if (results.length > 0 || customResults.length > 0) {
-          const pendingToSync = [...results, ...customResults];
-          for (const r of pendingToSync) {
-            const resToSave = {
-              ...r,
-              sourceImageUrl: r.sourceImageUrl || image || localStorage.getItem('frisurenai_pending_image') || undefined
-            };
-            saveResult(resToSave, true).catch(() => {});
-          }
-        }
-      } catch (dbErr) {
-        console.error("Failed to sync user profile to Firestore", dbErr);
-      }
-      
+      await syncGuestDataToAccount(googleUser);
+      trackEvent('login', 'Auth', 'Google');
       setError(null);
       setShowLoginModal(false);
     } catch (err: any) {
@@ -1982,63 +2009,12 @@ export default function App() {
         const displayName = loginName.trim();
         await updateProfile(userCredential.user, { displayName });
         
-        // Initialize user profile in Firestore
-        try {
-          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-          const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
-          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
-          let currentFaceAnalysis = faceAnalysis;
-          if (!currentFaceAnalysis) {
-            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-            if (savedAnalysis) {
-              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
-            }
-          }
-          let currentHairAnalysis = hairAnalysis;
-          if (!currentHairAnalysis) {
-            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-            if (savedHair) {
-              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
-            }
-          }
-
-          const userProfileData: any = {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email,
-            displayName: displayName,
-            createdAt: serverTimestamp(),
-            isPremium: false
-          };
-
-          if (currentAvatarSketch) userProfileData.avatarSketch = currentAvatarSketch;
-          if (currentBaseSketch) userProfileData.baseSketch = currentBaseSketch;
-          if (currentSketchRefImage) userProfileData.sketchReferenceImage = currentSketchRefImage;
-          if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
-          if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
-          if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
-
-          await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData, { merge: true });
-
-          // Instantly sync guest analysis results to Firestore
-          if (results.length > 0 || customResults.length > 0) {
-            const pendingToSync = [...results, ...customResults];
-            for (const r of pendingToSync) {
-              const resToSave = {
-                ...r,
-                sourceImageUrl: r.sourceImageUrl || image || localStorage.getItem('frisurenai_pending_image') || undefined
-              };
-              saveResult(resToSave, true).catch(() => {});
-            }
-          }
-        } catch (dbErr) {
-          console.error("Failed to initialize user profile document", dbErr);
-        }
+        await syncGuestDataToAccount(userCredential.user);
 
         // Track Sign Up
         trackEvent('sign_up', 'Auth', 'Email');
 
-        await sendEmailVerification(userCredential.user);
+        await sendEmailVerification(userCredential.user).catch(() => {});
         if (pendingCheckoutPlan) {
           setShowLoginModal(false);
         } else {
@@ -2049,65 +2025,7 @@ export default function App() {
         const userCredential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
         const loggedInUser = userCredential.user;
         
-        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
-        try {
-          const userRef = doc(db, 'users', loggedInUser.uid);
-          const userSnap = await getDoc(userRef);
-          
-          const userDataToMerge: any = {
-            uid: loggedInUser.uid,
-            email: loggedInUser.email,
-            lastLogin: serverTimestamp(),
-          };
-
-          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-          const currentSketchRefImage = sketchReferenceImage || image || hdImage || localStorage.getItem('frisurenai_pending_sketch_ref_image') || localStorage.getItem('frisurenai_pending_image');
-          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
-          let currentFaceAnalysis = faceAnalysis;
-          if (!currentFaceAnalysis) {
-            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-            if (savedAnalysis) {
-              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
-            }
-          }
-          let currentHairAnalysis = hairAnalysis;
-          if (!currentHairAnalysis) {
-            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-            if (savedHair) {
-              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
-            }
-          }
-
-          if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
-          if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
-          if (currentSketchRefImage) userDataToMerge.sketchReferenceImage = currentSketchRefImage;
-          if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
-          if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
-          if (currentHairAnalysis) userDataToMerge.hairAnalysis = currentHairAnalysis;
-
-          if (!userSnap.exists()) {
-            userDataToMerge.createdAt = serverTimestamp();
-            userDataToMerge.isPremium = false;
-            await setDoc(userRef, userDataToMerge, { merge: true });
-          } else {
-            await setDoc(userRef, userDataToMerge, { merge: true });
-          }
-
-          // Instantly sync guest analysis results to Firestore
-          if (results.length > 0 || customResults.length > 0) {
-            const pendingToSync = [...results, ...customResults];
-            for (const r of pendingToSync) {
-              const resToSave = {
-                ...r,
-                sourceImageUrl: r.sourceImageUrl || image || localStorage.getItem('frisurenai_pending_image') || undefined
-              };
-              saveResult(resToSave, true).catch(() => {});
-            }
-          }
-        } catch (dbErr) {
-          console.error("Failed to sync/merge user profile to Firestore on email login", dbErr);
-        }
+        await syncGuestDataToAccount(loggedInUser);
 
         // Track Login
         trackEvent('login', 'Auth', 'Email');
@@ -2343,9 +2261,10 @@ export default function App() {
     });
   };
 
-  const saveResult = async (result: GeneratedResult, silent = false) => {
-    if (!user || failedSaves.has(result.id)) {
-      if (!user && !silent) {
+  const saveResult = async (result: GeneratedResult, silent = false, targetUser?: FirebaseUser | null) => {
+    const activeUser = targetUser || user || auth.currentUser;
+    if (!activeUser || failedSaves.has(result.id)) {
+      if (!activeUser && !silent) {
         setIsRegistering(true);
         setShowLoginModal(true);
       }
@@ -2393,12 +2312,12 @@ export default function App() {
           }
         }
 
-        const resultRef = doc(db, 'users', user.uid, 'results', result.id);
-        console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
+        const resultRef = doc(db, 'users', activeUser.uid, 'results', result.id);
+        console.log(`Saving result ${result.id} to Firestore for user ${activeUser.uid}`);
         
         const saveData = {
           ...finalResult,
-          userId: user.uid,
+          userId: activeUser.uid,
           createdAt: (result as any).createdAt || serverTimestamp(),
           id: result.id // Explicitly ensure id is present
         };
@@ -2770,7 +2689,18 @@ export default function App() {
     const suggestion = results[index];
     if (!suggestion) return;
     
-    const sourceImageToUse = suggestion.sourceImageUrl || image || hdImage || localStorage.getItem('frisurenai_pending_image');
+    const sourceImageToUse = 
+      suggestion.sourceImageUrl || 
+      image || 
+      hdImage || 
+      sketchReferenceImage || 
+      userData?.sketchReferenceImage || 
+      (userData as any)?.userImage || 
+      userData?.studioDraft?.image ||
+      userData?.studioDraft?.hdImage ||
+      localStorage.getItem('frisurenai_pending_image') || 
+      localStorage.getItem('frisurenai_pending_hd_image') ||
+      localStorage.getItem('frisurenai_pending_sketch_ref_image');
     if (!sourceImageToUse) return;
     
     // Reset failed state for this style
@@ -2781,8 +2711,8 @@ export default function App() {
     });
 
     try {
-      const base64Data = sourceImageToUse.split(',')[1];
-      const resMimeType = sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg';
+      const base64Data = sourceImageToUse.includes(',') ? sourceImageToUse.split(',')[1] : sourceImageToUse;
+      const resMimeType = sourceImageToUse.includes(';') ? (sourceImageToUse.split(';')[0].split(':')[1] || 'image/jpeg') : 'image/jpeg';
       
       const timeoutPromise = new Promise<null>((_, reject) => 
         setTimeout(() => reject(new Error("Timeout")), 18000)
