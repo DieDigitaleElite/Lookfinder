@@ -4176,7 +4176,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                       <div className="p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
                         <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Gespeicherte Looks</p>
-                        <p className="text-2xl font-serif font-bold">{savedResults.length}</p>
+                        <p className="text-2xl font-serif font-bold">{[...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i).length}</p>
                       </div>
                       <div className="p-6 bg-black/[0.02] border border-black/5 rounded-3xl space-y-1">
                         <p className="text-[10px] font-black uppercase tracking-widest text-brand-primary/30">Umfragen</p>
@@ -4646,7 +4646,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
                       </div>
                       {(() => {
-                        const allGalleryResults = [...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+                        const allGalleryResults = [...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
                         return allGalleryResults.length === 0 ? (
                           <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
                             <Bookmark className="mx-auto text-brand-primary/20" size={48} />
@@ -4911,14 +4911,16 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 </button>
               </div>
 
-              {savedResults.length === 0 ? (
-                <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
-                  <Bookmark className="mx-auto text-brand-primary/20" size={48} />
-                  <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {savedResults.map((result, index) => (
+              {(() => {
+                const allGalleryResults = [...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+                return allGalleryResults.length === 0 ? (
+                  <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
+                    <Bookmark className="mx-auto text-brand-primary/20" size={48} />
+                    <p className="text-lg text-brand-primary/40">Du hast noch keine Looks gespeichert.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    {allGalleryResults.map((result, index) => (
                     <motion.div
                       key={result.id}
                       initial={{ opacity: 0, y: 20 }}
@@ -4960,8 +4962,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     </motion.div>
                   ))}
                 </div>
-              )}
-            </motion.div>
+              );
+            })()}
+          </motion.div>
           ) : !image ? (
             currentPath === '/frisuren-app-kostenlos' ? (
               <KostenloseFrisurenAppLanding 
@@ -7494,7 +7497,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
 
         {showPollCreator && (
           <PollCreator 
-            userHistory={[...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
+            userHistory={[...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)}
             onClose={() => {
               setShowPollCreator(false);
               setPollInitialSelectedIds([]);
