@@ -45,6 +45,7 @@ import AdminDashboard from './components/AdminDashboard';
 import PollCreator from './components/PollCreator';
 import SupportModal from './components/SupportModal';
 import SeoLandingPage from './components/SeoLandingPage';
+import KostenloseFrisurenAppLanding from './components/KostenloseFrisurenAppLanding';
 
 declare global {
   interface Window {
@@ -2419,44 +2420,47 @@ export default function App() {
     return true;
   };
 
+  const processUploadedFile = (file: File) => {
+    // Track event
+    trackEvent('click_upload_button', 'User', file.type);
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64 = event.target?.result as string;
+      
+      // Reset current generation state immediately
+      setResults([]);
+      setError(null);
+      setMimeType(file.type);
+      setAvatarSketch(null);
+      setBaseSketch(null);
+      localStorage.removeItem('frisurenai_pending_avatar_sketch');
+      localStorage.removeItem('frisurenai_pending_base_sketch');
+      
+      // Detect mobile to optimize memory impact and network payload.
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+      const hdMaxDim = 1600;
+      const stdMaxDim = 1200;
+      const resizeQuality = isMobileDevice ? 0.92 : 0.95;
+
+      // Keep high-quality HD Image
+      const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
+      setHdImage(processedHD);
+
+      // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
+      const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
+      setImage(processedImage);
+
+      // Track complete
+      trackEvent('upload_completed', 'User', file.type);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Track event
-      trackEvent('click_upload_button', 'User', file.type);
- 
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const base64 = event.target?.result as string;
-        
-        // Reset current generation state immediately
-        setResults([]);
-        setError(null);
-        setMimeType(file.type);
-        setAvatarSketch(null);
-        setBaseSketch(null);
-        localStorage.removeItem('frisurenai_pending_avatar_sketch');
-        localStorage.removeItem('frisurenai_pending_base_sketch');
-        
-        // Detect mobile to optimize memory impact and network payload.
-        // We configure premium high-quality resolutions to give users an exceptional aesthetic result.
-        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-        const hdMaxDim = 1600;
-        const stdMaxDim = 1200;
-        const resizeQuality = isMobileDevice ? 0.92 : 0.95;
-
-        // Keep high-quality HD Image
-        const processedHD = await fastResizeImage(base64, hdMaxDim, resizeQuality);
-        setHdImage(processedHD);
- 
-        // Reuse the resized image directly on mobile to avoid sequential massive canvas rendering in Safari
-        const processedImage = isMobileDevice ? processedHD : await fastResizeImage(base64, stdMaxDim, resizeQuality);
-        setImage(processedImage);
- 
-        // Track complete
-        trackEvent('upload_completed', 'User', file.type);
-      };
-      reader.readAsDataURL(file);
+      processUploadedFile(file);
     }
   };
 
@@ -4959,7 +4963,18 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               )}
             </motion.div>
           ) : !image ? (
-            currentPath === '/frisuren-am-bildschirm-ausprobieren' ? (
+            currentPath === '/frisuren-app-kostenlos' ? (
+              <KostenloseFrisurenAppLanding 
+                onStartAnalysis={() => {
+                  window.history.pushState({}, '', '/');
+                  setCurrentPath('/');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                onFileUpload={(file) => {
+                  processUploadedFile(file);
+                }}
+              />
+            ) : currentPath === '/frisuren-am-bildschirm-ausprobieren' ? (
               <SeoLandingPage 
                 onStartAnalysis={() => {
                   window.history.pushState({}, '', '/');
@@ -6089,6 +6104,20 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           </div>
           
           <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+            <button onClick={() => {
+              window.history.pushState({}, '', '/frisuren-app-kostenlos');
+              setCurrentPath('/frisuren-app-kostenlos');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">
+              Kostenlose Frisuren App
+            </button>
+            <button onClick={() => {
+              window.history.pushState({}, '', '/frisuren-am-bildschirm-ausprobieren');
+              setCurrentPath('/frisuren-am-bildschirm-ausprobieren');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">
+              Frisuren am Bildschirm
+            </button>
             <button onClick={() => { setSupportInitialCategory('general'); setShowSupportModal(true); }} className="text-xs font-bold uppercase tracking-widest text-[#FF9EBE] hover:underline transition-colors shrink-0">Support & Kontakt</button>
             <button onClick={() => setActiveLegalModal('about')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Über uns</button>
             <button onClick={() => setActiveLegalModal('impressum')} className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 hover:text-[#FF9EBE] transition-colors">Impressum</button>
