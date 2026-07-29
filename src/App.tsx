@@ -1950,7 +1950,8 @@ export default function App() {
 
   // Resume checkout after login if a plan was selected
   useEffect(() => {
-    if (user && pendingCheckoutPlan && !isSyncingCheckoutRef.current) {
+    const activeUser = user || auth.currentUser;
+    if (activeUser && pendingCheckoutPlan && !isSyncingCheckoutRef.current) {
       console.log("User logged in, resuming checkout for plan:", pendingCheckoutPlan);
       const planToResume = pendingCheckoutPlan;
       setPendingCheckoutPlan(null);
@@ -1958,9 +1959,9 @@ export default function App() {
     }
   }, [user, pendingCheckoutPlan]);
 
-  // Redirect to Gallery ('gallery') after registration if results exist, otherwise go to Studio if image exists
+  // Redirect to Gallery ('gallery') after registration if results exist and not checking out
   useEffect(() => {
-    if (user) {
+    if (user && !pendingCheckoutPlan && !isSyncingCheckoutRef.current) {
       if (results.length > 0) {
         if (dashboardTab !== 'gallery') {
           setDashboardTab('gallery');
@@ -1974,7 +1975,7 @@ export default function App() {
         setTimeout(() => setAuthMessage(null), 5000);
       }
     }
-  }, [user, results.length, image]);
+  }, [user, results.length, image, pendingCheckoutPlan]);
 
   const handleLogin = async () => {
     setAuthLoading(true);
@@ -3364,8 +3365,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     console.log("Initiating checkout for plan:", plan, "metadata:", metadata);
     
     const activeMetadata = metadata || pendingStudioSelection;
+    const activeUser = user || auth.currentUser;
     
-    if (!user) {
+    if (!activeUser) {
       console.log("User not logged in, prompting for login before checkout");
       setPendingCheckoutPlan(plan);
       if (activeMetadata) {
@@ -3397,7 +3399,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     });
 
     try {
-      console.log("Fetching checkout session...");
+      console.log("Fetching checkout session for UID:", activeUser.uid);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
@@ -3413,8 +3415,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         },
         body: JSON.stringify({ 
           plan, 
-          userId: auth.currentUser?.uid,
-          email: auth.currentUser?.email 
+          userId: activeUser.uid,
+          email: activeUser.email 
         }),
         signal: controller.signal
       });
@@ -3467,8 +3469,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         console.log("Redirecting to Stripe:", data.url);
         
         // Save HD studio draft to Firestore in background (non-blocking) before redirecting
-        if (user) {
-          saveStudioDraftToFirestore(user.uid).catch(draftErr => {
+        if (activeUser) {
+          saveStudioDraftToFirestore(activeUser.uid).catch(draftErr => {
             console.warn("Could not save studio draft to Firestore in background", draftErr);
           });
         }
@@ -3525,7 +3527,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         // but use a safety timeout of 1000ms so we never keep the user waiting or freeze the checkout redirect.
         // Even if some database writes are still in-flight, they are securely saved locally in localStorage
         // and will also automatically sync upon return from Stripe.
-        if (user && (results.length > 0 || customResults.length > 0)) {
+        if (activeUser && (results.length > 0 || customResults.length > 0)) {
           const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id, r.imageUrl));
           if (unsavedResults.length > 0) {
             console.log(`Starting awaiting parallel Firestore sync of ${unsavedResults.length} results before redirect...`);
