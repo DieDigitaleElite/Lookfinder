@@ -1833,27 +1833,6 @@ export default function App() {
     }
   }, [user, results, customResults]);
 
-  // Keep guest/pending results continuously backed up to localStorage
-  useEffect(() => {
-    if (results.length > 0) {
-      try {
-        localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
-      } catch (e) {
-        console.warn("Failed to update pending_results backup in localStorage", e);
-      }
-    }
-  }, [results]);
-
-  useEffect(() => {
-    if (customResults.length > 0) {
-      try {
-        localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
-      } catch (e) {
-        console.warn("Failed to update pending_custom_results backup in localStorage", e);
-      }
-    }
-  }, [customResults]);
-
   useEffect(() => {
     if (results.length > 0 && !isPremium) {
       const timer = setInterval(() => {
@@ -1949,7 +1928,7 @@ export default function App() {
       console.log(`[Sync] Synchronizing ${allToSync.length} Erstanalyse looks to Firestore...`);
       for (const r of allToSync) {
         try {
-          await saveResult(r, true, currentUser);
+          await saveResult(r, true);
         } catch (err) {
           console.warn(`[Sync] Look ${r.id} save failed:`, err);
         }
@@ -2339,10 +2318,9 @@ export default function App() {
     });
   };
 
-  const saveResult = async (result: GeneratedResult, silent = false, overrideUser?: FirebaseUser | null) => {
-    const activeUser = overrideUser || user || auth.currentUser;
-    if (!activeUser || failedSaves.has(result.id)) {
-      if (!activeUser && !silent) {
+  const saveResult = async (result: GeneratedResult, silent = false) => {
+    if (!user || failedSaves.has(result.id)) {
+      if (!user && !silent) {
         setIsRegistering(true);
         setShowLoginModal(true);
       }
@@ -2387,12 +2365,12 @@ export default function App() {
           }
         }
 
-        const resultRef = doc(db, 'users', activeUser.uid, 'results', result.id);
-        console.log(`Saving result ${result.id} to Firestore for user ${activeUser.uid}`);
+        const resultRef = doc(db, 'users', user.uid, 'results', result.id);
+        console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
         
         const saveData = {
           ...finalResult,
-          userId: activeUser.uid,
+          userId: user.uid,
           createdAt: (result as any).createdAt || serverTimestamp(),
           id: result.id // Explicitly ensure id is present
         };
@@ -2427,7 +2405,7 @@ export default function App() {
       } catch (err: any) {
         console.error("Save failed", err);
         // Log detailed error info for debugging
-        handleFirestoreError(err, OperationType.WRITE, `users/${activeUser?.uid}/results/${result.id}`);
+        handleFirestoreError(err, OperationType.WRITE, `users/${user?.uid}/results/${result.id}`);
         
         const msg = err.message || String(err);
         if (msg.includes('Quota') || msg.includes('exhausted')) {
@@ -2540,11 +2518,10 @@ export default function App() {
     }
   };
 
-  const saveResultToHistory = async (result: GeneratedResult, overrideUser?: FirebaseUser | null) => {
-    const activeUser = overrideUser || user || auth.currentUser;
-    if (!activeUser || !result.imageUrl) return;
+  const saveResultToHistory = async (result: GeneratedResult) => {
+    if (!user || !result.imageUrl) return;
     // Use the unified saveResult function to ensure consistent rules compliance
-    return saveResult(result, true, activeUser);
+    return saveResult(result, true);
   };
 
   const handleOpenSelectKey = async () => {
@@ -2679,13 +2656,9 @@ export default function App() {
               const updatedResult = { ...newResults[i], imageUrl, sourceImageUrl: sourceImageToUse, failed: false };
               newResults[i] = updatedResult;
               
-              const activeUser = user || auth.currentUser;
-              if (activeUser) {
-                saveResultToHistory(updatedResult, activeUser);
+              if (isPremium && user) {
+                saveResultToHistory(updatedResult);
               }
-              try {
-                localStorage.setItem('frisurenai_pending_results', JSON.stringify(newResults));
-              } catch (e) {}
             } else {
               newResults[i] = { ...newResults[i], failed: true, errorReason: "Keine Bilddaten erhalten" };
             }
@@ -4688,7 +4661,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
                       </div>
                       {(() => {
-                        const allGalleryResults = [...savedResults, ...results.filter(r => !!r.imageUrl), ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+                        const allGalleryResults = [...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
                         return allGalleryResults.length === 0 ? (
                           <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
                             <Bookmark className="mx-auto text-brand-primary/20" size={48} />
