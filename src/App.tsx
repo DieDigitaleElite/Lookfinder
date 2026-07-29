@@ -1925,10 +1925,10 @@ export default function App() {
 
     const allToSync = [...resultsToSync, ...customToSync];
     if (allToSync.length > 0) {
-      console.log(`[Sync] Synchronizing ${allToSync.length} Erstanalyse looks to Firestore...`);
+      console.log(`[Sync] Synchronizing ${allToSync.length} Erstanalyse looks to Firestore for user ${currentUser.uid}...`);
       for (const r of allToSync) {
         try {
-          await saveResult(r, true);
+          await saveResult(r, true, currentUser);
         } catch (err) {
           console.warn(`[Sync] Look ${r.id} save failed:`, err);
         }
@@ -2318,9 +2318,10 @@ export default function App() {
     });
   };
 
-  const saveResult = async (result: GeneratedResult, silent = false) => {
-    if (!user || failedSaves.has(result.id)) {
-      if (!user && !silent) {
+  const saveResult = async (result: GeneratedResult, silent = false, userOverride?: FirebaseUser) => {
+    const activeUser = userOverride || user || auth.currentUser;
+    if (!activeUser || failedSaves.has(result.id)) {
+      if (!activeUser && !silent) {
         setIsRegistering(true);
         setShowLoginModal(true);
       }
@@ -2339,14 +2340,19 @@ export default function App() {
       try {
         // Compress image before saving to Firestore to stay under 1MB limit
         let finalResult = { ...result };
+
+        // Ensure sourceImageUrl is always populated so locked styles can be generated post-purchase
+        if (!finalResult.sourceImageUrl) {
+          finalResult.sourceImageUrl = image || hdImage || sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image') || undefined;
+        }
         
         // Compress generated hairstyle image to ~500KB for maximum definition
-        if (result.imageUrl && result.imageUrl.startsWith('data:image')) {
+        if (finalResult.imageUrl && finalResult.imageUrl.startsWith('data:image')) {
           try {
-            console.log(`Compressing image for ${result.id}...`);
-            const mimeType = result.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
-            finalResult.imageUrl = await cachedCompressBase64Image(result.imageUrl, mimeType, 500000);
-            console.log(`Compression successful for ${result.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
+            console.log(`Compressing image for ${finalResult.id}...`);
+            const mimeType = finalResult.imageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
+            finalResult.imageUrl = await cachedCompressBase64Image(finalResult.imageUrl, mimeType, 500000);
+            console.log(`Compression successful for ${finalResult.id}. New size: ${Math.round(finalResult.imageUrl.length / 1024)}KB`);
           } catch (compressErr) {
             console.error("Compression failed", compressErr);
           }
@@ -2355,34 +2361,34 @@ export default function App() {
         // Compress or remove sourceImageUrl to avoid duplicate huge storage and Firestore 1MB limits - keep higher quality at 100KB
         if (finalResult.sourceImageUrl && finalResult.sourceImageUrl.startsWith('data:image')) {
           try {
-            console.log(`Compressing source image for ${result.id}...`);
+            console.log(`Compressing source image for ${finalResult.id}...`);
             const mimeType = finalResult.sourceImageUrl.split(';')[0].split(':')[1] || 'image/jpeg';
             finalResult.sourceImageUrl = await cachedCompressBase64Image(finalResult.sourceImageUrl, mimeType, 100000);
-            console.log(`Source image compression successful for ${result.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
+            console.log(`Source image compression successful for ${finalResult.id}. New size: ${Math.round(finalResult.sourceImageUrl.length / 1024)}KB`);
           } catch (compressErr) {
             console.warn("Source image compression failed, removing to survive Firestore size limits", compressErr);
             delete finalResult.sourceImageUrl;
           }
         }
 
-        const resultRef = doc(db, 'users', user.uid, 'results', result.id);
-        console.log(`Saving result ${result.id} to Firestore for user ${user.uid}`);
+        const resultRef = doc(db, 'users', activeUser.uid, 'results', finalResult.id);
+        console.log(`Saving result ${finalResult.id} to Firestore for user ${activeUser.uid}`);
         
         const saveData = {
           ...finalResult,
-          userId: user.uid,
-          createdAt: (result as any).createdAt || serverTimestamp(),
-          id: result.id // Explicitly ensure id is present
+          userId: activeUser.uid,
+          createdAt: (finalResult as any).createdAt || serverTimestamp(),
+          id: finalResult.id // Explicitly ensure id is present
         };
 
         await setDoc(resultRef, saveData, { merge: true });
-        console.log(`Successfully saved result ${result.id} to Firestore.`);
+        console.log(`Successfully saved result ${finalResult.id} to Firestore.`);
 
         // Clear from failed saves if it was there
-        if (failedSaves.has(result.id)) {
+        if (failedSaves.has(finalResult.id)) {
           setFailedSaves(prev => {
             const next = new Set(prev);
-            next.delete(result.id);
+            next.delete(finalResult.id);
             return next;
           });
         }
@@ -2391,7 +2397,7 @@ export default function App() {
         ReactGA.event({
           category: 'User',
           action: silent ? 'Auto Save Look' : 'Save Look',
-          label: result.faceShape
+          label: finalResult.faceShape
         });
 
         if (!silent) {
@@ -2405,7 +2411,7 @@ export default function App() {
       } catch (err: any) {
         console.error("Save failed", err);
         // Log detailed error info for debugging
-        handleFirestoreError(err, OperationType.WRITE, `users/${user?.uid}/results/${result.id}`);
+        handleFirestoreError(err, OperationType.WRITE, `users/${activeUser?.uid}/results/${result.id}`);
         
         const msg = err.message || String(err);
         if (msg.includes('Quota') || msg.includes('exhausted')) {
@@ -2597,7 +2603,9 @@ export default function App() {
       setGenerationProgress(0);
 
       // Initialize results with suggestions but no images yet to show placeholders
-      setResults(suggestions.map(s => ({ ...s, imageUrl: null, sourceImageUrl: sourceImageToUse })));
+      const initialResults = suggestions.map(s => ({ ...s, imageUrl: null, sourceImageUrl: sourceImageToUse }));
+      setResults(initialResults);
+      try { localStorage.setItem('frisurenai_pending_results', JSON.stringify(initialResults)); } catch (e) {}
 
       const maxToGenerate = isPremium ? suggestions.length : 1;
       
@@ -2662,6 +2670,7 @@ export default function App() {
             } else {
               newResults[i] = { ...newResults[i], failed: true, errorReason: "Keine Bilddaten erhalten" };
             }
+            try { localStorage.setItem('frisurenai_pending_results', JSON.stringify(newResults)); } catch (e) {}
             return newResults;
           });
         } catch (err: any) {
@@ -4661,7 +4670,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <p className="text-brand-primary/60">Deine persönliche Galerie der Verwandlungen.</p>
                       </div>
                       {(() => {
-                        const allGalleryResults = [...savedResults, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+                        const allGalleryResults = [...savedResults, ...results, ...customResults].filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
                         return allGalleryResults.length === 0 ? (
                           <div className="py-24 text-center space-y-4 bg-black/5 rounded-[3rem]">
                             <Bookmark className="mx-auto text-brand-primary/20" size={48} />
