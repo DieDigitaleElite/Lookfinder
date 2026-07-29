@@ -267,6 +267,8 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authInitializing, setAuthInitializing] = useState(true);
+  const [isSyncingCheckout, setIsSyncingCheckout] = useState(false);
+  const isSyncingCheckoutRef = useRef(false);
   const [authMessage, setAuthMessage] = useState<{ type: 'success' | 'error' | 'info', text: string } | null>(null);
   const [faceAnalysis, setFaceAnalysis] = useState<any>(() => {
     const saved = localStorage.getItem('frisurenai_pending_face_analysis');
@@ -1585,12 +1587,23 @@ export default function App() {
             }
           }
 
+          // Trigger generation of remaining Erstanalyse styles if needed
+          if (pendingPayment.plan === 'single' || pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
+            console.log("Stripe payment success: triggering generation of remaining Erstanalyse looks...");
+            setTimeout(() => {
+              handleGenerateRemaining();
+            }, 1000);
+          }
+
           // Trigger Upsell Modal if it was a single unlock
           if (pendingPayment.plan === 'single' || pendingPayment.plan === 'studio-single') {
             setTimeout(() => {
               setShowUpsellModal(true);
             }, 90000);
           }
+          
+          setAuthMessage({ type: 'success', text: "Zahlung erfolgreich! Deine Erstanalyse-Ergebnisse wurden in 'Meine Looks' gespeichert! ✨" });
+          setTimeout(() => setAuthMessage(null), 6000);
           
           setPendingPayment(null);
           
@@ -1835,9 +1848,109 @@ export default function App() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Helper to ensure full profile and Erstanalyse data is completely synced to Firestore before Stripe checkout redirect
+  const syncAndSaveAllUserDataToFirestore = async (currentUser: FirebaseUser) => {
+    console.log("[Sync] Starting full user profile and Erstanalyse sync to Firestore for UID:", currentUser.uid);
+    
+    // 1. Prepare main profile data
+    const userRef = doc(db, 'users', currentUser.uid);
+    
+    const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
+    const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
+    const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
+    const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
+    
+    let currentFaceAnalysis = faceAnalysis;
+    if (!currentFaceAnalysis) {
+      const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
+      if (savedAnalysis) {
+        try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
+      }
+    }
+    let currentHairAnalysis = hairAnalysis;
+    if (!currentHairAnalysis) {
+      const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
+      if (savedHair) {
+        try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
+      }
+    }
+
+    const userProfileData: any = {
+      uid: currentUser.uid,
+      email: currentUser.email,
+      displayName: currentUser.displayName || loginName.trim() || 'User',
+      photoURL: currentUser.photoURL || null,
+      lastLogin: serverTimestamp(),
+    };
+
+    if (currentAvatarSketch) userProfileData.avatarSketch = currentAvatarSketch;
+    if (currentBaseSketch) userProfileData.baseSketch = currentBaseSketch;
+    if (currentSketchRefImage) userProfileData.sketchReferenceImage = currentSketchRefImage;
+    if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
+    if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
+    if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
+
+    // Await user profile write
+    await setDoc(userRef, userProfileData, { merge: true }).catch(err => {
+      console.error("[Sync] User profile setDoc failed:", err);
+    });
+
+    // 2. Save studio draft if image or hdImage exists
+    if (image || hdImage) {
+      await saveStudioDraftToFirestore(currentUser.uid, {
+        image,
+        hdImage,
+        mimeType,
+        avatarSketch: currentAvatarSketch,
+        baseSketch: currentBaseSketch
+      }).catch(err => console.warn("[Sync] Studio draft save failed:", err));
+    }
+
+    // 3. Save all Erstanalyse & Custom results to Firestore
+    const pendingResultsStr = localStorage.getItem('frisurenai_pending_results');
+    let resultsToSync = [...results];
+    if (resultsToSync.length === 0 && pendingResultsStr) {
+      try {
+        resultsToSync = JSON.parse(pendingResultsStr);
+      } catch (e) {}
+    }
+
+    const pendingCustomStr = localStorage.getItem('frisurenai_pending_custom_results');
+    let customToSync = [...customResults];
+    if (customToSync.length === 0 && pendingCustomStr) {
+      try {
+        customToSync = JSON.parse(pendingCustomStr);
+      } catch (e) {}
+    }
+
+    const allToSync = [...resultsToSync, ...customToSync];
+    if (allToSync.length > 0) {
+      console.log(`[Sync] Synchronizing ${allToSync.length} Erstanalyse looks to Firestore...`);
+      for (const r of allToSync) {
+        try {
+          await saveResult(r, true);
+        } catch (err) {
+          console.warn(`[Sync] Look ${r.id} save failed:`, err);
+        }
+      }
+    }
+
+    // 4. Update localStorage backups
+    try {
+      if (resultsToSync.length > 0) localStorage.setItem('frisurenai_pending_results', JSON.stringify(resultsToSync));
+      if (image) localStorage.setItem('frisurenai_pending_image', image);
+      if (mimeType) localStorage.setItem('frisurenai_pending_mime_type', mimeType);
+      if (currentFaceAnalysis) localStorage.setItem('frisurenai_pending_face_analysis', JSON.stringify(currentFaceAnalysis));
+      if (currentHairAnalysis) localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(currentHairAnalysis));
+      localStorage.setItem('frisurenai_pending_uid', currentUser.uid);
+    } catch (e) {}
+
+    console.log("[Sync] User data and Erstanalyse successfully synced for UID:", currentUser.uid);
+  };
+
   // Resume checkout after login if a plan was selected
   useEffect(() => {
-    if (user && pendingCheckoutPlan) {
+    if (user && pendingCheckoutPlan && !isSyncingCheckoutRef.current) {
       console.log("User logged in, resuming checkout for plan:", pendingCheckoutPlan);
       const planToResume = pendingCheckoutPlan;
       setPendingCheckoutPlan(null);
@@ -1863,73 +1976,35 @@ export default function App() {
     }
   }, [user, results.length, image]);
 
-
-
   const handleLogin = async () => {
     setAuthLoading(true);
     try {
+      if (pendingCheckoutPlan) {
+        isSyncingCheckoutRef.current = true;
+        setIsSyncingCheckout(true);
+        setAuthMessage({ type: 'info', text: "Account wird eingerichtet & deine Erstanalyse wird gespeichert... Du wirst gleich zur Zahlung weitergeleitet. ⏳" });
+      }
+
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       
-      // Initialize or update user profile in Firestore
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        
-        const userData: any = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          lastLogin: serverTimestamp(),
-        };
-
-        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
-        const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-        const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-        const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
-        const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
-        let currentFaceAnalysis = faceAnalysis;
-        if (!currentFaceAnalysis) {
-          const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-          if (savedAnalysis) {
-            try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
-          }
-        }
-        let currentHairAnalysis = hairAnalysis;
-        if (!currentHairAnalysis) {
-          const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-          if (savedHair) {
-            try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
-          }
-        }
-
-        if (currentAvatarSketch) userData.avatarSketch = currentAvatarSketch;
-        if (currentBaseSketch) userData.baseSketch = currentBaseSketch;
-        if (currentSketchRefImage) userData.sketchReferenceImage = currentSketchRefImage;
-        if (currentSketchRefMime) userData.sketchReferenceMimeType = currentSketchRefMime;
-        if (currentFaceAnalysis) userData.faceAnalysis = currentFaceAnalysis;
-        if (currentHairAnalysis) userData.hairAnalysis = currentHairAnalysis;
-
-        if (!userSnap.exists()) {
-          userData.createdAt = serverTimestamp();
-          userData.isPremium = false;
-          await setDoc(userRef, userData, { merge: true });
-          // Track Sign Up
-          trackEvent('sign_up', 'Auth', 'Google');
-        } else {
-          await setDoc(userRef, userData, { merge: true });
-          // Track Login
-          trackEvent('login', 'Auth', 'Google');
-        }
-      } catch (dbErr) {
-        console.error("Failed to sync user profile to Firestore", dbErr);
-      }
+      await syncAndSaveAllUserDataToFirestore(user);
       
       setError(null);
-      setShowLoginModal(false);
+
+      if (pendingCheckoutPlan) {
+        const planToResume = pendingCheckoutPlan;
+        setPendingCheckoutPlan(null);
+        await handleCheckout(planToResume, pendingStudioSelection);
+        setIsSyncingCheckout(false);
+        isSyncingCheckoutRef.current = false;
+      } else {
+        setShowLoginModal(false);
+      }
     } catch (err: any) {
       console.error("Login failed", err);
+      setIsSyncingCheckout(false);
+      isSyncingCheckoutRef.current = false;
       if (err.code === 'auth/popup-closed-by-user') return;
       if (err.code === 'auth/cancelled-popup-request') return;
       if (err.code === 'auth/operation-not-allowed') {
@@ -1957,122 +2032,66 @@ export default function App() {
         setAuthMessage({ type: 'success', text: "E-Mail zum Zurücksetzen des Passworts wurde gesendet!" });
         setTimeout(() => setIsForgotPassword(false), 3000);
       } else if (isRegistering) {
+        if (pendingCheckoutPlan) {
+          isSyncingCheckoutRef.current = true;
+          setIsSyncingCheckout(true);
+          setAuthMessage({ type: 'info', text: "Account wird erstellt & deine Erstanalyse wird gespeichert... Du wirst gleich zur Zahlung weitergeleitet. ⏳" });
+        }
+
         const userCredential = await createUserWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
         const displayName = loginName.trim();
         await updateProfile(userCredential.user, { displayName });
         
-        // Initialize user profile in Firestore
-        try {
-          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
-          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
-          let currentFaceAnalysis = faceAnalysis;
-          if (!currentFaceAnalysis) {
-            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-            if (savedAnalysis) {
-              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
-            }
-          }
-          let currentHairAnalysis = hairAnalysis;
-          if (!currentHairAnalysis) {
-            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-            if (savedHair) {
-              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
-            }
-          }
-
-          const userProfileData: any = {
-            uid: userCredential.user.uid,
-            email: userCredential.user.email,
-            displayName: displayName,
-            createdAt: serverTimestamp(),
-            isPremium: false
-          };
-
-          if (currentAvatarSketch) userProfileData.avatarSketch = currentAvatarSketch;
-          if (currentBaseSketch) userProfileData.baseSketch = currentBaseSketch;
-          if (currentSketchRefImage) userProfileData.sketchReferenceImage = currentSketchRefImage;
-          if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
-          if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
-          if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
-
-          await setDoc(doc(db, 'users', userCredential.user.uid), userProfileData, { merge: true });
-        } catch (dbErr) {
-          console.error("Failed to initialize user profile document", dbErr);
-        }
+        // Fully sync user profile & Erstanalyse results to Firestore before Stripe redirect
+        await syncAndSaveAllUserDataToFirestore(userCredential.user);
 
         // Track Sign Up
         trackEvent('sign_up', 'Auth', 'Email');
 
         await sendEmailVerification(userCredential.user);
+
         if (pendingCheckoutPlan) {
-          setShowLoginModal(false);
+          const planToResume = pendingCheckoutPlan;
+          setPendingCheckoutPlan(null);
+          await handleCheckout(planToResume, pendingStudioSelection);
+          setIsSyncingCheckout(false);
+          isSyncingCheckoutRef.current = false;
         } else {
           setAuthMessage({ type: 'info', text: "Konto erstellt! Bitte bestätige deine E-Mail-Adresse." });
           setTimeout(() => setShowLoginModal(false), 4000);
         }
       } else {
+        if (pendingCheckoutPlan) {
+          isSyncingCheckoutRef.current = true;
+          setIsSyncingCheckout(true);
+          setAuthMessage({ type: 'info', text: "Anmeldung erfolgreich. Erstanalyse wird gespeichert... Du wirst gleich zur Zahlung weitergeleitet. ⏳" });
+        }
+
         const userCredential = await signInWithEmailAndPassword(auth, loginEmail.trim(), loginPassword);
         const loggedInUser = userCredential.user;
         
-        // Merge guest analysis sketch and portrait data if present in state or localStorage to avoid losing them
-        try {
-          const userRef = doc(db, 'users', loggedInUser.uid);
-          const userSnap = await getDoc(userRef);
-          
-          const userDataToMerge: any = {
-            uid: loggedInUser.uid,
-            email: loggedInUser.email,
-            lastLogin: serverTimestamp(),
-          };
-
-          const currentAvatarSketch = avatarSketch || localStorage.getItem('frisurenai_pending_avatar_sketch');
-          const currentBaseSketch = baseSketch || localStorage.getItem('frisurenai_pending_base_sketch');
-          const currentSketchRefImage = sketchReferenceImage || localStorage.getItem('frisurenai_pending_sketch_ref_image');
-          const currentSketchRefMime = sketchReferenceMimeType || localStorage.getItem('frisurenai_pending_sketch_ref_mime');
-          let currentFaceAnalysis = faceAnalysis;
-          if (!currentFaceAnalysis) {
-            const savedAnalysis = localStorage.getItem('frisurenai_pending_face_analysis');
-            if (savedAnalysis) {
-              try { currentFaceAnalysis = JSON.parse(savedAnalysis); } catch (e) { }
-            }
-          }
-          let currentHairAnalysis = hairAnalysis;
-          if (!currentHairAnalysis) {
-            const savedHair = localStorage.getItem('frisurenai_pending_hair_analysis');
-            if (savedHair) {
-              try { currentHairAnalysis = JSON.parse(savedHair); } catch (e) { }
-            }
-          }
-
-          if (currentAvatarSketch) userDataToMerge.avatarSketch = currentAvatarSketch;
-          if (currentBaseSketch) userDataToMerge.baseSketch = currentBaseSketch;
-          if (currentSketchRefImage) userDataToMerge.sketchReferenceImage = currentSketchRefImage;
-          if (currentSketchRefMime) userDataToMerge.sketchReferenceMimeType = currentSketchRefMime;
-          if (currentFaceAnalysis) userDataToMerge.faceAnalysis = currentFaceAnalysis;
-          if (currentHairAnalysis) userDataToMerge.hairAnalysis = currentHairAnalysis;
-
-          if (!userSnap.exists()) {
-            userDataToMerge.createdAt = serverTimestamp();
-            userDataToMerge.isPremium = false;
-            await setDoc(userRef, userDataToMerge, { merge: true });
-          } else {
-            await setDoc(userRef, userDataToMerge, { merge: true });
-          }
-        } catch (dbErr) {
-          console.error("Failed to sync/merge user profile to Firestore on email login", dbErr);
-        }
+        await syncAndSaveAllUserDataToFirestore(loggedInUser);
 
         // Track Login
         trackEvent('login', 'Auth', 'Email');
-        setShowLoginModal(false);
+
+        if (pendingCheckoutPlan) {
+          const planToResume = pendingCheckoutPlan;
+          setPendingCheckoutPlan(null);
+          await handleCheckout(planToResume, pendingStudioSelection);
+          setIsSyncingCheckout(false);
+          isSyncingCheckoutRef.current = false;
+        } else {
+          setShowLoginModal(false);
+        }
       }
       setLoginEmail('');
       setLoginPassword('');
       setLoginName('');
     } catch (err: any) {
       console.error("Auth failed", err);
+      setIsSyncingCheckout(false);
+      isSyncingCheckoutRef.current = false;
       let message = "Authentifizierung fehlgeschlagen. Bitte versuche es später erneut.";
       
       if (err.code === 'auth/email-already-in-use') {
@@ -3510,12 +3529,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id, r.imageUrl));
           if (unsavedResults.length > 0) {
             console.log(`Starting awaiting parallel Firestore sync of ${unsavedResults.length} results before redirect...`);
-            const syncPromise = Promise.all(
+            await Promise.all(
               unsavedResults.map(r => saveResult(r, true).catch(err => console.warn("Awaited save failed before checkout redirect", err)))
             );
-            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1000));
-            await Promise.race([syncPromise, timeoutPromise]);
-            console.log("Firestore sync completed or safety timeout reached, proceeding to Stripe checkout...");
+            console.log("Firestore sync completed, proceeding to Stripe checkout...");
           }
         }
 
@@ -6612,157 +6629,175 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               </button>
 
               <div className="overflow-y-auto p-8 sm:p-10 space-y-8">
-                <div className="text-center space-y-2">
-                  <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    {pendingCheckoutPlan ? <ShoppingBag size={32} /> : <Sparkles size={32} />}
+                {isSyncingCheckout ? (
+                  <div className="py-8 text-center space-y-6">
+                    <div className="w-20 h-20 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-3xl flex items-center justify-center mx-auto animate-pulse">
+                      <Loader2 size={40} className="animate-spin text-[#FF9EBE]" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-serif font-bold text-brand-primary">Account wird eingerichtet...</h3>
+                      <p className="text-brand-primary/70 text-sm max-w-sm mx-auto leading-relaxed">
+                        Deine Erstanalyse-Bilder und Looks werden sicher in deinem neuen Konto gespeichert. Du wirst in Kürze automatisch zur Bezahlung weitergeleitet.
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs font-bold text-[#FF9EBE] bg-[#FF9EBE]/10 py-2.5 px-4 rounded-full max-w-xs mx-auto border border-[#FF9EBE]/20">
+                      <CheckCircle2 size={16} />
+                      <span>Datenbank-Synchronisierung aktiv</span>
+                    </div>
                   </div>
-                  <h3 className="text-2xl font-serif font-bold">
-                    {pendingCheckoutPlan ? 'Fast geschafft!' : isForgotPassword ? 'Passwort vergessen?' : isRegistering ? 'Konto erstellen' : 'Willkommen zurück'}
-                  </h3>
-                  <p className="text-brand-primary/60 text-sm">
-                    {pendingCheckoutPlan 
-                      ? 'Bitte logge dich ein oder erstelle ein Konto, um deine Styles dauerhaft zu speichern und die Zahlung abzuschließen.'
-                      : isForgotPassword 
-                        ? 'Gib deine E-Mail ein, um einen Link zum Zurücksetzen zu erhalten.' 
-                        : 'Melde dich kostenlos an, um deine Looks zu speichern, Umfragen zu erstellen und exklusive Tipps zu erhalten.'}
-                  </p>
-                </div>
-
-                {authMessage && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`p-4 rounded-2xl flex items-start gap-3 text-sm ${
-                      authMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
-                      authMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
-                      'bg-blue-50 text-blue-700 border border-blue-100'
-                    }`}
-                  >
-                    {authMessage.type === 'error' ? <AlertCircle size={18} className="shrink-0" /> : <CheckCircle2 size={18} className="shrink-0" />}
-                    <p>{authMessage.text}</p>
-                  </motion.div>
-                )}
-
-
-
-                <form onSubmit={handleEmailAuth} className="space-y-4">
-                  {isRegistering && !isForgotPassword && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 ml-1">Name</label>
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
-                        <input 
-                          type="text" 
-                          required
-                          value={loginName}
-                          onChange={(e) => setLoginName(e.target.value)}
-                          placeholder="Dein Name"
-                          className="w-full pl-12 pr-4 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
-                        />
+                ) : (
+                  <>
+                    <div className="text-center space-y-2">
+                      <div className="w-16 h-16 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                        {pendingCheckoutPlan ? <ShoppingBag size={32} /> : <Sparkles size={32} />}
                       </div>
+                      <h3 className="text-2xl font-serif font-bold">
+                        {pendingCheckoutPlan ? 'Fast geschafft!' : isForgotPassword ? 'Passwort vergessen?' : isRegistering ? 'Konto erstellen' : 'Willkommen zurück'}
+                      </h3>
+                      <p className="text-brand-primary/60 text-sm">
+                        {pendingCheckoutPlan 
+                          ? 'Bitte logge dich ein oder erstelle ein Konto, um deine Styles dauerhaft zu speichern und die Zahlung abzuschließen.'
+                          : isForgotPassword 
+                            ? 'Gib deine E-Mail ein, um einen Link zum Zurücksetzen zu erhalten.' 
+                            : 'Melde dich kostenlos an, um deine Looks zu speichern, Umfragen zu erstellen und exklusive Tipps zu erhalten.'}
+                      </p>
                     </div>
-                  )}
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 ml-1">E-Mail</label>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
-                      <input 
-                        type="email" 
-                        required
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        placeholder="beispiel@mail.de"
-                        className="w-full pl-12 pr-4 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
-                      />
-                    </div>
-                  </div>
-                  {!isForgotPassword && (
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center px-1">
-                        <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Passwort</label>
-                        {!isRegistering && (
-                          <button 
-                            type="button"
-                            onClick={() => setIsForgotPassword(true)}
-                            className="text-[10px] uppercase tracking-widest font-bold text-[#FF9EBE] hover:underline"
-                          >
-                            Vergessen?
-                          </button>
+
+                    {authMessage && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className={`p-4 rounded-2xl flex items-start gap-3 text-sm ${
+                          authMessage.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
+                          authMessage.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
+                          'bg-blue-50 text-blue-700 border border-blue-100'
+                        }`}
+                      >
+                        {authMessage.type === 'error' ? <AlertCircle size={18} className="shrink-0" /> : <CheckCircle2 size={18} className="shrink-0" />}
+                        <p>{authMessage.text}</p>
+                      </motion.div>
+                    )}
+
+                    <form onSubmit={handleEmailAuth} className="space-y-4">
+                      {isRegistering && !isForgotPassword && (
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 ml-1">Name</label>
+                          <div className="relative">
+                            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
+                            <input 
+                              type="text" 
+                              required
+                              value={loginName}
+                              onChange={(e) => setLoginName(e.target.value)}
+                              placeholder="Dein Name"
+                              className="w-full pl-12 pr-4 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-1">
+                        <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40 ml-1">E-Mail</label>
+                        <div className="relative">
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
+                          <input 
+                            type="email" 
+                            required
+                            value={loginEmail}
+                            onChange={(e) => setLoginEmail(e.target.value)}
+                            placeholder="beispiel@mail.de"
+                            className="w-full pl-12 pr-4 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
+                          />
+                        </div>
+                      </div>
+                      {!isForgotPassword && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center px-1">
+                            <label className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Passwort</label>
+                            {!isRegistering && (
+                              <button 
+                                type="button"
+                                onClick={() => setIsForgotPassword(true)}
+                                className="text-[10px] uppercase tracking-widest font-bold text-[#FF9EBE] hover:underline"
+                              >
+                                Vergessen?
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative">
+                            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
+                            <input 
+                              type={showPassword ? "text" : "password"} 
+                              required
+                              minLength={isRegistering ? 6 : undefined}
+                              value={loginPassword}
+                              onChange={(e) => setLoginPassword(e.target.value)}
+                              placeholder="••••••••"
+                              className="w-full pl-12 pr-12 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
+                            />
+                            <button 
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-primary/30 hover:text-brand-primary transition-colors"
+                            >
+                              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      <button 
+                        type="submit"
+                        disabled={authLoading}
+                        className="w-full py-4 bg-brand-primary text-white rounded-xl font-bold hover:bg-brand-primary/90 transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {authLoading ? (
+                          <Loader2 className="animate-spin" size={20} />
+                        ) : (
+                          <>
+                            {isForgotPassword ? <Mail size={20} /> : isRegistering ? <UserPlus size={20} /> : <ChevronRight size={20} />}
+                            {isForgotPassword ? 'Link senden' : isRegistering ? 'Konto erstellen' : 'Anmelden'}
+                          </>
                         )}
+                      </button>
+                    </form>
+
+                    <div className="text-center pt-4 border-t border-black/5">
+                      <button 
+                        onClick={() => {
+                          if (isForgotPassword) {
+                            setIsForgotPassword(false);
+                          } else {
+                            setIsRegistering(!isRegistering);
+                          }
+                          setAuthMessage(null);
+                        }}
+                        className="text-sm font-medium text-brand-primary/60 hover:text-[#FF9EBE] transition-colors"
+                      >
+                        {isForgotPassword ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <ChevronRight size={16} className="rotate-180" />
+                            Zurück zum Login
+                          </span>
+                        ) : isRegistering ? (
+                          <>Bereits ein Konto? <span className="text-[#FF9EBE] font-bold">Hier anmelden</span></>
+                        ) : (
+                          <>Noch kein Konto? <span className="text-[#FF9EBE] font-bold">Jetzt registrieren</span></>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-black/5">
+                      <div className="flex items-center gap-2 text-[10px] text-brand-primary/40 uppercase tracking-widest font-bold">
+                        <CheckCircle2 size={12} className="text-green-500" />
+                        Looks speichern
                       </div>
-                      <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-primary/30" size={18} />
-                        <input 
-                          type={showPassword ? "text" : "password"} 
-                          required
-                          minLength={isRegistering ? 6 : undefined}
-                          value={loginPassword}
-                          onChange={(e) => setLoginPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="w-full pl-12 pr-12 py-3 bg-black/5 border-none rounded-xl focus:ring-2 focus:ring-[#FF9EBE]/20 transition-all outline-none"
-                        />
-                        <button 
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-primary/30 hover:text-brand-primary transition-colors"
-                        >
-                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                        </button>
+                      <div className="flex items-center gap-2 text-[10px] text-brand-primary/40 uppercase tracking-widest font-bold">
+                        <CheckCircle2 size={12} className="text-green-500" />
+                        Profi-Anleitungen
                       </div>
                     </div>
-                  )}
-
-                  <button 
-                    type="submit"
-                    disabled={authLoading}
-                    className="w-full py-4 bg-brand-primary text-white rounded-xl font-bold hover:bg-brand-primary/90 transition-all shadow-lg shadow-brand-primary/20 flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {authLoading ? (
-                      <Loader2 className="animate-spin" size={20} />
-                    ) : (
-                      <>
-                        {isForgotPassword ? <Mail size={20} /> : isRegistering ? <UserPlus size={20} /> : <ChevronRight size={20} />}
-                        {isForgotPassword ? 'Link senden' : isRegistering ? 'Konto erstellen' : 'Anmelden'}
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                <div className="text-center pt-4 border-t border-black/5">
-                  <button 
-                    onClick={() => {
-                      if (isForgotPassword) {
-                        setIsForgotPassword(false);
-                      } else {
-                        setIsRegistering(!isRegistering);
-                      }
-                      setAuthMessage(null);
-                    }}
-                    className="text-sm font-medium text-brand-primary/60 hover:text-[#FF9EBE] transition-colors"
-                  >
-                    {isForgotPassword ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <ChevronRight size={16} className="rotate-180" />
-                        Zurück zum Login
-                      </span>
-                    ) : isRegistering ? (
-                      <>Bereits ein Konto? <span className="text-[#FF9EBE] font-bold">Hier anmelden</span></>
-                    ) : (
-                      <>Noch kein Konto? <span className="text-[#FF9EBE] font-bold">Jetzt registrieren</span></>
-                    )}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-black/5">
-                  <div className="flex items-center gap-2 text-[10px] text-brand-primary/40 uppercase tracking-widest font-bold">
-                    <CheckCircle2 size={12} className="text-green-500" />
-                    Looks speichern
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] text-brand-primary/40 uppercase tracking-widest font-bold">
-                    <CheckCircle2 size={12} className="text-green-500" />
-                    Profi-Anleitungen
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             </motion.div>
           </div>
