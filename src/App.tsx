@@ -2804,18 +2804,21 @@ export default function App() {
   };
 
   const handleGenerateLockedResult = async (result: GeneratedResult, index?: number) => {
-    if (!user) {
+    const resultIdx = typeof index === 'number' ? index : results.findIndex(r => r.id === result.id);
+    const isFreeSlot = resultIdx !== -1 ? resultIdx < 1 : false;
+    const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
+
+    // If not free slot and not paid, show pricing
+    if (!isFreeSlot && !isPaid) {
+       handleShowPricing('general');
+       return;
+    }
+
+    // If free slot and not logged in, prompt login
+    if (isFreeSlot && !user && resultIdx > 0) {
       setIsRegistering(true);
       setShowLoginModal(true);
       return;
-    }
-
-    const resultIdx = typeof index === 'number' ? index : results.findIndex(r => r.id === result.id);
-    const isFreeSlot = resultIdx !== -1 ? resultIdx < 1 : false;
-
-    if (!isFreeSlot && !isPremium && userPlan !== 'single') {
-       handleShowPricing('general');
-       return;
     }
 
     setIsGenerating(true);
@@ -2823,7 +2826,6 @@ export default function App() {
     setError(null);
 
     try {
-      // ALWAYS prioritize the specific original source image recorded for this style recommendation
       const sourceImage = result.sourceImageUrl || image || hdImage || sketchReferenceImage || userData?.sketchReferenceImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
       if (!sourceImage) {
         throw new Error("Originalfoto nicht gefunden. Bitte lade ein Foto hoch.");
@@ -2831,8 +2833,6 @@ export default function App() {
       
       const base64Data = sourceImage.split(',')[1];
       const resMimeType = sourceImage.split(';')[0].split(':')[1] || 'image/jpeg';
-      
-      // Use the description or suitabilityReason as prompt supplement
       const promptSupplement = result.description || result.suitabilityReason;
       
       const imageUrl = await generateHairstyleImage(
@@ -2844,7 +2844,7 @@ export default function App() {
 
       if (!imageUrl) throw new Error("KI konnte kein Bild generieren.");
 
-      const updatedResult = { ...result, imageUrl };
+      const updatedResult = { ...result, imageUrl, sourceImageUrl: sourceImage, failed: false };
       
       // Update ALL local React states
       setSavedResults(prev => prev.map(r => r.id === result.id ? updatedResult : r));
@@ -2865,10 +2865,16 @@ export default function App() {
         } catch (e) {
           console.warn("Failed to update pending results in localStorage", e);
         }
+      } else {
+        try {
+          localStorage.setItem('frisurenai_pending_results', JSON.stringify(results.map(r => r.id === result.id ? updatedResult : r)));
+        } catch (e) {}
       }
       
-      // Save to Firestore (this will update or merge with the existing synced placeholder document)
-      await saveResult(updatedResult, true);
+      // Save to Firestore if user logged in
+      if (user) {
+        await saveResult(updatedResult, true).catch(err => console.warn("Failed saving result to Firestore", err));
+      }
       
       confetti({
         particleCount: 100,
@@ -2877,7 +2883,15 @@ export default function App() {
       });
     } catch (err: any) {
       console.error("Failed to generate locked result image", err);
-      setError("Bild konnte nicht nachträglich generiert werden: " + (err.message || "Unbekannter Fehler"));
+      setError("Bild konnte nicht generiert werden: " + (err.message || "Unbekannter Fehler"));
+      setResults(prev => {
+        const newResults = [...prev];
+        const idx = resultIdx !== -1 ? resultIdx : prev.findIndex(r => r.id === result.id);
+        if (idx !== -1) {
+          newResults[idx] = { ...newResults[idx], failed: true, errorReason: err?.message || "Fehler" };
+        }
+        return newResults;
+      });
     } finally {
       setIsGenerating(false);
       setGeneratingResultId(null);
@@ -5466,22 +5480,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
-                  {(isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true') && results.some(r => !r.imageUrl && !r.failed) && (
-                    <motion.button 
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleGenerateRemaining}
-                      disabled={isGenerating}
-                      className="px-8 py-5 bg-[#FF9EBE] text-white rounded-2xl font-black shadow-xl shadow-[#FF9EBE]/30 flex flex-col items-center gap-1 group transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3">
-                        {isGenerating ? <Loader2 className="animate-spin" size={24} /> : <Sparkles className="group-hover:rotate-12 transition-transform" size={24} />}
-                        <span className="text-lg uppercase tracking-widest">Alle 8 weiteren Styles laden</span>
-                      </div>
-                      <span className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Freigeschaltet</span>
-                    </motion.button>
+                  {(isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true') && results.some(r => !r.imageUrl) && (
+                    <div className="p-4 bg-[#FF9EBE]/10 border border-[#FF9EBE]/30 rounded-2xl flex items-center gap-3 text-brand-primary">
+                      <Sparkles className="text-[#FF9EBE] shrink-0" size={20} />
+                      <span className="text-xs font-semibold">Deine weiteren Styles sind freigeschaltet. Klicke bei jedem Look auf <strong>"Jetzt erstellen"</strong>, um das Bild einzeln zu generieren.</span>
+                    </div>
                   )}
                   
                   <button 
@@ -5507,7 +5510,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   {isGenerating && (
                     <div className="flex items-center gap-3 text-[#FF9EBE] font-medium bg-[#FF9EBE]/10 px-4 py-2 rounded-full border border-[#FF9EBE]/20">
                       <Loader2 className="animate-spin" size={18} />
-                      <span className="text-sm font-bold uppercase tracking-widest">Wird generiert ({results.filter(r => !!r.imageUrl).length}/{results.length})</span>
+                      <span className="text-sm font-bold uppercase tracking-widest">Wird generiert...</span>
                     </div>
                   )}
                 </div>
@@ -5516,8 +5519,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {results.map((result, index) => {
                   const isFreeSlot = index < 1;
-                  const isLocked = !isPremium && userPlan !== 'single' && localStorage.getItem('frisurenai_guest_is_paid') !== 'true' && index >= 1;
-                  const needsFreeGeneration = isFreeSlot && index > 0 && !result.imageUrl;
+                  const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
+                  const isLocked = !isPaid && !isFreeSlot;
                   
                   return (
                     <React.Fragment key={result.id}>
@@ -5584,18 +5587,15 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         onClick={() => {
                           if (isLocked) {
                             setShowPricingModal(true);
-                          } else if (needsFreeGeneration) {
-                            if (!user) {
-                              setIsRegistering(true);
-                              setShowLoginModal(true);
-                            } else {
-                              handleGenerateLockedResult(result, index);
-                            }
-                          } else if (result.imageUrl) {
+                          } else if (result.failed) {
+                            retryStyle(index);
+                          } else if (!result.imageUrl) {
+                            handleGenerateLockedResult(result, index);
+                          } else {
                             setSelectedResult(result);
                           }
                         }}
-                        className={`group space-y-4 ${result.imageUrl ? 'cursor-pointer' : 'cursor-pointer'} relative`}
+                        className="group space-y-4 cursor-pointer relative"
                       >
                       <div className="aspect-[3/4] rounded-3xl overflow-hidden shadow-lg relative bg-black/5">
                         {result.imageUrl ? (
@@ -5696,57 +5696,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               </button>
                             </div>
                           </>
-                        ) : needsFreeGeneration ? (
-                          <>
-                            <img 
-                              src={`https://picsum.photos/seed/free-style-${index}/600/800?blur=10`} 
-                              alt={result.name} 
-                              className="w-full h-full object-cover blur-xl grayscale" 
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10">
-                              GRATIS-LOOK 🎁
-                            </div>
-                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/30 backdrop-blur-sm">
-                              <div className="w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3">
-                                {isGenerating && generatingResultId === result.id ? <Loader2 className="animate-spin" size={28} /> : <Sparkles size={28} />}
-                              </div>
-                              <h4 className="text-white font-bold text-lg mb-1">{result.name}</h4>
-                              <p className="text-white/80 text-xs mb-4 max-w-[220px]">
-                                {!user ? "Kostenlos anmelden, um diesen 2. Look freizuschalten & zu erstellen." : "Dein kostenloser Style aus deiner Erstanalyse."}
-                              </p>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!user) {
-                                    setIsRegistering(true);
-                                    setShowLoginModal(true);
-                                  } else {
-                                    handleGenerateLockedResult(result, index);
-                                  }
-                                }}
-                                disabled={isGenerating && generatingResultId === result.id}
-                                className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105 text-sm"
-                              >
-                                {isGenerating && generatingResultId === result.id ? (
-                                  <>
-                                    <Loader2 className="animate-spin" size={16} />
-                                    Wird erstellt...
-                                  </>
-                                ) : !user ? (
-                                  <>
-                                    <Sparkles size={16} />
-                                    Kostenlos freischalten
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles size={16} />
-                                    Jetzt gratis erstellen
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </>
                         ) : result.failed ? (
                           <div 
                             onClick={(e) => {
@@ -5774,21 +5723,53 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </div>
                           </div>
                         ) : (
-                          <div className="w-full h-full flex flex-col items-center justify-center gap-4 p-8 text-center">
-                            <Loader2 className={`animate-spin text-[#FF9EBE] ${generatingResultId === result.id ? 'opacity-100' : 'opacity-20'}`} size={32} />
-                            <div className="space-y-1">
-                              <p className="text-xs font-bold uppercase tracking-widest opacity-30">
-                                {generatingResultId === result.id ? "Dein exklusiver Look wird erstellt..." : "Bereit zum Generieren ✨"}
-                              </p>
-                              <p className="text-[8px] text-brand-primary/40 leading-tight">
-                                {generatingResultId === result.id 
-                                  ? "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."
-                                  : isPremium 
-                                    ? "Klicke oben auf 'Alle Styles laden', um deine Premium-Beratung zu vervollständigen."
-                                    : "Wir generieren deine Styles nacheinander, um die beste Qualität zu garantieren."}
-                              </p>
+                          <>
+                            <img 
+                              src={`https://picsum.photos/seed/style-unlocked-${index}/600/800?blur=10`} 
+                              alt={result.name} 
+                              className="w-full h-full object-cover blur-xl grayscale opacity-40" 
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10 flex items-center gap-1">
+                              <Sparkles size={10} />
+                              FREIGESCHALTET ✨
                             </div>
-                          </div>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/50 backdrop-blur-sm">
+                              <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3 shadow-inner">
+                                {isGenerating && generatingResultId === result.id ? (
+                                  <Loader2 className="animate-spin text-[#FF9EBE]" size={32} />
+                                ) : (
+                                  <Sparkles size={32} className="text-[#FF9EBE] animate-pulse" />
+                                )}
+                              </div>
+                              <h4 className="text-white font-bold text-xl mb-1">{result.name}</h4>
+                              <p className="text-white/80 text-xs mb-5 max-w-[220px]">
+                                {isGenerating && generatingResultId === result.id 
+                                  ? "Deine KI-Frisur wird jetzt erstellt..." 
+                                  : "Freigeschaltet – klicke auf 'Jetzt erstellen', um das Bild zu generieren."}
+                              </p>
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateLockedResult(result, index);
+                                }}
+                                disabled={isGenerating && generatingResultId === result.id}
+                                className="px-6 py-3.5 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 active:scale-95 transition-all flex items-center gap-2 shadow-xl shadow-[#FF9EBE]/30 cursor-pointer text-sm tracking-wide disabled:opacity-50"
+                              >
+                                {isGenerating && generatingResultId === result.id ? (
+                                  <>
+                                    <Loader2 className="animate-spin" size={18} />
+                                    Style wird erstellt...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Sparkles size={18} />
+                                    Jetzt erstellen
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </>
                         )}
                       </div>
                       <div className="space-y-1">
