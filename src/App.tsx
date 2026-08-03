@@ -5562,7 +5562,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       {/* Miniatur Studio Preview (Hingucker) as 4th card for free/single users */}
                       {index === 3 && renderStylingStudioCard()}
 
-                      {index === 4 && !isPremium && (
+                      {index === 4 && !isPaid && (
                         <motion.div 
                           initial={{ opacity: 0, scale: 0.95 }}
                           animate={{ opacity: 1, scale: 1 }}
@@ -5815,56 +5815,58 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       </div>
                       {index === 0 && (
                         <>
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="mt-3 p-4 bg-gradient-to-br from-[#FF9EBE]/15 via-pink-50 to-amber-50/50 rounded-2xl border border-[#FF9EBE]/30 space-y-3 shadow-sm"
-                        >
-                          <div className="flex items-center gap-1.5 text-[#FF9EBE] text-xs font-black uppercase tracking-wider">
-                            <Sparkles size={14} className="animate-pulse" />
-                            <span>KI-Analyse-Empfehlung ✨</span>
-                          </div>
-                          <p className="text-xs text-brand-primary/90 font-medium leading-relaxed">
-                            <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 8 weitere perfekt abgestimmte Styles – darunter eine echte Hingucker-Kurzhaarfrisur.
-                          </p>
-
-                          {/* List 4 of the actual AI suggested styles */}
-                          {results.length > 1 && (
-                            <div 
-                              onClick={(e) => e.stopPropagation()}
-                              className="p-2.5 bg-white/80 backdrop-blur-sm rounded-xl border border-[#FF9EBE]/20 space-y-2 cursor-default"
-                            >
-                              <span className="text-[10px] font-bold text-brand-primary/70 uppercase tracking-wider block">
-                                In deiner persönlichen Analyse enthalten:
-                              </span>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                                {results.slice(1, 5).map((res, i) => (
-                                  <div key={res.id || i} className="flex items-center gap-2 text-xs font-semibold text-brand-primary/90 bg-white p-2 rounded-lg border border-black/5 shadow-2xs">
-                                    <div className="p-1 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] shrink-0">
-                                      <Lock size={12} />
-                                    </div>
-                                    <span className="truncate">{res.name}</span>
-                                  </div>
-                                ))}
-                              </div>
+                        {!isPaid && (
+                          <motion.div 
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mt-3 p-4 bg-gradient-to-br from-[#FF9EBE]/15 via-pink-50 to-amber-50/50 rounded-2xl border border-[#FF9EBE]/30 space-y-3 shadow-sm"
+                          >
+                            <div className="flex items-center gap-1.5 text-[#FF9EBE] text-xs font-black uppercase tracking-wider">
+                              <Sparkles size={14} className="animate-pulse" />
+                              <span>KI-Analyse-Empfehlung ✨</span>
                             </div>
-                          )}
+                            <p className="text-xs text-brand-primary/90 font-medium leading-relaxed">
+                              <strong className="font-bold text-brand-primary">Wow, dieser Look steht dir schon richtig gut!</strong> Unsere KI hat deine Gesichtsform analysiert und empfiehlt dir noch 8 weitere perfekt abgestimmte Styles – darunter eine echte Hingucker-Kurzhaarfrisur.
+                            </p>
 
-                          {(!isPremium && userPlan !== 'single') && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleShowPricing('quick_single');
-                              }}
-                              className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white font-black text-xs lg:text-sm uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] group"
-                            >
-                              <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
-                              <span>Entdecke jetzt alle 8 weiteren Styles für nur einmalig 2,99€</span>
-                              <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
-                            </button>
-                          )}
-                        </motion.div>
+                            {/* List 4 of the actual AI suggested styles */}
+                            {results.length > 1 && (
+                              <div 
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-2.5 bg-white/80 backdrop-blur-sm rounded-xl border border-[#FF9EBE]/20 space-y-2 cursor-default"
+                              >
+                                <span className="text-[10px] font-bold text-brand-primary/70 uppercase tracking-wider block">
+                                  In deiner persönlichen Analyse enthalten:
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                  {results.slice(1, 5).map((res, i) => (
+                                    <div key={res.id || i} className="flex items-center gap-2 text-xs font-semibold text-brand-primary/90 bg-white p-2 rounded-lg border border-black/5 shadow-2xs">
+                                      <div className="p-1 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] shrink-0">
+                                        <Lock size={12} />
+                                      </div>
+                                      <span className="truncate">{res.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {(!isPremium && userPlan !== 'single') && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShowPricing('quick_single');
+                                }}
+                                className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white font-black text-xs lg:text-sm uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] group"
+                              >
+                                <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
+                                <span>Entdecke jetzt alle 8 weiteren Styles für nur einmalig 2,99€</span>
+                                <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
+                              </button>
+                            )}
+                          </motion.div>
+                        )}
 
                         {/* BONUS BOX: Haaranalyse, Pflegetipps & 3 Farbtipps */}
                         {!isPaid ? (
