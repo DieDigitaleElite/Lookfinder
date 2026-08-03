@@ -217,6 +217,7 @@ export default function App() {
   const [activeLegalModal, setActiveLegalModal] = useState<'impressum' | 'datenschutz' | 'agb' | 'widerruf' | 'about' | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [agreedToWiderruf, setAgreedToWiderruf] = useState(false);
+  const [isQuickCheckout, setIsQuickCheckout] = useState(false);
   
   // GA4 Initialization
   const trackEvent = (action: string, category: string = 'User', label?: string, value?: number, params?: any) => {
@@ -233,9 +234,15 @@ export default function App() {
     }
   };
 
-  const handleShowPricing = (source: 'general' | 'styling_studio' = 'general') => {
-    setPricingSource(source);
-    setSelectedPlanId(null);
+  const handleShowPricing = (source: 'general' | 'styling_studio' | 'quick_single' = 'general') => {
+    setPricingSource(source === 'quick_single' ? 'general' : source);
+    if (source === 'quick_single') {
+      setIsQuickCheckout(true);
+      setSelectedPlanId('single');
+    } else {
+      setIsQuickCheckout(false);
+      setSelectedPlanId(null);
+    }
     setShowPricingModal(true);
     trackEvent('paywall_viewed', 'Revenue', source);
   };
@@ -2810,7 +2817,7 @@ export default function App() {
 
     // If not free slot and not paid, show pricing
     if (!isFreeSlot && !isPaid) {
-       handleShowPricing('general');
+       handleShowPricing('quick_single');
        return;
     }
 
@@ -5566,7 +5573,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                           </div>
 
                           <button 
-                            onClick={() => setShowPricingModal(true)}
+                            onClick={() => handleShowPricing('quick_single')}
                             className="px-12 py-4 bg-brand-primary text-white rounded-2xl font-bold text-lg hover:bg-brand-primary/90 transition-all shadow-xl flex items-center gap-3 group"
                           >
                             Alle 9 Styles + Profi-Guide freischalten
@@ -5586,7 +5593,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         transition={{ delay: index * 0.1 }}
                         onClick={() => {
                           if (isLocked) {
-                            setShowPricingModal(true);
+                            handleShowPricing('quick_single');
                           } else if (result.failed) {
                             retryStyle(index);
                           } else if (!result.imageUrl) {
@@ -5822,7 +5829,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setShowPricingModal(true);
+                                handleShowPricing('quick_single');
                               }}
                               className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white font-black text-xs lg:text-sm uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] group"
                             >
@@ -5834,101 +5841,177 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         </motion.div>
 
                         {/* BONUS BOX: Haaranalyse, Pflegetipps & 3 Farbtipps */}
-                        {hairAnalysis && (
+                        {!isPaid ? (
                           <motion.div 
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.15 }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="mt-3 p-5 bg-gradient-to-br from-white via-pink-50/50 to-purple-50/30 rounded-2xl border-2 border-[#FF9EBE]/40 space-y-4 shadow-sm text-left cursor-default"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShowPricing('quick_single');
+                            }}
+                            className="mt-3 p-5 bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-amber-500/10 rounded-2xl border-2 border-[#FF9EBE] space-y-4 shadow-lg text-left cursor-pointer group hover:scale-[1.01] transition-all relative overflow-hidden"
                           >
-                            {/* Header Badge */}
+                            {/* Floating Top Badge */}
                             <div className="flex items-center justify-between border-b border-black/5 pb-3">
                               <div className="flex items-center gap-2">
-                                <div className="p-2 rounded-xl bg-[#FF9EBE] text-white shadow-sm shadow-[#FF9EBE]/20">
+                                <div className="p-2 rounded-xl bg-[#FF9EBE] text-white shadow-md shadow-[#FF9EBE]/30 group-hover:rotate-12 transition-transform">
                                   <Sparkles size={16} />
                                 </div>
                                 <div>
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block">
-                                    Bonus-Analyse ✨
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] flex items-center gap-1">
+                                    <Lock size={10} /> Bonus-Analyse (Gesperrt)
                                   </span>
                                   <h4 className="text-sm font-bold text-brand-primary">
-                                    Haaranalyse & Pflegetipps
+                                    Haaranalyse, Pflegetipps & 3 Farbtipps
                                   </h4>
                                 </div>
                               </div>
-                              <span className="px-2.5 py-1 bg-[#FF9EBE]/15 text-[#FF9EBE] rounded-full text-[10px] font-black uppercase tracking-wider">
-                                Exklusiv
+                              <span className="px-3 py-1 bg-[#FF9EBE] text-white rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm animate-pulse">
+                                Inklusive
                               </span>
                             </div>
 
-                            {/* Section 1: Haarstruktur Beobachtung */}
-                            {hairAnalysis.structureAndHealthSummary && (
-                              <div className="p-3 bg-white/90 rounded-xl border border-black/5 space-y-1">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary">
+                            {/* Blurred Teaser preview with lock overlay */}
+                            <div className="relative rounded-xl overflow-hidden p-4 bg-white/70 backdrop-blur-md border border-[#FF9EBE]/30 space-y-3">
+                              <div className="filter blur-[3px] select-none pointer-events-none space-y-2 opacity-60">
+                                <div className="flex items-center gap-2 text-xs font-bold text-brand-primary">
                                   <Scissors size={14} className="text-[#FF9EBE]" />
-                                  <span>Haarstruktur auf deinem Foto:</span>
+                                  <span>Haarstruktur-Analyse deines Fotos</span>
                                 </div>
-                                <p className="text-xs text-brand-primary/80 leading-relaxed font-medium">
-                                  {hairAnalysis.structureAndHealthSummary}
+                                <p className="text-xs text-brand-primary/80">
+                                  Feines, glattes Haar mit mittlerer Dichte & Glanz.
                                 </p>
-                              </div>
-                            )}
-
-                            {/* Section 2: 3 Pflegetipps */}
-                            {hairAnalysis.careTips && hairAnalysis.careTips.length > 0 && (
-                              <div className="space-y-2">
-                                <h5 className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
-                                  <Lightbulb size={14} className="text-amber-500" />
-                                  <span>3 KI-Pflegetipps für dich:</span>
-                                </h5>
-                                <div className="space-y-1.5">
-                                  {hairAnalysis.careTips.map((tip, idx) => (
-                                    <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-black/5 text-xs text-brand-primary/90 font-medium shadow-2xs">
-                                      <span className="w-5 h-5 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                                        {idx + 1}
-                                      </span>
-                                      <span className="leading-snug">{tip}</span>
-                                    </div>
-                                  ))}
+                                <div className="space-y-1 pt-1">
+                                  <div className="h-4 bg-[#FF9EBE]/20 rounded w-3/4"></div>
+                                  <div className="h-4 bg-[#FF9EBE]/20 rounded w-2/3"></div>
+                                  <div className="h-4 bg-[#FF9EBE]/20 rounded w-5/6"></div>
                                 </div>
                               </div>
-                            )}
 
-                            {/* Section 3: 3 Farbtipps */}
-                            {hairAnalysis.colorTips && hairAnalysis.colorTips.length > 0 && (
-                              <div className="space-y-2 pt-1">
-                                <h5 className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
-                                  <Sun size={14} className="text-[#FF9EBE]" />
-                                  <span>3 Farbtipps, die ideal zu dir passen:</span>
-                                </h5>
-                                <div className="grid grid-cols-1 gap-2">
-                                  {hairAnalysis.colorTips.map((color, idx) => (
-                                    <div key={idx} className="p-3 bg-white rounded-xl border border-black/5 space-y-1 shadow-2xs">
-                                      <div className="flex items-center gap-2">
-                                        <span 
-                                          className="w-4 h-4 rounded-full border border-black/10 shadow-sm shrink-0" 
-                                          style={{ backgroundColor: color.colorHex || '#FF9EBE' }} 
-                                        />
-                                        <span className="text-xs font-bold text-brand-primary">{color.colorName}</span>
-                                      </div>
-                                      <p className="text-[11px] text-brand-primary/70 leading-relaxed pl-6">
-                                        {color.whyItSuits}
-                                      </p>
-                                    </div>
-                                  ))}
+                              {/* Lock CTA overlay over teaser */}
+                              <div className="absolute inset-0 bg-white/60 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center">
+                                <div className="w-10 h-10 rounded-full bg-[#FF9EBE] text-white flex items-center justify-center shadow-lg mb-2 group-hover:scale-110 transition-transform">
+                                  <Lock size={18} />
                                 </div>
+                                <p className="text-xs font-black text-brand-primary uppercase tracking-wider mb-1">
+                                  Freischalten nach Bezahlung ✨
+                                </p>
+                                <p className="text-[11px] text-brand-primary/70 max-w-[240px] leading-tight mb-3 font-medium">
+                                  Erhalte deine persönliche Haarstruktur-Einschätzung, 3 KI-Pflegetipps & 3 Farbtipps inkl. Begründung.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleShowPricing('quick_single');
+                                  }}
+                                  className="px-5 py-2.5 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] text-white rounded-full text-xs font-black uppercase tracking-wider shadow-md shadow-[#FF9EBE]/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5"
+                                >
+                                  <Sparkles size={14} />
+                                  <span>Inklusive Bonus-Analyse freischalten</span>
+                                  <ChevronRight size={14} />
+                                </button>
                               </div>
-                            )}
-
-                            {/* Disclaimer Note */}
-                            <div className="pt-2 border-t border-black/5 flex items-start gap-2 text-[10px] text-brand-primary/50 leading-normal">
-                              <Info size={12} className="shrink-0 mt-0.5 text-brand-primary/40" />
-                              <span>
-                                {hairAnalysis.disclaimer || "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."}
-                              </span>
                             </div>
                           </motion.div>
+                        ) : (
+                          hairAnalysis && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.15 }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-3 p-5 bg-gradient-to-br from-white via-pink-50/50 to-purple-50/30 rounded-2xl border-2 border-[#FF9EBE]/40 space-y-4 shadow-sm text-left cursor-default"
+                            >
+                              {/* Header Badge */}
+                              <div className="flex items-center justify-between border-b border-black/5 pb-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="p-2 rounded-xl bg-[#FF9EBE] text-white shadow-sm shadow-[#FF9EBE]/20">
+                                    <Sparkles size={16} />
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block">
+                                      Bonus-Analyse ✨
+                                    </span>
+                                    <h4 className="text-sm font-bold text-brand-primary">
+                                      Haaranalyse & Pflegetipps
+                                    </h4>
+                                  </div>
+                                </div>
+                                <span className="px-2.5 py-1 bg-[#FF9EBE]/15 text-[#FF9EBE] rounded-full text-[10px] font-black uppercase tracking-wider">
+                                  Freigeschaltet
+                                </span>
+                              </div>
+
+                              {/* Section 1: Haarstruktur Beobachtung */}
+                              {hairAnalysis.structureAndHealthSummary && (
+                                <div className="p-3 bg-white/90 rounded-xl border border-black/5 space-y-1">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-primary">
+                                    <Scissors size={14} className="text-[#FF9EBE]" />
+                                    <span>Haarstruktur auf deinem Foto:</span>
+                                  </div>
+                                  <p className="text-xs text-brand-primary/80 leading-relaxed font-medium">
+                                    {hairAnalysis.structureAndHealthSummary}
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Section 2: 3 Pflegetipps */}
+                              {hairAnalysis.careTips && hairAnalysis.careTips.length > 0 && (
+                                <div className="space-y-2">
+                                  <h5 className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
+                                    <Lightbulb size={14} className="text-amber-500" />
+                                    <span>3 KI-Pflegetipps für dich:</span>
+                                  </h5>
+                                  <div className="space-y-1.5">
+                                    {hairAnalysis.careTips.map((tip, idx) => (
+                                      <div key={idx} className="flex items-start gap-2.5 p-2.5 bg-white rounded-xl border border-black/5 text-xs text-brand-primary/90 font-medium shadow-2xs">
+                                        <span className="w-5 h-5 rounded-full bg-[#FF9EBE]/15 text-[#FF9EBE] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                                          {idx + 1}
+                                        </span>
+                                        <span className="leading-snug">{tip}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Section 3: 3 Farbtipps */}
+                              {hairAnalysis.colorTips && hairAnalysis.colorTips.length > 0 && (
+                                <div className="space-y-2 pt-1">
+                                  <h5 className="text-xs font-bold text-brand-primary flex items-center gap-1.5">
+                                    <Sun size={14} className="text-[#FF9EBE]" />
+                                    <span>3 Farbtipps, die ideal zu dir passen:</span>
+                                  </h5>
+                                  <div className="grid grid-cols-1 gap-2">
+                                    {hairAnalysis.colorTips.map((color, idx) => (
+                                      <div key={idx} className="p-3 bg-white rounded-xl border border-black/5 space-y-1 shadow-2xs">
+                                        <div className="flex items-center gap-2">
+                                          <span 
+                                            className="w-4 h-4 rounded-full border border-black/10 shadow-sm shrink-0" 
+                                            style={{ backgroundColor: color.colorHex || '#FF9EBE' }} 
+                                          />
+                                          <span className="text-xs font-bold text-brand-primary">{color.colorName}</span>
+                                        </div>
+                                        <p className="text-[11px] text-brand-primary/70 leading-relaxed pl-6">
+                                          {color.whyItSuits}
+                                        </p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Disclaimer Note */}
+                              <div className="pt-2 border-t border-black/5 flex items-start gap-2 text-[10px] text-brand-primary/50 leading-normal">
+                                <Info size={12} className="shrink-0 mt-0.5 text-brand-primary/40" />
+                                <span>
+                                  {hairAnalysis.disclaimer || "Hinweis: Dies ist keine medizinische oder dermatologische Analyse, sondern eine visuelle Stil- & Pflegeberatung auf Basis deines Fotos."}
+                                </span>
+                              </div>
+                            </motion.div>
+                          )
                         )}
                         </>
                       )}
@@ -6880,7 +6963,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-4xl bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col my-auto"
+              className={`relative w-full ${isQuickCheckout ? 'max-w-lg' : 'max-w-4xl'} bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-2xl overflow-hidden flex flex-col my-auto`}
             >
               <button 
                 onClick={() => setShowPricingModal(false)}
@@ -6890,7 +6973,174 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               </button>
 
               <div className="overflow-y-auto flex-1">
-                <div className="grid grid-cols-1 lg:grid-cols-2">
+                {isQuickCheckout ? (
+                  <div className="p-6 md:p-8 bg-white flex flex-col space-y-5">
+                    {/* Header */}
+                    <div className="text-center space-y-2 pt-2">
+                      <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-gradient-to-tr from-[#FF9EBE] to-pink-400 text-white shadow-lg shadow-[#FF9EBE]/30 mb-1">
+                        <Sparkles size={28} />
+                      </div>
+                      <h3 className="text-xl md:text-2xl font-serif font-black text-brand-primary">
+                        Exklusive Erstanalyse freischalten ✨
+                      </h3>
+                      <p className="text-xs text-brand-primary/60 max-w-sm mx-auto">
+                        Schalte sofort alle 8 weiteren Frisuren-Styles in HD frei &amp; erhalte deine persönliche Haaranalyse inkl. KI-Pflegetipps.
+                      </p>
+                    </div>
+
+                    {/* Price Tag Box */}
+                    <div className="p-4 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 rounded-2xl border-2 border-[#FF9EBE] flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block">
+                          Einmalige Freischaltung
+                        </span>
+                        <span className="text-sm font-bold text-brand-primary">
+                          8 weitere Styles + Bonus-Haaranalyse
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-2xl font-black text-brand-primary">2,99 €</span>
+                        <span className="text-[10px] text-brand-primary/50 block font-bold">Einmalig • Kein Abo</span>
+                      </div>
+                    </div>
+
+                    {/* Included Features List */}
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 space-y-2.5">
+                      <span className="text-[11px] font-black text-brand-primary/70 uppercase tracking-wider block mb-1">
+                        In deiner Freischaltung enthalten:
+                      </span>
+                      {[
+                        "Alle 8 weiteren personalisierten Frisuren-Styles freischalten",
+                        "Bonus: Haarstruktur-Analyse & 3 KI-Pflegetipps",
+                        "Bonus: 3 passende Farbtipps mit Begründung",
+                        "Detaillierte Styling- & Schnittanweisungen für den Friseur",
+                        "HD-Downloads ohne Wasserzeichen & Speicherung in der Galerie"
+                      ].map((item, idx) => (
+                        <div key={idx} className="flex items-start gap-2.5 text-xs text-brand-primary/80 font-medium">
+                          <div className="mt-0.5 p-0.5 rounded-full bg-[#FF9EBE]/20 text-[#FF9EBE] shrink-0">
+                            <CheckCircle2 size={13} />
+                          </div>
+                          <span>{item}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Error message display if any */}
+                    {error && (
+                      <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs border border-red-100 flex items-center gap-2">
+                        <AlertCircle size={16} className="shrink-0 text-red-500" />
+                        <span>{error}</span>
+                      </div>
+                    )}
+
+                    {/* Legal Checkboxes (AGB & Widerrufsrecht) */}
+                    <div className="p-4 bg-pink-50/50 rounded-2xl border border-[#FF9EBE]/30 space-y-3">
+                      <div className="flex items-start gap-2.5 select-none">
+                        <input 
+                          type="checkbox" 
+                          id="quick_agb"
+                          checked={agreedToTerms} 
+                          onChange={(e) => {
+                            setAgreedToTerms(e.target.checked);
+                            if (error) setError(null);
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded text-[#FF9EBE] focus:ring-[#FF9EBE] cursor-pointer shrink-0" 
+                        />
+                        <label htmlFor="quick_agb" className="text-xs text-brand-primary/80 leading-snug cursor-pointer">
+                          Ich akzeptiere die{" "}
+                          <span 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('agb'); }} 
+                            className="text-[#FF9EBE] underline font-bold hover:opacity-80"
+                          >
+                            AGB
+                          </span>{" "}
+                          und habe die{" "}
+                          <span 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('datenschutz'); }} 
+                            className="text-[#FF9EBE] underline font-bold hover:opacity-80"
+                          >
+                            Datenschutzerklärung
+                          </span>{" "}
+                          gelesen.
+                        </label>
+                      </div>
+
+                      <div className="flex items-start gap-2.5 select-none">
+                        <input 
+                          type="checkbox" 
+                          id="quick_widerruf"
+                          checked={agreedToWiderruf} 
+                          onChange={(e) => {
+                            setAgreedToWiderruf(e.target.checked);
+                            if (error) setError(null);
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded text-[#FF9EBE] focus:ring-[#FF9EBE] cursor-pointer shrink-0" 
+                        />
+                        <label htmlFor="quick_widerruf" className="text-xs text-brand-primary/80 leading-snug cursor-pointer">
+                          Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist mit der Ausführung des Vertrags beginnt und ich mein{" "}
+                          <span 
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveLegalModal('widerruf'); }} 
+                            className="text-[#FF9EBE] underline font-bold hover:opacity-80"
+                          >
+                            Widerrufsrecht
+                          </span>{" "}
+                          verliere.
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Direct Checkout CTA Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (!agreedToTerms || !agreedToWiderruf) {
+                          setError("Bitte bestätige die AGB und die Widerrufsbelehrung, um fortzufahren.");
+                          return;
+                        }
+                        handleCheckout('single');
+                      }}
+                      disabled={isCheckingOut}
+                      className="w-full py-4 px-6 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white rounded-2xl font-black uppercase tracking-wider text-sm shadow-xl shadow-[#FF9EBE]/30 hover:scale-[1.01] active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCheckingOut ? (
+                        <>
+                          <Loader2 className="animate-spin" size={18} />
+                          <span>Weiterleitung zu Stripe...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Jetzt für 2,99 € kostenpflichtig bestellen</span>
+                          <Zap size={16} />
+                        </>
+                      )}
+                    </button>
+
+                    {/* Trust & Payment icons */}
+                    <div className="text-center space-y-2 pt-1">
+                      <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-brand-primary/50">
+                        <ShieldCheck size={14} className="text-emerald-500" />
+                        <span>100% Sichere 256-Bit SSL-Zahlung über Stripe</span>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 text-[10px] text-brand-primary/40 font-bold">
+                        <span>PayPal</span> • <span>Klarna</span> • <span>Kreditkarte</span> • <span>Apple Pay</span> • <span>Google Pay</span>
+                      </div>
+                    </div>
+
+                    {/* Switch to full pricing matrix */}
+                    <div className="text-center pt-2 border-t border-black/5">
+                      <button
+                        type="button"
+                        onClick={() => setIsQuickCheckout(false)}
+                        className="text-xs font-bold text-[#FF9EBE] hover:underline cursor-pointer transition-colors"
+                      >
+                        Du möchtest stattdessen die Styling-Flatrate? Alle Abos &amp; Tarife anzeigen →
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 lg:grid-cols-2">
                   {/* Left Side: Benefits */}
                   <div className="p-8 lg:p-12 bg-brand-primary text-white">
                     <div className="flex items-center gap-3 mb-6 lg:mb-8">
@@ -6918,7 +7168,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     
                     <ul className="space-y-3 lg:space-y-4 mb-8">
                       {[
-                        "🎨 Eigene Frisuren & Haarfarben direkt ausprobieren",
+                        "🎁 BONUS: Haaranalyse & KI-Pflegetipps inklusive",
+                        "🎨 Alle 8 weiteren Styles einzeln freischalten & generieren",
                         "✅ Unbegrenzte KI-Analysen",
                         " Premium-Styling Studio (100+ Styles)",
                         "Jeden Monat neue Trend-Kollektionen 🆕",
@@ -7404,6 +7655,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     </div>
                   </div>
                 </div>
+              )}
               </div>
             </motion.div>
           </div>
