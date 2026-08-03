@@ -1367,6 +1367,21 @@ export default function App() {
     const pendingPlan = localStorage.getItem('frisurenai_pending_plan');
     const hasPendingData = localStorage.getItem('frisurenai_pending_results') !== null;
 
+    // Restore pending results and images from localStorage for guest / unauthenticated users
+    const savedResultsStr = localStorage.getItem('frisurenai_pending_results');
+    if (savedResultsStr) {
+      try {
+        const parsed = JSON.parse(savedResultsStr);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setResults(prev => prev.length === 0 ? parsed : prev);
+        }
+      } catch (e) {}
+    }
+    const savedImg = localStorage.getItem('frisurenai_pending_image');
+    if (savedImg && !image) setImage(savedImg);
+    const savedHd = localStorage.getItem('frisurenai_pending_hd_image');
+    if (savedHd && !hdImage) setHdImage(savedHd);
+
     if (isPaymentSuccess || (hasPendingData && pendingPlan)) {
       const plan = params.get('plan') || pendingPlan || 'single';
       const uid = params.get('uid') || localStorage.getItem('frisurenai_pending_uid');
@@ -1383,6 +1398,10 @@ export default function App() {
         console.log("Payment success detected in URL. Plan:", plan, "UID:", uid, "SessionId:", sessionId);
         isPaymentProcessingRef.current = true;
         setPendingPayment({ plan, uid, sessionId });
+
+        // Store guest paid state so post-payment registration transfers everything to user account
+        localStorage.setItem('frisurenai_guest_is_paid', 'true');
+        localStorage.setItem('frisurenai_guest_plan', plan);
 
         // Track Purchase Event
         ReactGA.event('purchase', {
@@ -1411,6 +1430,7 @@ export default function App() {
       // Set local state immediately for better UX
       if (plan && plan !== 'studio-single') {
         setIsPremium(true);
+        setUserPlan(plan as any);
       }
       
       if (isPaymentSuccess) {
@@ -3373,29 +3393,25 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
   const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' | 'studio-single' = 'single', metadata?: any) => {
     console.log("Initiating checkout for plan:", plan, "metadata:", metadata);
     
+    // Always enforce legal terms & cancellation policy agreement before payment
+    if (!agreedToTerms || !agreedToWiderruf) {
+      setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung, bevor du mit der Zahlung fortfährst.");
+      setIsCheckingOut(false);
+      return;
+    }
+
     const activeMetadata = metadata || pendingStudioSelection;
     const activeUser = user || auth.currentUser;
     
-    if (!activeUser) {
-      console.log("User not logged in, prompting for login before checkout");
-      setPendingCheckoutPlan(plan);
-      if (activeMetadata) {
-        localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(activeMetadata));
-        setPendingStudioSelection(activeMetadata);
-      }
-      setAuthMessage({ type: 'info', text: "Bitte erstelle ein kostenloses Konto oder logge dich ein, um mit der Zahlung fortzufahren." });
-      
-      // Automatically close any open paywall/pricing modals
-      setShowPricingModal(false);
-      setShowUpsellModal(false);
-      
-      // Default to registration for new users
-      setIsRegistering(true);
-      setIsForgotPassword(false);
-      
-      setShowLoginModal(true);
-      return;
+    // Generate or retrieve persistent guest UID for unauthenticated payments
+    let guestUid = localStorage.getItem('frisurenai_guest_uid');
+    if (!guestUid) {
+      guestUid = 'guest_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('frisurenai_guest_uid', guestUid);
     }
+    
+    const effectiveUid = activeUser ? activeUser.uid : guestUid;
+    const effectiveEmail = activeUser ? activeUser.email || undefined : undefined;
 
     setIsCheckingOut(true);
     setError(null);
@@ -3407,8 +3423,30 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       items: [{ item_id: plan, item_name: `Frisuren AI ${plan}` }]
     });
 
+    // Save pending state to localStorage so guest can resume / transfer results after payment
     try {
-      console.log("Fetching checkout session for UID:", activeUser.uid);
+      if (results && results.length > 0) {
+        localStorage.setItem('frisurenai_pending_results', JSON.stringify(results));
+      }
+      if (customResults && customResults.length > 0) {
+        localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(customResults));
+      }
+      if (image) localStorage.setItem('frisurenai_pending_image', image);
+      if (hdImage) localStorage.setItem('frisurenai_pending_hd_image', hdImage);
+      if (mimeType) localStorage.setItem('frisurenai_pending_mime_type', mimeType);
+      if (faceAnalysis) localStorage.setItem('frisurenai_pending_face_analysis', JSON.stringify(faceAnalysis));
+      if (hairAnalysis) localStorage.setItem('frisurenai_pending_hair_analysis', JSON.stringify(hairAnalysis));
+      if (activeMetadata) {
+        localStorage.setItem('frisurenai_pending_studio_selection', JSON.stringify(activeMetadata));
+      }
+      localStorage.setItem('frisurenai_pending_plan', plan);
+      localStorage.setItem('frisurenai_pending_uid', effectiveUid);
+    } catch (e) {
+      console.warn("Could not save to localStorage before checkout:", e);
+    }
+
+    try {
+      console.log("Fetching checkout session for UID:", effectiveUid);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
@@ -3424,8 +3462,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         },
         body: JSON.stringify({ 
           plan, 
-          userId: activeUser.uid,
-          email: activeUser.email 
+          userId: effectiveUid,
+          email: effectiveEmail 
         }),
         signal: controller.signal
       });
@@ -5379,16 +5417,45 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               animate={{ opacity: 1, y: 0 }}
               className="space-y-8 md:space-y-12"
             >
+              {!user && (isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true') && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-6 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-3xl shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-emerald-400/30"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                      <Sparkles className="animate-bounce" size={26} />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg leading-snug">Zahlung erfolgreich! 🎉</h4>
+                      <p className="text-xs text-white/90 leading-relaxed max-w-xl mt-0.5">
+                        Deine 8 weiteren Frisuren-Ergebnisse werden freigeschaltet. Erstelle dir kostenlos ein Konto, um alle 9 Bilder dauerhaft in deinem Profil unter <strong>"Meine Looks"</strong> zu speichern!
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsRegistering(true);
+                      setShowLoginModal(true);
+                    }}
+                    className="px-6 py-3.5 bg-white text-emerald-900 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-emerald-50 active:scale-95 transition-all shrink-0 shadow-lg cursor-pointer"
+                  >
+                    Konto erstellen & 9 Bilder speichern
+                  </button>
+                </motion.div>
+              )}
+
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="space-y-4 max-w-2xl">
                   <h2 className="text-3xl md:text-4xl font-serif font-bold">
-                    {isPremium 
+                    {(isPremium || userPlan === 'single')
                       ? "Deine exklusiven Premium-Styles ✨" 
                       : "Das sind deine personalisierten Styles🔥"}
                   </h2>
                   <p className="text-brand-primary/80 text-base md:text-lg font-medium">
-                    {isPremium 
-                      ? "Dein Pro-Zugang ist aktiv! Entdecke jetzt deine volle Typberatung."
+                    {(isPremium || userPlan === 'single') 
+                      ? "Dein Zugang ist aktiv! Entdecke jetzt deine volle Typberatung."
                       : "Jeder einzelne wurde speziell für deine Gesichtsform und deinen Typ erstellt."}
                   </p>
                   <div className="space-y-2 pt-2">
@@ -5400,7 +5467,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   </div>
                 </div>
                 <div className="flex flex-col gap-4">
-                  {isPremium && results.some(r => !r.imageUrl && !r.failed) && (
+                  {(isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true') && results.some(r => !r.imageUrl && !r.failed) && (
                     <motion.button 
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
@@ -5408,13 +5475,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       whileTap={{ scale: 0.95 }}
                       onClick={handleGenerateRemaining}
                       disabled={isGenerating}
-                      className="px-8 py-5 bg-[#FF9EBE] text-white rounded-2xl font-black shadow-xl shadow-[#FF9EBE]/30 flex flex-col items-center gap-1 group transition-all"
+                      className="px-8 py-5 bg-[#FF9EBE] text-white rounded-2xl font-black shadow-xl shadow-[#FF9EBE]/30 flex flex-col items-center gap-1 group transition-all cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         {isGenerating ? <Loader2 className="animate-spin" size={24} /> : <Sparkles className="group-hover:rotate-12 transition-transform" size={24} />}
                         <span className="text-lg uppercase tracking-widest">Alle 8 weiteren Styles laden</span>
                       </div>
-                      <span className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Kostenlos in Pro enthalten</span>
+                      <span className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Freigeschaltet</span>
                     </motion.button>
                   )}
                   
@@ -5450,7 +5517,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {results.map((result, index) => {
                   const isFreeSlot = index < 1;
-                  const isLocked = !isPremium && userPlan !== 'single' && index >= 1;
+                  const isLocked = !isPremium && userPlan !== 'single' && localStorage.getItem('frisurenai_guest_is_paid') !== 'true' && index >= 1;
                   const needsFreeGeneration = isFreeSlot && index > 0 && !result.imageUrl;
                   
                   return (
