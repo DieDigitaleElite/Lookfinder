@@ -429,6 +429,9 @@ export default function App() {
   // Prevent accidental reload during initial analysis and registration phases
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Allow seamless redirection to Stripe without showing a browser exit warning dialog
+      if (isCheckingOut) return;
+
       // Warn when user is NOT logged in and we have pending erstanalyse data or are analyzing/generating
       if (!user && (faceAnalysis || results.length > 0 || isAnalyzing || isGenerating)) {
         e.preventDefault();
@@ -441,7 +444,7 @@ export default function App() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [user, faceAnalysis, results.length, isAnalyzing, isGenerating]);
+  }, [user, faceAnalysis, results.length, isAnalyzing, isGenerating, isCheckingOut]);
 
   // Mirror critical state to localStorage for anonymous users
   useEffect(() => {
