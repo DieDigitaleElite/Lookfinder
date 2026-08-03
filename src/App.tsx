@@ -1607,13 +1607,7 @@ export default function App() {
             }
           }
 
-          // Trigger generation of remaining Erstanalyse styles if needed
-          if (pendingPayment.plan === 'single' || pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
-            console.log("Stripe payment success: triggering generation of remaining Erstanalyse looks...");
-            setTimeout(() => {
-              handleGenerateRemaining();
-            }, 1000);
-          }
+          // Payment success handling (no automatic generation loop; user generates remaining 8 styles manually via button)
 
           // Trigger Upsell Modal if it was a single unlock
           if (pendingPayment.plan === 'single' || pendingPayment.plan === 'studio-single') {
@@ -1701,9 +1695,15 @@ export default function App() {
     }
   }, [user, results, customResults, savedResults, userData, avatarSketch, faceAnalysis, isAutoGeneratingFromStripe, pendingStudioSelection]);
 
-  // Trigger manual generation of missing images for premium users
+  // Trigger manual generation of missing images for premium/paid users
   const handleGenerateRemaining = async () => {
-    if (!isPremium || results.length === 0 || isGenerating || !image) return;
+    const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
+    const activeSourceImg = image || hdImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
+
+    if (!isPaid || results.length === 0 || isGenerating || !activeSourceImg) {
+      console.warn("handleGenerateRemaining skipped:", { isPaid, resultsLength: results.length, isGenerating, hasImage: !!activeSourceImg });
+      return;
+    }
     
     // Track event
     ReactGA.event({
@@ -1713,7 +1713,7 @@ export default function App() {
     });
 
     const missingIndices = results
-      .map((r, i) => (!r.imageUrl && !r.failed ? i : -1))
+      .map((r, i) => (!r.imageUrl ? i : -1))
       .filter(i => i !== -1);
       
     if (missingIndices.length === 0) return;
@@ -1735,12 +1735,9 @@ export default function App() {
       const generateMissingSequential = async (i: number, idx: number) => {
         const suggestion = results[i];
         try {
-          console.log(`Generating manual premium style ${i + 1}: ${suggestion.name}`);
+          console.log(`Generating manual style ${i + 1}: ${suggestion.name}`);
           
-          const itemSourceImage = suggestion.sourceImageUrl || image || hdImage || localStorage.getItem('frisurenai_pending_image');
-          if (!itemSourceImage) {
-            throw new Error("Originalfoto für diese Generierung nicht gefunden.");
-          }
+          const itemSourceImage = suggestion.sourceImageUrl || activeSourceImg;
           const itemBase64 = itemSourceImage.split(',')[1];
           const itemMimeType = itemSourceImage.split(';')[0].split(':')[1] || 'image/jpeg';
 
@@ -1758,7 +1755,9 @@ export default function App() {
             const newResults = [...prev];
             newResults[i] = updatedResult;
             
-            // Auto-save to history for premium users
+            try { localStorage.setItem('frisurenai_pending_results', JSON.stringify(newResults)); } catch (e) {}
+
+            // Auto-save to history for logged-in users
             if (user && updatedResult.imageUrl) {
               saveResult(updatedResult, true).catch(err => console.warn("Failed auto-save to history", err));
             }
