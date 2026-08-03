@@ -5693,7 +5693,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setShowPricingModal(true);
+                                  handleShowPricing('quick_single');
                                 }}
                                 disabled={isCheckingOut}
                                 className="px-6 py-3 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 transition-all flex items-center gap-2 shadow-lg shadow-[#FF9EBE]/20 group-hover:scale-105"
