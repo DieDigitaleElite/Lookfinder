@@ -382,6 +382,9 @@ export default function App() {
       window.history.pushState({ isModalOpen: true }, '');
 
       const handlePopState = (e: PopStateEvent) => {
+        if (isCleaningUpModalHistoryRef.current) {
+          return;
+        }
         const isFullscreen = isFullscreenImageOpenRef.current;
         const currentResult = selectedResultRef.current;
 
@@ -3637,7 +3640,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     let y = margin;
 
     // Header
-    doc.setFont("playfair", "bold");
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(24);
     doc.setTextColor(26, 26, 26);
     doc.text("Frisuren.ai - Profi Guide", margin, y);
@@ -3646,7 +3649,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Style: ${result.name}`, margin, y);
+    doc.text(`Style: ${result.name || 'Frisur'}`, margin, y);
     y += 10;
 
     // Divider
@@ -3655,55 +3658,68 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     y += 15;
 
     // Suitability
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(26, 26, 26);
-    doc.text("Warum dieser Look?", margin, y);
-    y += 7;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    const reasonLines = doc.splitTextToSize(result.suitabilityReason, 170);
-    doc.text(reasonLines, margin, y);
-    y += (reasonLines.length * 6) + 10;
+    if (result.suitabilityReason) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(26, 26, 26);
+      doc.text("Warum dieser Look?", margin, y);
+      y += 7;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      const reasonLines = doc.splitTextToSize(result.suitabilityReason, 170);
+      doc.text(reasonLines, margin, y);
+      y += (reasonLines.length * 6) + 10;
+    }
 
     // Barber Instructions
-    doc.setFillColor(253, 253, 251);
-    doc.rect(margin - 5, y - 5, 180, 40, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(212, 175, 55);
-    doc.text("Anweisungen für den Friseur", margin, y);
-    y += 7;
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(11);
-    doc.setTextColor(26, 26, 26);
-    const instrLines = doc.splitTextToSize(result.barberInstructions, 170);
-    doc.text(instrLines, margin, y);
-    y += (instrLines.length * 6) + 15;
+    if (result.barberInstructions) {
+      doc.setFillColor(253, 253, 251);
+      doc.rect(margin - 5, y - 5, 180, 40, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(212, 175, 55);
+      doc.text("Anweisungen für den Friseur", margin, y);
+      y += 7;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(11);
+      doc.setTextColor(26, 26, 26);
+      const instrLines = doc.splitTextToSize(result.barberInstructions, 170);
+      doc.text(instrLines, margin, y);
+      y += (instrLines.length * 6) + 15;
+    }
 
     // Products
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(26, 26, 26);
-    doc.text("Empfohlene Produkte", margin, y);
-    y += 7;
-    result.recommendedProducts.forEach((p) => {
+    if (Array.isArray(result.recommendedProducts) && result.recommendedProducts.length > 0) {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text(`• ${p.name} (${p.type})`, margin + 5, y);
-      y += 5;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.text(p.reason, margin + 10, y);
+      doc.setFontSize(14);
+      doc.setTextColor(26, 26, 26);
+      doc.text("Empfohlene Produkte", margin, y);
       y += 7;
-    });
+      result.recommendedProducts.forEach((p) => {
+        if (!p) return;
+        const pName = typeof p === 'string' ? p : p.name || 'Produkt';
+        const pType = typeof p === 'object' && p.type ? p.type : 'Pflege';
+        const pReason = typeof p === 'object' && p.reason ? p.reason : '';
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text(`• ${pName} (${pType})`, margin + 5, y);
+        y += 5;
+        if (pReason) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.text(pReason, margin + 10, y);
+          y += 7;
+        }
+      });
+    }
 
     // Footer
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
     doc.text("Generiert von Frisuren.ai AI - Dein persönlicher KI-Frisurenberater", margin, 285);
 
-    doc.save(`${result.name.toLowerCase().replace(/\s+/g, '-')}-guide.pdf`);
+    doc.save(`${(result.name || 'frisur').toLowerCase().replace(/\s+/g, '-')}-guide.pdf`);
   };
 
   const renderStylingStudioCard = () => {
@@ -6410,7 +6426,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       {/* Detail Modal */}
       <AnimatePresence>
         {selectedResult && (
-          <div className="fixed inset-0 z-[100] overflow-y-auto flex items-start justify-center p-4 md:p-12 bg-black/80 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[100] overflow-y-auto flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-sm">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -6422,41 +6438,56 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               initial={{ opacity: 0, scale: 0.9, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-5xl bg-white rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto"
+              className="relative w-full max-w-5xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-[1.5rem] md:rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col md:flex-row my-auto z-10"
             >
               <div 
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsFullscreenImageOpen(true);
+                  if (selectedResult.imageUrl) {
+                    setIsFullscreenImageOpen(true);
+                  }
                 }}
-                className="w-full md:w-1/2 h-64 md:h-auto relative cursor-zoom-in group/img overflow-hidden bg-black/5"
+                className="w-full md:w-1/2 h-64 md:h-auto min-h-[250px] relative cursor-zoom-in group/img overflow-hidden bg-black/5 shrink-0"
               >
-                <img 
-                  src={selectedResult.imageUrl || undefined} 
-                  alt={selectedResult.name} 
-                  className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105" 
-                  referrerPolicy="no-referrer"
-                />
+                {selectedResult.imageUrl ? (
+                  <img 
+                    src={selectedResult.imageUrl} 
+                    alt={selectedResult.name || "Frisur"} 
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover/img:scale-105" 
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-3 bg-gray-50">
+                    <Sparkles className="text-[#FF9EBE] animate-pulse" size={40} />
+                    <p className="text-sm font-bold text-brand-primary/60">Vorschau wird geladen...</p>
+                  </div>
+                )}
                 
                 {/* Desktop Hover Visual Tip Overlay */}
-                <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors hidden md:flex items-center justify-center pointer-events-none group-hover/img:pointer-events-auto">
-                  <div className="opacity-0 group-hover/img:opacity-100 bg-black/60 backdrop-blur-md text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-xs font-bold tracking-wider uppercase transition-opacity shadow-lg">
-                    <Maximize2 size={14} className="text-[#FF9EBE]" />
-                    <span>Vergrößern</span>
+                {selectedResult.imageUrl && (
+                  <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors hidden md:flex items-center justify-center pointer-events-none group-hover/img:pointer-events-auto">
+                    <div className="opacity-0 group-hover/img:opacity-100 bg-black/60 backdrop-blur-md text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-xs font-bold tracking-wider uppercase transition-opacity shadow-lg">
+                      <Maximize2 size={14} className="text-[#FF9EBE]" />
+                      <span>Vergrößern</span>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Mobile visual cue */}
-                <div className="absolute bottom-4 left-4 md:hidden bg-black/30 backdrop-blur-md text-white p-2 rounded-full pointer-events-none flex items-center gap-1">
-                  <Maximize2 size={14} className="text-[#FF9EBE]" />
-                  <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Tippen für Vollbild</span>
-                </div>
+                {selectedResult.imageUrl && (
+                  <div className="absolute bottom-4 left-4 md:hidden bg-black/30 backdrop-blur-md text-white p-2 rounded-full pointer-events-none flex items-center gap-1">
+                    <Maximize2 size={14} className="text-[#FF9EBE]" />
+                    <span className="text-[10px] font-bold uppercase tracking-wider pr-1">Tippen für Vollbild</span>
+                  </div>
+                )}
 
                 <div className="absolute top-6 right-6 flex gap-3 md:hidden">
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDownload(selectedResult.imageUrl, selectedResult.name);
+                      if (selectedResult.imageUrl) {
+                        handleDownload(selectedResult.imageUrl, selectedResult.name);
+                      }
                     }}
                     className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors"
                   >
@@ -6484,13 +6515,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 </button>
               </div>
 
-              <div className="w-full md:w-1/2 p-8 md:p-12 overflow-y-auto space-y-8">
+              <div className="w-full md:w-1/2 p-6 md:p-10 overflow-y-auto space-y-8">
                 <div className="flex flex-col sm:flex-row justify-between items-start gap-6">
                   <div className="space-y-2 w-full sm:w-auto">
                     <div className="flex items-center gap-3 flex-wrap">
                       <div className="flex items-center gap-2 text-[#FF9EBE] shrink-0">
                         <Star size={20} className="fill-[#FF9EBE]" />
-                        <span className="font-bold text-lg">{selectedResult.rating}% Match</span>
+                        <span className="font-bold text-lg">{selectedResult.rating ?? 95}% Match</span>
                       </div>
                       {selectedResult.emotionalEnhancer && (
                         <span className="text-sm font-bold text-[#FF9EBE] italic bg-[#FF9EBE]/10 px-3 py-1 rounded-full whitespace-normal">
@@ -6498,7 +6529,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         </span>
                       )}
                     </div>
-                    <h2 className="text-3xl md:text-4xl font-serif font-bold break-words">{selectedResult.name}</h2>
+                    <h2 className="text-3xl md:text-4xl font-serif font-bold break-words">{selectedResult.name || "Frisuren-Style"}</h2>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <button 
@@ -6517,7 +6548,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       {isSaving === selectedResult.id ? <Loader2 className="animate-spin" size={20} /> : isResultSaved(selectedResult.id) ? <BookmarkCheck size={20} /> : <Bookmark size={20} />}
                     </button>
                     <button 
-                      onClick={() => handleDownload(selectedResult.imageUrl, selectedResult.name)}
+                      onClick={() => {
+                        if (selectedResult.imageUrl) {
+                          handleDownload(selectedResult.imageUrl, selectedResult.name);
+                        }
+                      }}
                       className="hidden md:flex w-12 h-12 bg-[#FF9EBE]/10 text-[#FF9EBE] rounded-full items-center justify-center hover:bg-[#FF9EBE]/20 transition-colors"
                       title="Bild herunterladen"
                     >
@@ -6544,7 +6579,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   </button>
                   
                   <button
-                    onClick={() => handleDownload(selectedResult.imageUrl, selectedResult.name)}
+                    onClick={() => {
+                      if (selectedResult.imageUrl) {
+                        handleDownload(selectedResult.imageUrl, selectedResult.name);
+                      }
+                    }}
                     className="flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-[#FF9EBE]/10 text-[#FF9EBE] hover:bg-[#FF9EBE]/20 active:scale-[0.98] transition-all font-bold text-sm"
                   >
                     <Download size={18} />
@@ -6568,49 +6607,64 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 </div>
 
                 <div className="space-y-6">
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Warum dieser Style?</h4>
-                    <p className="text-brand-primary/80 leading-relaxed">{selectedResult.suitabilityReason}</p>
-                  </section>
+                  {selectedResult.suitabilityReason && (
+                    <section className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Warum dieser Style?</h4>
+                      <p className="text-brand-primary/80 leading-relaxed">{selectedResult.suitabilityReason}</p>
+                    </section>
+                  )}
 
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Beschreibung</h4>
-                    <p className="text-brand-primary/80 leading-relaxed">{selectedResult.description}</p>
-                  </section>
+                  {selectedResult.description && (
+                    <section className="space-y-3">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-brand-primary/40">Beschreibung</h4>
+                      <p className="text-brand-primary/80 leading-relaxed">{selectedResult.description}</p>
+                    </section>
+                  )}
 
-                  <div className="p-6 bg-[#FF9EBE]/5 rounded-3xl border border-[#FF9EBE]/20 space-y-4">
-                    <div className="flex items-center gap-3 text-[#FF9EBE]">
-                      <Scissors size={20} />
-                      <h4 className="font-bold">Anweisungen für den Friseur</h4>
+                  {selectedResult.barberInstructions && (
+                    <div className="p-6 bg-[#FF9EBE]/5 rounded-3xl border border-[#FF9EBE]/20 space-y-4">
+                      <div className="flex items-center gap-3 text-[#FF9EBE]">
+                        <Scissors size={20} />
+                        <h4 className="font-bold">Anweisungen für den Friseur</h4>
+                      </div>
+                      <p className="text-brand-primary/90 text-sm leading-relaxed italic">
+                        "{selectedResult.barberInstructions}"
+                      </p>
                     </div>
-                    <p className="text-brand-primary/90 text-sm leading-relaxed italic">
-                      "{selectedResult.barberInstructions}"
-                    </p>
-                  </div>
+                  )}
 
                   {/* Recommended Products */}
-                  <section className="space-y-4">
-                    <div className="flex items-center gap-2 text-brand-primary/60">
-                      <ShoppingBag size={18} />
-                      <h4 className="text-xs font-bold uppercase tracking-widest">Empfohlene Produkte</h4>
-                    </div>
-                    <div className="grid gap-4">
-                      {selectedResult.recommendedProducts?.map((product, i) => (
-                        <div key={`${selectedResult.id}-product-${i}`} className="flex items-start gap-4 p-4 rounded-2xl bg-black/5 border border-black/5 relative overflow-hidden group">
-                          <div className="absolute top-0 right-0 bg-black/5 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-brand-primary/40">
-                            Werbelink
-                          </div>
-                          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
-                            <Sparkles size={18} className="text-[#FF9EBE]" />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="font-bold text-sm">{product.name} <span className="text-xs font-normal opacity-50">({product.type})</span></p>
-                            <p className="text-xs text-brand-primary/60">{product.reason}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+                  {Array.isArray(selectedResult.recommendedProducts) && selectedResult.recommendedProducts.length > 0 && (
+                    <section className="space-y-4">
+                      <div className="flex items-center gap-2 text-brand-primary/60">
+                        <ShoppingBag size={18} />
+                        <h4 className="text-xs font-bold uppercase tracking-widest">Empfohlene Produkte</h4>
+                      </div>
+                      <div className="grid gap-4">
+                        {selectedResult.recommendedProducts.map((product, i) => {
+                          if (!product) return null;
+                          const productName = typeof product === 'string' ? product : product.name || 'Empfohlenes Produkt';
+                          const productType = typeof product === 'object' && product.type ? product.type : 'Pflege';
+                          const productReason = typeof product === 'object' && product.reason ? product.reason : '';
+
+                          return (
+                            <div key={`${selectedResult.id}-product-${i}`} className="flex items-start gap-4 p-4 rounded-2xl bg-black/5 border border-black/5 relative overflow-hidden group">
+                              <div className="absolute top-0 right-0 bg-black/5 px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest text-brand-primary/40">
+                                Werbelink
+                              </div>
+                              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shrink-0 shadow-sm">
+                                <Sparkles size={18} className="text-[#FF9EBE]" />
+                              </div>
+                              <div className="space-y-1">
+                                <p className="font-bold text-sm">{productName} <span className="text-xs font-normal opacity-50">({productType})</span></p>
+                                {productReason && <p className="text-xs text-brand-primary/60">{productReason}</p>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  )}
 
                   {/* Viral Loop Section */}
                   <section className="pt-6 border-t border-black/5 space-y-6">
