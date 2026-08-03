@@ -2678,6 +2678,9 @@ export default function App() {
 
       const generateWithStaggerAndTimeout = async (i: number) => {
         const suggestion = suggestions[i];
+        if (suggestion?.id) {
+          setGeneratingResultId(suggestion.id);
+        }
         try {
           console.log(`Generating image in sequential slot ${i + 1}/${maxToGenerate}: ${suggestion.name}`);
           
@@ -2710,6 +2713,7 @@ export default function App() {
             return newResults;
           });
         } finally {
+          setGeneratingResultId(null);
           // Update progress bar based on completed counts
           setResults(prev => {
             const completed = prev.filter(r => r.imageUrl || r.failed).length;
@@ -2726,6 +2730,8 @@ export default function App() {
       } catch (err) {
         console.error("Unexpected error in image generation loop", err);
       } finally {
+        setIsGenerating(false);
+        setGeneratingResultId(null);
         setGenerationProgress(100);
         // Safely generate the teaser sketch at the very end to avoid API Rate Limit / concurrent bottlenecking
         await generateTeaserSketch();
@@ -4784,7 +4790,12 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                         <p className="text-sm font-bold text-brand-primary leading-tight line-clamp-2">{result.name}</p>
                                       </div>
                                       
-                                      {(isPremium || userPlan === 'single' || index < 1) ? (
+                                      {isGenerating && (generatingResultId === result.id || (index === 0 && !result.imageUrl)) ? (
+                                        <div className="px-6 py-2.5 bg-brand-primary/10 text-brand-primary rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2 border border-brand-primary/20 animate-pulse">
+                                          <Loader2 className="animate-spin text-[#FF9EBE]" size={12} />
+                                          Dein Bild wird erstellt...
+                                        </div>
+                                      ) : (isPremium || userPlan === 'single' || index < 1) ? (
                                         <button 
                                           onClick={(e) => {
                                             e.stopPropagation();
@@ -4793,7 +4804,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                           disabled={isGenerating}
                                           className="px-6 py-2.5 bg-brand-primary text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg flex items-center gap-2"
                                         >
-                                          {generatingResultId === result.id ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />}
+                                          <Zap size={12} />
                                           {index < 1 ? "Gratis-Look erstellen" : "Bild erstellen"}
                                         </button>
                                       ) : (
@@ -5544,6 +5555,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   const isFreeSlot = index < 1;
                   const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
                   const isLocked = !isPaid && !isFreeSlot;
+                  const isThisItemGenerating = isGenerating && (generatingResultId === result.id || (index === 0 && !result.imageUrl) || (isPremium && !result.imageUrl));
                   
                   return (
                     <React.Fragment key={result.id}>
@@ -5613,6 +5625,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                           } else if (result.failed) {
                             retryStyle(index);
                           } else if (!result.imageUrl) {
+                            if (isThisItemGenerating) return;
                             handleGenerateLockedResult(result, index);
                           } else {
                             setSelectedResult(result);
@@ -5755,11 +5768,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             />
                             <div className="absolute top-4 left-4 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10 flex items-center gap-1">
                               <Sparkles size={10} />
-                              FREIGESCHALTET ✨
+                              {isThisItemGenerating ? "WIRD ERSTELLT... ⏳" : "FREIGESCHALTET ✨"}
                             </div>
                             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-black/50 backdrop-blur-sm">
                               <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white mb-3 shadow-inner">
-                                {isGenerating && generatingResultId === result.id ? (
+                                {isThisItemGenerating ? (
                                   <Loader2 className="animate-spin text-[#FF9EBE]" size={32} />
                                 ) : (
                                   <Sparkles size={32} className="text-[#FF9EBE] animate-pulse" />
@@ -5767,30 +5780,27 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               </div>
                               <h4 className="text-white font-bold text-xl mb-1">{result.name}</h4>
                               <p className="text-white/80 text-xs mb-5 max-w-[220px]">
-                                {isGenerating && generatingResultId === result.id 
+                                {isThisItemGenerating 
                                   ? "Deine KI-Frisur wird jetzt erstellt..." 
                                   : "Freigeschaltet – klicke auf 'Jetzt erstellen', um das Bild zu generieren."}
                               </p>
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleGenerateLockedResult(result, index);
-                                }}
-                                disabled={isGenerating && generatingResultId === result.id}
-                                className="px-6 py-3.5 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 active:scale-95 transition-all flex items-center gap-2 shadow-xl shadow-[#FF9EBE]/30 cursor-pointer text-sm tracking-wide disabled:opacity-50"
-                              >
-                                {isGenerating && generatingResultId === result.id ? (
-                                  <>
-                                    <Loader2 className="animate-spin" size={18} />
-                                    Style wird erstellt...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles size={18} />
-                                    Jetzt erstellen
-                                  </>
-                                )}
-                              </button>
+                              {isThisItemGenerating ? (
+                                <div className="px-6 py-3.5 bg-white/20 backdrop-blur-md text-white rounded-full font-bold flex items-center gap-2 text-xs uppercase tracking-wider border border-white/20 shadow-lg animate-pulse">
+                                  <Loader2 className="animate-spin text-[#FF9EBE]" size={16} />
+                                  <span>Dein Bild wird erstellt...</span>
+                                </div>
+                              ) : (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleGenerateLockedResult(result, index);
+                                  }}
+                                  className="px-6 py-3.5 bg-[#FF9EBE] text-white rounded-full font-black hover:bg-[#FF9EBE]/90 active:scale-95 transition-all flex items-center gap-2 shadow-xl shadow-[#FF9EBE]/30 cursor-pointer text-sm tracking-wide"
+                                >
+                                  <Sparkles size={18} />
+                                  Jetzt erstellen
+                                </button>
+                              )}
                             </div>
                           </>
                         )}
