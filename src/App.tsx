@@ -3602,18 +3602,20 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           console.warn("Could not save all data to localStorage.", storageError);
         }
 
-        // Safely await the Firestore save before redirecting to ensure results are not lost due to page unload,
-        // but use a safety timeout of 1000ms so we never keep the user waiting or freeze the checkout redirect.
-        // Even if some database writes are still in-flight, they are securely saved locally in localStorage
-        // and will also automatically sync upon return from Stripe.
+        // Safely attempt Firestore sync before redirecting with a 1000ms max timeout
+        // so we never keep the user waiting or freeze the checkout redirect.
+        // Even if database writes are still in-flight, data is securely backed up in localStorage
+        // and will automatically sync upon return from Stripe.
         if (activeUser && (results.length > 0 || customResults.length > 0)) {
-          const unsavedResults = [...results, ...customResults].filter(r => !isResultSaved(r.id, r.imageUrl));
-          if (unsavedResults.length > 0) {
-            console.log(`Starting awaiting parallel Firestore sync of ${unsavedResults.length} results before redirect...`);
-            await Promise.all(
-              unsavedResults.map(r => saveResult(r, true).catch(err => console.warn("Awaited save failed before checkout redirect", err)))
+          const unsavedGeneratedResults = [...results, ...customResults].filter(r => !!r.imageUrl && !isResultSaved(r.id, r.imageUrl));
+          if (unsavedGeneratedResults.length > 0) {
+            console.log(`Starting parallel Firestore sync of ${unsavedGeneratedResults.length} generated results before redirect (max 1000ms)...`);
+            const syncPromise = Promise.all(
+              unsavedGeneratedResults.map(r => saveResult(r, true).catch(err => console.warn("Awaited save failed before checkout redirect", err)))
             );
-            console.log("Firestore sync completed, proceeding to Stripe checkout...");
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1000));
+            await Promise.race([syncPromise, timeoutPromise]);
+            console.log("Firestore sync step completed or timed out, proceeding to Stripe checkout...");
           }
         }
 
