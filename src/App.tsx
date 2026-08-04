@@ -144,15 +144,22 @@ export default function App() {
     // Initialize from localStorage if payment success is pending
     const params = new URLSearchParams(window.location.search);
     const plan = params.get('plan');
+    const pendingPlan = localStorage.getItem('frisurenai_pending_plan');
+    const effectivePlan = plan || pendingPlan;
+    if (effectivePlan === 'studio-single') return false;
     const isSuccess = params.get('payment') === 'success';
-    if (isSuccess && plan === 'studio-single') return false;
-    return isSuccess || localStorage.getItem('frisurenai_pending_plan') !== null;
+    return (isSuccess && plan !== 'studio-single') || (pendingPlan !== null && pendingPlan !== 'studio-single');
   });
   const [userPlan, setUserPlan] = useState<string | null>(() => {
     const params = new URLSearchParams(window.location.search);
     const urlPlan = params.get('plan');
-    if (urlPlan) return urlPlan === 'upsell' ? 'monthly' : urlPlan;
-    return localStorage.getItem('frisurenai_pending_plan');
+    if (urlPlan) {
+      if (urlPlan === 'studio-single') return null;
+      return urlPlan === 'upsell' ? 'monthly' : urlPlan;
+    }
+    const pendingPlan = localStorage.getItem('frisurenai_pending_plan');
+    if (pendingPlan === 'studio-single') return null;
+    return pendingPlan;
   });
   const [premiumExpiresAt, setPremiumExpiresAt] = useState<any>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -1413,8 +1420,12 @@ export default function App() {
         setPendingPayment({ plan, uid, sessionId });
 
         // Store guest paid state so post-payment registration transfers everything to user account
-        localStorage.setItem('frisurenai_guest_is_paid', 'true');
-        localStorage.setItem('frisurenai_guest_plan', plan);
+        if (plan !== 'studio-single') {
+          localStorage.setItem('frisurenai_guest_is_paid', 'true');
+          localStorage.setItem('frisurenai_guest_plan', plan);
+        } else {
+          localStorage.removeItem('frisurenai_guest_is_paid');
+        }
 
         // Track Purchase Event
         ReactGA.event('purchase', {
@@ -1669,11 +1680,11 @@ export default function App() {
     if (!isAutoGeneratingFromStripe) return;
 
     const timer = setTimeout(() => {
-      console.warn("Safety timeout fired: isAutoGeneratingFromStripe was active for over 45 seconds. Forgetting state to unblock user.");
+      console.warn("Safety timeout fired: isAutoGeneratingFromStripe was active for over 120 seconds. Unblocking user UI.");
       setIsAutoGeneratingFromStripe(false);
-      setStripeGenerationError("Die automatische Generierung hat zu lange gedauert. Du kannst deine Auswahl jetzt manuell über den 'Generieren'-Button erstellen.");
+      setStripeGenerationError("Dein Studio-Credit ist aktiv! 🎨 Falls die automatische Vorschau etwas länger dauert, klicke unten einfach auf 'Generieren'.");
       localStorage.removeItem('frisurenai_pending_studio_selection');
-    }, 45000);
+    }, 120000);
 
     return () => clearTimeout(timer);
   }, [isAutoGeneratingFromStripe]);
@@ -2969,17 +2980,19 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       const imageUrl = await generateHairstyleImage(base64Data, activeMime || 'image/jpeg', style.name, customPrompt);
       if (imageUrl) {
         // Only consume credit if generation was successful
-        if (user && studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
-          const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, { 
-            studioCredits: increment(-1)
-          }).catch(err => {
-            console.error("Failed to deduct studio credit after success", err);
-            // We don't throw here to not block the user from seeing the result
-          });
+        if (studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+          if (user) {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { 
+              studioCredits: increment(-1)
+            }).catch(err => {
+              console.error("Failed to deduct studio credit after success", err);
+            });
+          }
           setStudioCredits(prev => {
             const next = Math.max(0, prev - 1);
             studioCreditsRef.current = next;
+            localStorage.setItem('frisurenai_pending_studio_credits', next.toString());
             return next;
           });
         }
@@ -4739,7 +4752,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <h3 className="text-xl font-black uppercase tracking-widest text-brand-primary/40">Weitere Simulation</h3>
                       </div>
                     )}
-                    <div className="bg-white rounded-[3rem] overflow-hidden border border-black/5 shadow-inner">
+                    <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-[3rem] overflow-hidden border border-black/5 shadow-inner">
                       <StylingStudio 
                         image={image}
                         onTryOn={handleStudioTryOn}
@@ -6087,7 +6100,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               </p>
                             </div>
 
-                            <div className="bg-white rounded-[2.5rem] overflow-hidden border border-black/5 shadow-inner min-h-[650px]">
+                            <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-[2.5rem] overflow-hidden border border-black/5 shadow-inner min-h-[650px]">
                               <StylingStudio 
                                 image={image}
                                 onTryOn={handleStudioTryOn}
