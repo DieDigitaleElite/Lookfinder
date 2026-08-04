@@ -144,7 +144,7 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
 };`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-3.6-flash",
           contents: {
             parts: [
               { inlineData: { data: base64Image, mimeType } },
@@ -181,7 +181,7 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
         Antworte ausschließlich im JSON-Format mit den Schlüsseln: description, suitabilityReason, barberInstructions, rating.`;
 
         const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
+          model: "gemini-3.6-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json"
@@ -273,10 +273,10 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
         let result;
         if (isSketch) {
           try {
-            // Attempt 1: gemini-2.5-flash-image (lighter, standard for simple pencil sketches)
-            result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
+            // Attempt 1: gemini-3.1-flash-lite-image
+            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-lite-image", parts, safetySettings);
           } catch (err1: any) {
-            console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image...");
+            console.warn("Attempt 1 with gemini-3.1-flash-lite-image failed, retrying with gemini-3.1-flash-image...");
             try {
               // Attempt 2: gemini-3.1-flash-image
               result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
@@ -287,13 +287,13 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
           }
         } else {
           try {
-            // Attempt 1 for photorealistic: gemini-2.5-flash-image (fast, works reliably across free/paid tiers)
-            result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
+            // Attempt 1 for photorealistic: gemini-3.1-flash-image
+            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
           } catch (err1: any) {
-            console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image as fallback...", err1);
+            console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-3.1-flash-lite-image as fallback...", err1);
             try {
-              // Attempt 2: gemini-3.1-flash-image
-              result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
+              // Attempt 2: gemini-3.1-flash-lite-image
+              result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-lite-image", parts, safetySettings);
             } catch (err2: any) {
               console.error("All image generation models failed!");
               throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);

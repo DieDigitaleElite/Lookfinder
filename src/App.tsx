@@ -1489,7 +1489,7 @@ export default function App() {
     setNeedsApiKey(false);
   }, []);
 
-  // Separate effect to handle pending payment once user is logged in
+  // Separate effect to handle pending payment once user is logged in or for guests
   useEffect(() => {
     if (authInitializing) return;
 
@@ -1497,6 +1497,71 @@ export default function App() {
       // Automatically keep login modal closed if user is already logged in
       setShowLoginModal(false);
     }
+
+    const runAutoStudioGeneration = async (currentUid?: string) => {
+      const savedSelection = localStorage.getItem('frisurenai_pending_studio_selection');
+      let selectionToUse = pendingStudioSelection;
+      if (!selectionToUse && savedSelection) {
+        try {
+          selectionToUse = JSON.parse(savedSelection);
+        } catch (e) {
+          console.warn("Failed to parse saved studio selection from localStorage:", e);
+        }
+      }
+
+      if (selectionToUse) {
+        console.log("Auto-triggering studio generation after payment success:", selectionToUse);
+        const { styleId, colorId, techId } = selectionToUse;
+        const style = HAIRSTYLE_LIBRARY.find(s => s.id === styleId);
+        const color = HAIR_COLORS.find(c => c.id === colorId);
+        const tech = HAIR_TECHNOLOGIES.find(t => t.id === techId);
+        
+        if (style && color) {
+          setDashboardTab('studio');
+          setIsAutoGeneratingFromStripe(true);
+          setStripeGenerationError(null);
+          
+          try {
+            let draftData: any = null;
+            if (currentUid) {
+              console.log("Pre-loading HD draft from Firestore for UID:", currentUid);
+              draftData = await loadStudioDraftFromFirestore(currentUid);
+            }
+            
+            const imgToUse = draftData?.image || image || localStorage.getItem('frisurenai_pending_image');
+            const hdToUse = draftData?.hdImage || hdImage || localStorage.getItem('frisurenai_pending_hd_image');
+            const mimeToUse = draftData?.mimeType || mimeType || localStorage.getItem('frisurenai_pending_mime_type') || 'image/jpeg';
+            
+            if (!imgToUse) {
+              throw new Error("Kein Basisbild für die Generierung im Styling Studio vorhanden.");
+            }
+
+            if (imgToUse && imgToUse !== image) setImage(imgToUse);
+            if (hdToUse && hdToUse !== hdImage) setHdImage(hdToUse);
+            if (mimeToUse && mimeToUse !== mimeType) setMimeType(mimeToUse);
+            
+            await handleStudioTryOn(
+              style, 
+              color, 
+              tech || HAIR_TECHNOLOGIES[0], 
+              LIGHTING_SIMULATIONS[0],
+              imgToUse,
+              mimeToUse,
+              hdToUse
+            );
+            setIsAutoGeneratingFromStripe(false);
+            setPendingStudioSelection(null);
+            localStorage.removeItem('frisurenai_pending_studio_selection');
+          } catch (err) {
+            console.error("Auto-generation failed:", err);
+            setIsAutoGeneratingFromStripe(false);
+            setStripeGenerationError("Dein Look konnte leider nicht automatisch erstellt werden. Bitte versuche es oben erneut.");
+            setPendingStudioSelection(null);
+            localStorage.removeItem('frisurenai_pending_studio_selection');
+          }
+        }
+      }
+    };
 
     if (user && pendingPayment) {
       // If we have a UID from URL, it MUST match the current user
@@ -1544,6 +1609,7 @@ export default function App() {
             return next;
           });
           localStorage.removeItem('frisurenai_pending_studio_credits');
+          localStorage.removeItem('frisurenai_guest_is_paid');
         }
         
         if (pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
@@ -1564,74 +1630,7 @@ export default function App() {
             isPaymentProcessingRef.current = false;
           }, 5000);
 
-          // Auto-trigger studio generation if pending
-          const savedSelection = localStorage.getItem('frisurenai_pending_studio_selection');
-          let selectionToUse = pendingStudioSelection;
-          if (!selectionToUse && savedSelection) {
-            try {
-              selectionToUse = JSON.parse(savedSelection);
-            } catch (e) {
-              console.warn("Failed to parse saved studio selection from localStorage:", e);
-            }
-          }
-
-          if (selectionToUse) {
-            console.log("Auto-triggering studio generation after payment success:", selectionToUse);
-            const { styleId, colorId, techId } = selectionToUse;
-            const style = HAIRSTYLE_LIBRARY.find(s => s.id === styleId);
-            const color = HAIR_COLORS.find(c => c.id === colorId);
-            const tech = HAIR_TECHNOLOGIES.find(t => t.id === techId);
-            
-            if (style && color) {
-              setDashboardTab('studio');
-              setIsAutoGeneratingFromStripe(true);
-              setStripeGenerationError(null);
-              
-              const triggerTryOn = async () => {
-                try {
-                  console.log("Pre-loading HD draft from Firestore for UID:", user.uid);
-                  const draftData = await loadStudioDraftFromFirestore(user.uid);
-                  
-                  // Use draftData values, or falls back to standard state/localstorage values
-                  const imgToUse = draftData?.image || image || localStorage.getItem('frisurenai_pending_image');
-                  const hdToUse = draftData?.hdImage || hdImage || localStorage.getItem('frisurenai_pending_hd_image');
-                  const mimeToUse = draftData?.mimeType || mimeType || localStorage.getItem('frisurenai_pending_mime_type') || 'image/jpeg';
-                  
-                  if (!imgToUse) {
-                    throw new Error("Kein Basisbild für die Generierung im Styling Studio vorhanden.");
-                  }
-
-                  // Synchronise state backup values
-                  if (imgToUse && imgToUse !== image) setImage(imgToUse);
-                  if (hdToUse && hdToUse !== hdImage) setHdImage(hdToUse);
-                  if (mimeToUse && mimeToUse !== mimeType) setMimeType(mimeToUse);
-                  
-                  await handleStudioTryOn(
-                    style, 
-                    color, 
-                    tech || HAIR_TECHNOLOGIES[0], 
-                    LIGHTING_SIMULATIONS[0],
-                    imgToUse,
-                    mimeToUse,
-                    hdToUse
-                  );
-                  setIsAutoGeneratingFromStripe(false);
-                  setPendingStudioSelection(null);
-                  localStorage.removeItem('frisurenai_pending_studio_selection');
-                } catch (err) {
-                  console.error("Auto-generation failed:", err);
-                  setIsAutoGeneratingFromStripe(false);
-                  setStripeGenerationError("Dein Look konnte leider nicht automatisch erstellt werden. Bitte versuche es oben erneut.");
-                  setPendingStudioSelection(null);
-                  localStorage.removeItem('frisurenai_pending_studio_selection');
-                }
-              };
-              
-              triggerTryOn();
-            }
-          }
-
-          // Payment success handling (no automatic generation loop; user generates remaining 8 styles manually via button)
+          runAutoStudioGeneration(user.uid);
 
           // Trigger Upsell Modal if it was a single unlock
           if (pendingPayment.plan === 'single' || pendingPayment.plan === 'studio-single') {
@@ -1640,13 +1639,10 @@ export default function App() {
             }, 90000);
           }
           
-          setAuthMessage({ type: 'success', text: "Zahlung erfolgreich! Deine Erstanalyse-Ergebnisse wurden in 'Meine Looks' gespeichert! ✨" });
+          setAuthMessage({ type: 'success', text: "Zahlung erfolgreich! Dein Zugang wurde aktiviert! ✨" });
           setTimeout(() => setAuthMessage(null), 6000);
           
           setPendingPayment(null);
-          
-          // We don't clear localStorage here anymore. 
-          // We clear it only when all results are saved to Firestore.
           
           // Clean up URL
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -1661,17 +1657,34 @@ export default function App() {
         localStorage.removeItem('frisurenai_pending_studio_selection');
       }
     } else if (!user && pendingPayment) {
-      const isFreshPayment = new URLSearchParams(window.location.search).get('payment') === 'success';
-      const hasPlan = localStorage.getItem('frisurenai_pending_plan') !== null;
-      
-      if ((isFreshPayment || hasPlan) && !authMessage) {
-        console.log("Payment success detected but user not logged in yet. Showing message.");
-        setAuthMessage({ type: 'info', text: "Zahlung erfolgreich! Bitte logge dich ein, um deine Ergebnisse dauerhaft in deinem Profil zu speichern." });
-        setShowLoginModal(true);
-      } else if (!authMessage && results.length > 0) {
-        // Optional: show a message if they have results but no payment
-        // setAuthMessage({ type: 'info', text: "Melde dich an, um deine Analyse-Ergebnisse zu speichern." });
+      console.log("Processing guest payment return. Plan:", pendingPayment.plan);
+      if (pendingPayment.plan === 'studio-single') {
+        setStudioCredits(prev => Math.max(prev, 1));
+        studioCreditsRef.current = Math.max(studioCreditsRef.current, 1);
+        localStorage.setItem('frisurenai_pending_studio_credits', '1');
+        localStorage.removeItem('frisurenai_guest_is_paid');
+        setDashboardTab('studio');
+        
+        setAuthMessage({ type: 'success', text: "Zahlung erfolgreich! Dein Einzel-Look wird jetzt im Studio erstellt. ✨" });
+        setTimeout(() => setAuthMessage(null), 6000);
+        
+        runAutoStudioGeneration();
+      } else {
+        localStorage.setItem('frisurenai_guest_is_paid', 'true');
+        localStorage.setItem('frisurenai_guest_plan', pendingPayment.plan);
+        setIsPremium(true);
+        setUserPlan(pendingPayment.plan as any);
+        
+        setAuthMessage({ type: 'success', text: "Zahlung erfolgreich! Deine 8 zusätzlichen Styles wurden freigeschaltet." });
+        setTimeout(() => setAuthMessage(null), 6000);
       }
+      
+      setTimeout(() => {
+        isPaymentProcessingRef.current = false;
+      }, 5000);
+
+      setPendingPayment(null);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [user, pendingPayment, showLoginModal, pendingStudioSelection, authInitializing]);
 
@@ -2700,7 +2713,7 @@ export default function App() {
           
           const imageUrl = await withTimeout(
             generateHairstyleImage(base64Data, mimeType, suggestion.name, suggestion.description),
-            30000,
+            60000,
             "Timeout"
           );
           
@@ -5031,6 +5044,66 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                   </div>
                 )}
               </UserDashboard>
+            </motion.div>
+          ) : dashboardTab === 'studio' ? (
+            <motion.div 
+              key="studio"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-8 max-w-5xl mx-auto"
+            >
+              {customResults.length > 0 && (
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-2xl font-serif font-bold italic text-brand-primary">Deine Studio Ergebnisse</h3>
+                      <p className="text-brand-primary/40 text-xs">Klicke auf ein Bild, um Details und Friseur-Tipps zu sehen.</p>
+                    </div>
+                    <button onClick={() => setCustomResults([])} className="text-[10px] font-black text-brand-primary/20 uppercase tracking-[0.2em] hover:text-red-500 transition-colors">Ergebnisse leeren</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {customResults.map((res) => (
+                      <motion.div 
+                        key={res.id} 
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        onClick={() => setSelectedResult(res)} 
+                        className="group cursor-pointer bg-white p-3 rounded-[2rem] border border-black/5 shadow-sm"
+                      >
+                        <div className="aspect-[3/4] rounded-[1.4rem] overflow-hidden shadow-md bg-black/5">
+                          <img src={res.imageUrl || undefined} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                        </div>
+                        <div className="p-3">
+                          <h4 className="font-black italic text-brand-primary truncate">{res.name}</h4>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                  <div className="h-px bg-black/5" />
+                  <h3 className="text-xl font-black uppercase tracking-widest text-brand-primary/40">Weitere Simulation</h3>
+                </div>
+              )}
+              <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-[3rem] overflow-hidden border border-black/5 shadow-inner">
+                <StylingStudio 
+                  image={image}
+                  onTryOn={handleStudioTryOn}
+                  isGenerating={isGenerating}
+                  onImageUpload={handleStylingStudioImageUpload}
+                  avatarSketch={avatarSketch}
+                  isPremium={canUseStudio}
+                  preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
+                  onCategoryChange={setActiveCategory}
+                  isGeneratingBackground={isGeneratingBackground}
+                  onCheckout={handleCheckout}
+                  onShowPricing={() => handleShowPricing('styling_studio')}
+                  onOpenLegalModal={setActiveLegalModal}
+                  isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
+                  stripeGenerationError={stripeGenerationError}
+                  onClearStripeError={() => setStripeGenerationError(null)}
+                  userName={user?.displayName?.split(' ')[0] || null}
+                  isCheckingOut={isCheckingOut}
+                />
+              </div>
             </motion.div>
           ) : showGallery ? (
             <motion.div 
