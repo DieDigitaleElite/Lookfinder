@@ -5915,7 +5915,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               <h4 className="text-white font-bold text-xl mb-1">{result.name}</h4>
                               <p className="text-white/80 text-xs mb-5 max-w-[220px]">
                                 {isThisItemGenerating 
-                                  ? "Deine KI-Frisur wird jetzt erstellt..." 
+                                  ? "Dein neuer Style wird erstellt..." 
                                   : "Freigeschaltet – klicke auf 'Jetzt erstellen', um das Bild zu generieren."}
                               </p>
                               {isThisItemGenerating ? (
@@ -6191,7 +6191,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             <div className="text-center space-y-3 max-w-2xl mx-auto pt-2">
                               <div className="inline-flex items-center gap-2 bg-[#FF9EBE]/10 text-[#FF9EBE] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-[#FF9EBE]/20">
                                 <Sparkles size={14} />
-                                <span>Interaktives KI Studio</span>
+                                <span>INTERAKTIVES STYLING STUDIO</span>
                               </div>
                               <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary">
                                 Wunschfrisuren &amp; Farben direkt interaktiv an dir testen
