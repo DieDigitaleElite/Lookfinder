@@ -36,7 +36,7 @@ interface StylingStudioProps {
   preGeneratedSketches?: Record<string, string>;
   isPremiumFetching?: boolean;
   isGeneratingBackground?: boolean;
-  onCheckout?: (plan: 'single' | 'monthly' | 'yearly' | 'studio-single', metadata?: any) => void;
+  onCheckout?: (plan: 'single' | 'monthly' | 'yearly' | 'studio-single', metadata?: any, skipTermsCheck?: boolean) => void;
   onShowPricing?: () => void;
   onOpenLegalModal?: (modal: 'impressum' | 'datenschutz' | 'agb' | 'widerruf') => void;
   isAutoGeneratingFromStripe?: boolean;
@@ -645,7 +645,7 @@ export default function StylingStudio({
                                 styleId: selectedStyleId,
                                 colorId: selectedColorId,
                                 techId: selectedTechId
-                              });
+                              }, true);
                             }}
                             className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                           >
@@ -731,7 +731,7 @@ export default function StylingStudio({
                                   styleId: selectedStyleId,
                                   colorId: selectedColorId,
                                   techId: selectedTechId
-                                });
+                                }, true);
                               }}
                               className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >
@@ -801,7 +801,7 @@ export default function StylingStudio({
                                   styleId: selectedStyleId,
                                   colorId: selectedColorId,
                                   techId: selectedTechId
-                                });
+                                }, true);
                               }}
                               className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                             >

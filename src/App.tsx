@@ -3422,11 +3422,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     }
   };
 
-  const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' | 'studio-single' = 'single', metadata?: any) => {
-    console.log("Initiating checkout for plan:", plan, "metadata:", metadata);
+  const handleCheckout = async (plan: 'single' | 'monthly' | 'yearly' | 'upsell' | 'studio-single' = 'single', metadata?: any, skipTermsCheck = false) => {
+    console.log("Initiating checkout for plan:", plan, "metadata:", metadata, "skipTermsCheck:", skipTermsCheck);
     
-    // Always enforce legal terms & cancellation policy agreement before payment
-    if (!agreedToTerms || !agreedToWiderruf) {
+    if (skipTermsCheck) {
+      setAgreedToTerms(true);
+      setAgreedToWiderruf(true);
+    } else if (!agreedToTerms || !agreedToWiderruf) {
       setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung, bevor du mit der Zahlung fortfährst.");
       setIsCheckingOut(false);
       return;
@@ -3570,9 +3572,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           }
           if (hdImage) {
             try {
-              // Compress to 1200 maxDimension to keep it safe from localStorage Quota limit (usually 5MB total)
-              const backupHDImage = await fastResizeImage(hdImage, 1200, 0.75);
-              localStorage.setItem('frisurenai_pending_hd_image', backupHDImage);
+              if (hdImage.length < 2500000) {
+                localStorage.setItem('frisurenai_pending_hd_image', hdImage);
+              }
             } catch (hdBackupErr) {
               console.warn("Failed to save HD image backup to localStorage", hdBackupErr);
             }
@@ -3602,20 +3604,12 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           console.warn("Could not save all data to localStorage.", storageError);
         }
 
-        // Safely attempt Firestore sync before redirecting with a 1000ms max timeout
-        // so we never keep the user waiting or freeze the checkout redirect.
-        // Even if database writes are still in-flight, data is securely backed up in localStorage
-        // and will automatically sync upon return from Stripe.
+        // Fire non-blocking Firestore sync before redirecting
         if (activeUser && (results.length > 0 || customResults.length > 0)) {
           const unsavedGeneratedResults = [...results, ...customResults].filter(r => !!r.imageUrl && !isResultSaved(r.id, r.imageUrl));
           if (unsavedGeneratedResults.length > 0) {
-            console.log(`Starting parallel Firestore sync of ${unsavedGeneratedResults.length} generated results before redirect (max 1000ms)...`);
-            const syncPromise = Promise.all(
-              unsavedGeneratedResults.map(r => saveResult(r, true).catch(err => console.warn("Awaited save failed before checkout redirect", err)))
-            );
-            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1000));
-            await Promise.race([syncPromise, timeoutPromise]);
-            console.log("Firestore sync step completed or timed out, proceeding to Stripe checkout...");
+            console.log(`Starting background Firestore sync of ${unsavedGeneratedResults.length} generated results before redirect...`);
+            unsavedGeneratedResults.forEach(r => saveResult(r, true).catch(err => console.warn("Save failed before checkout redirect", err)));
           }
         }
 
@@ -3742,7 +3736,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={() => {
-          if (!user) {
+          const studioEl = document.getElementById('interactive-styling-studio');
+          if (studioEl) {
+            studioEl.scrollIntoView({ behavior: 'smooth' });
+          } else if (!user) {
             setPendingTab('studio');
             setIsRegistering(true);
             setShowLoginModal(true);
@@ -6055,209 +6052,65 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               {results.length < 4 && renderStylingStudioCard()}
               </div>
 
-              {/* Premium Feature: Style Library & Color Picker - ONLY FOR PRO OR CREDIT USERS */}
-              {canUseStudio ? (
-                <motion.div 
-                  initial={{ opacity: 0, y: 30 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-black/5 rounded-[3rem] p-8 lg:p-12 space-y-10 mt-12"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2 text-[#FF9EBE]">
-                        <Sparkles size={20} />
-                        <span className="text-xs font-black uppercase tracking-[0.2em]">Premium Feature</span>
-                      </div>
-                      <h2 className="text-3xl font-serif font-bold">Style-Bibliothek & Farb-Wechsler</h2>
-                      <p className="text-brand-primary/60">Wähle eine Frisur aus unserer Bibliothek und kombiniere sie mit deiner Wunschfarbe.</p>
-                    </div>
+              {/* Interaktives KI Styling-Studio Teaser & Generator directly on Erstanalyse page */}
+              <motion.div 
+                id="interactive-styling-studio"
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-[3rem] p-4 sm:p-8 lg:p-10 border border-black/5 shadow-2xl space-y-6 mt-16"
+              >
+                <div className="text-center space-y-3 max-w-2xl mx-auto pt-4">
+                  <div className="inline-flex items-center gap-2 bg-[#FF9EBE]/10 text-[#FF9EBE] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-[#FF9EBE]/20">
+                    <Sparkles size={14} />
+                    <span>Interaktives KI Studio</span>
                   </div>
+                  <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary">
+                    Wunschfrisuren &amp; Farben direkt interaktiv an dir testen
+                  </h2>
+                  <p className="text-xs sm:text-sm text-brand-primary/70 leading-relaxed">
+                    Wähle beliebige Längen, Farben und Färbetechniken aus und sieh die Skizze in Echtzeit auf deiner Gesichtsform.
+                  </p>
+                </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                    {/* Step 1: Choose Style */}
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 bg-brand-primary text-white rounded-full flex items-center justify-center font-bold text-sm">1</div>
-                        <h3 className="font-bold text-lg">Frisur wählen</h3>
-                      </div>
-                      <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                        {HAIRSTYLE_LIBRARY.map((style) => (
-                          <button
-                            key={style.id}
-                            onClick={() => setSelectedLibraryStyle(style)}
-                            className={`p-4 rounded-2xl text-left transition-all border-2 ${selectedLibraryStyle?.id === style.id ? 'border-[#FF9EBE] bg-white shadow-md' : 'border-transparent bg-white/50 hover:bg-white'}`}
-                          >
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-bold text-brand-primary">{style.name}</span>
-                              <span className="text-[10px] uppercase font-bold text-brand-primary/40 px-2 py-0.5 bg-black/5 rounded-md">{style.category}</span>
-                            </div>
-                            <p className="text-xs text-brand-primary/60 line-clamp-1">{style.description}</p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                <div className="bg-white rounded-[2.5rem] overflow-hidden border border-black/5 shadow-inner min-h-[650px]">
+                  <StylingStudio 
+                    image={image}
+                    onTryOn={handleStudioTryOn}
+                    isGenerating={isGenerating}
+                    onImageUpload={handleStylingStudioImageUpload}
+                    avatarSketch={avatarSketch}
+                    isPremium={canUseStudio}
+                    preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
+                    onCategoryChange={setActiveCategory}
+                    isGeneratingBackground={isGeneratingBackground}
+                    onCheckout={handleCheckout}
+                    onShowPricing={() => handleShowPricing('styling_studio')}
+                    onOpenLegalModal={setActiveLegalModal}
+                    isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
+                    stripeGenerationError={stripeGenerationError}
+                    onClearStripeError={() => setStripeGenerationError(null)}
+                    userName={user?.displayName?.split(' ')[0] || null}
+                    isCheckingOut={isCheckingOut}
+                  />
+                </div>
+              </motion.div>
 
-                    {/* Step 2: Choose Color */}
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 bg-brand-primary text-white rounded-full flex items-center justify-center font-bold text-sm">2</div>
-                        <h3 className="font-bold text-lg">Farbe wählen</h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {HAIR_COLORS.map((color) => (
-                          <button
-                            key={color.id}
-                            onClick={() => setSelectedColor(color)}
-                            className={`p-3 rounded-2xl flex items-center gap-3 transition-all border-2 ${selectedColor?.id === color.id ? 'border-[#FF9EBE] bg-white shadow-md' : 'border-transparent bg-white/50 hover:bg-white'}`}
-                          >
-                            <div className="w-6 h-6 rounded-full border border-black/10 shadow-inner" style={{ backgroundColor: color.hex }} />
-                            <span className="text-sm font-medium text-brand-primary">{color.name}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Step 3: Action & Preview */}
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-8 h-8 bg-brand-primary text-white rounded-full flex items-center justify-center font-bold text-sm">3</div>
-                        <h3 className="font-bold text-lg">Vorschau</h3>
-                      </div>
-                      
-                      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-black/5 space-y-6">
-                        <div className="space-y-4">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-brand-primary/40">Style:</span>
-                            <span className="font-bold text-brand-primary">{selectedLibraryStyle?.name || 'Bitte wählen'}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-brand-primary/40">Farbe:</span>
-                            <span className="font-bold text-brand-primary">{selectedColor?.name || 'Bitte wählen'}</span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={handleCustomTryOn}
-                          disabled={!selectedLibraryStyle || !selectedColor || isGeneratingCustom}
-                          className="w-full py-4 bg-[#FF9EBE] text-white rounded-2xl font-bold shadow-lg shadow-[#FF9EBE]/20 hover:bg-[#FF9EBE]/90 transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-3"
-                        >
-                          {isGeneratingCustom ? (
-                            <>
-                              <Loader2 className="animate-spin" size={20} />
-                              Wird erstellt...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCcw size={20} />
-                              Style anwenden
-                            </>
-                          )}
-                        </button>
-                        
-                        <p className="text-[10px] text-center text-brand-primary/40 leading-relaxed">
-                          Die KI nutzt dein Originalfoto als Basis und wendet den gewählten Look sowie die Farbe realistisch an.
-                        </p>
-                      </div>
-
-                      {/* Display Latest Result Inline for Pro/Credit users */}
-                      {canUseStudio && lastCustomResult && (
-                        <motion.div 
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="bg-white p-6 rounded-[2rem] shadow-xl border-2 border-[#FF9EBE]/30 space-y-4"
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                             <h4 className="text-xs font-black uppercase tracking-widest text-[#FF9EBE]">Dein neuer Look ✨</h4>
-                             <button 
-                               onClick={() => setSelectedResult(lastCustomResult)}
-                               className="text-[10px] font-bold text-brand-primary/40 hover:text-brand-primary transition-colors flex items-center gap-1"
-                             >
-                               Details & Download <ChevronRight size={12} />
-                             </button>
-                          </div>
-                          
-                          <div className="relative group aspect-[3/4] rounded-2xl overflow-hidden shadow-inner bg-black/5">
-                            <img 
-                              src={lastCustomResult.imageUrl || undefined} 
-                              alt="Result" 
-                              className="w-full h-full object-cover" 
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                               <button 
-                                 onClick={() => handleDownload(lastCustomResult.imageUrl, lastCustomResult.name)}
-                                 className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                               >
-                                 <Download size={18} />
-                               </button>
-                               <button 
-                                 onClick={() => {
-                                   if (!user) {
-                                     setPendingTab('polls');
-                                     setShowLoginModal(true);
-                                   } else {
-                                     setPollInitialSelectedIds([lastCustomResult.id]);
-                                     setShowPollCreator(true);
-                                   }
-                                 }}
-                                 className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                                 title="Umfrage erstellen"
-                               >
-                                 <MessageSquare size={18} />
-                               </button>
-                               <button 
-                                 onClick={() => setSelectedResult(lastCustomResult)}
-                                 className="w-10 h-10 bg-white text-brand-primary rounded-full flex items-center justify-center hover:scale-110 transition-transform"
-                               >
-                                 <Maximize2 size={18} />
-                               </button>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <p className="text-sm font-bold text-brand-primary">{lastCustomResult.name}</p>
-                            <p className="text-xs text-brand-primary/60 line-clamp-2 italic">"{lastCustomResult.suitabilityReason}"</p>
-                          </div>
-
-                          <div className="flex gap-2 pt-2">
-                             <button 
-                               onClick={() => handleCreateInstagramStory(lastCustomResult)}
-                               className="flex-1 py-3 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
-                             >
-                               <Share2 size={14} />
-                               Story
-                             </button>
-                             <button 
-                               onClick={() => generatePDF(lastCustomResult)}
-                               className="flex-1 py-3 bg-brand-primary/5 text-brand-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-primary/10 transition-all flex items-center justify-center gap-2"
-                             >
-                               <FileText size={14} />
-                               PDF
-                             </button>
-                          </div>
-                        </motion.div>
-                      )}
-
-                      {customResults.length > 0 && (
-                        <div className="space-y-4">
-                          <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary/40">Deine Kreationen</h4>
-                          <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                            {customResults.map((res) => (
-                              <button
-                                key={res.id}
-                                onClick={() => setSelectedResult(res)}
-                                className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 border-white shadow-sm hover:scale-105 transition-transform"
-                              >
-                                <img src={res.imageUrl || undefined} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+              {customResults.length > 0 && (
+                <div className="space-y-4 pt-6">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary/40">Deine Kreationen</h4>
+                  <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                    {customResults.map((res) => (
+                      <button
+                        key={res.id}
+                        onClick={() => setSelectedResult(res)}
+                        className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 border-white shadow-sm hover:scale-105 transition-transform"
+                      >
+                        <img src={res.imageUrl || undefined} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </button>
+                    ))}
                   </div>
-                </motion.div>
-              ) : null}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
