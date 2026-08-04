@@ -313,8 +313,9 @@ export default function App() {
     return pending ? parseInt(pending) : 0;
   });
   const studioCreditsRef = useRef(studioCredits);
-  const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly'));
-  const canUseStudio = isPro || studioCredits > 0;
+  const isPaid = isPremium || userPlan === 'single' || userPlan === 'monthly' || userPlan === 'yearly' || userPlan === 'upsell' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
+  const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly' || userPlan === 'upsell'));
+  const canUseStudio = isPaid || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
 
   const [pendingTab, setPendingTab] = useState<'overview' | 'studio' | 'gallery' | 'polls' | 'account' | null>(null);
@@ -3020,7 +3021,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       const imageUrl = await generateHairstyleImage(base64Data, activeMime || 'image/jpeg', style.name, customPrompt);
       if (imageUrl) {
         // Only consume credit if generation was successful
-        if (studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+        if (studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly' && userPlan !== 'single' && !isPremium && localStorage.getItem('frisurenai_guest_is_paid') !== 'true') {
           if (user) {
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, { 
@@ -3406,7 +3407,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
       
       if (imageUrl) {
         // Only consume credit if generation was successful
-        if (user && studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly') {
+        if (user && studioCreditsRef.current > 0 && userPlan !== 'monthly' && userPlan !== 'yearly' && userPlan !== 'single' && !isPremium) {
           const userRef = doc(db, 'users', user.uid);
           await updateDoc(userRef, { 
             studioCredits: increment(-1)
