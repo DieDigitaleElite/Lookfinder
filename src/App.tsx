@@ -2936,7 +2936,15 @@ export default function App() {
     setIsGenerating(true);
     setError(null);
     try {
-      const sourceImageToUse = activeHdImage || activeImage;
+      // Fast compress image to 800px max size to avoid payload timeouts
+      let sourceImageToUse = activeImage;
+      if (sourceImageToUse && sourceImageToUse.startsWith('data:')) {
+        try {
+          sourceImageToUse = await fastResizeImage(sourceImageToUse, 800, 0.75);
+        } catch (resizeErr) {
+          console.warn("Fast resize fallback in handleStudioTryOn", resizeErr);
+        }
+      }
       const base64Data = sourceImageToUse.split(',')[1];
       const isOriginalColor = color.id === 'col-original';
       const isCustomTech = tech && tech.id !== 'tech-none';
@@ -3001,6 +3009,17 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         };
         
         setLastCustomResult(result);
+        setCustomResults(prev => [result, ...prev]);
+
+        // Backup to pending custom results in localStorage so it's safely saved for guests/registration
+        try {
+          const pendingCustomStr = localStorage.getItem('frisurenai_pending_custom_results');
+          const existingPending = pendingCustomStr ? JSON.parse(pendingCustomStr) : [];
+          const updatedPending = [result, ...existingPending.filter((r: any) => r.id !== result.id)];
+          localStorage.setItem('frisurenai_pending_custom_results', JSON.stringify(updatedPending));
+        } catch (e) {
+          console.warn("Failed to backup pending custom result to localStorage", e);
+        }
         
         // Auto-save for logged-in users
         if (user) {
@@ -3008,7 +3027,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
         }
         
         setSelectedResult(result);
-        // We stay in styling studio but show result
       }
     } catch (err: any) {
       console.error("Studio Try-On failed", err);
@@ -6045,72 +6063,78 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         )}
                         </>
                       )}
+                      {/* Place Styling Studio directly under the 1st result card & Bonus-Analyse */}
+                      {index === 0 && (
+                        <div className="col-span-1 sm:col-span-2 lg:col-span-3 my-4">
+                          <motion.div 
+                            id="interactive-styling-studio"
+                            initial={{ opacity: 0, y: 30 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white rounded-[3rem] p-4 sm:p-8 lg:p-10 border border-black/5 shadow-2xl space-y-6"
+                          >
+                            <div className="text-center space-y-3 max-w-2xl mx-auto pt-2">
+                              <div className="inline-flex items-center gap-2 bg-[#FF9EBE]/10 text-[#FF9EBE] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-[#FF9EBE]/20">
+                                <Sparkles size={14} />
+                                <span>Interaktives KI Studio</span>
+                              </div>
+                              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary">
+                                Wunschfrisuren &amp; Farben direkt interaktiv an dir testen
+                              </h2>
+                              <p className="text-xs sm:text-sm text-brand-primary/70 leading-relaxed">
+                                Wähle beliebige Längen, Farben und Färbetechniken aus und sieh die Skizze in Echtzeit auf deiner Gesichtsform.
+                              </p>
+                            </div>
+
+                            <div className="bg-white rounded-[2.5rem] overflow-hidden border border-black/5 shadow-inner min-h-[650px]">
+                              <StylingStudio 
+                                image={image}
+                                onTryOn={handleStudioTryOn}
+                                isGenerating={isGenerating}
+                                onImageUpload={handleStylingStudioImageUpload}
+                                avatarSketch={avatarSketch}
+                                isPremium={canUseStudio}
+                                preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
+                                onCategoryChange={setActiveCategory}
+                                isGeneratingBackground={isGeneratingBackground}
+                                onCheckout={handleCheckout}
+                                onShowPricing={() => handleShowPricing('styling_studio')}
+                                onOpenLegalModal={setActiveLegalModal}
+                                isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
+                                stripeGenerationError={stripeGenerationError}
+                                onClearStripeError={() => setStripeGenerationError(null)}
+                                userName={user?.displayName?.split(' ')[0] || null}
+                                isCheckingOut={isCheckingOut}
+                              />
+                            </div>
+
+                            {customResults.length > 0 && (
+                              <div className="space-y-4 pt-4 border-t border-black/5">
+                                <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary/40">Deine Kreationen ({customResults.length})</h4>
+                                <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
+                                  {customResults.map((res) => (
+                                    <button
+                                      key={res.id}
+                                      onClick={() => setSelectedResult(res)}
+                                      className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 border-[#FF9EBE]/30 shadow-sm hover:scale-105 transition-transform relative group"
+                                    >
+                                      <img src={res.imageUrl || undefined} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
+                                        Ansehen
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </motion.div>
+                        </div>
+                      )}
                     </motion.div>
                   </React.Fragment>
                 );
               })}
               {results.length < 4 && renderStylingStudioCard()}
               </div>
-
-              {/* Interaktives KI Styling-Studio Teaser & Generator directly on Erstanalyse page */}
-              <motion.div 
-                id="interactive-styling-studio"
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-[3rem] p-4 sm:p-8 lg:p-10 border border-black/5 shadow-2xl space-y-6 mt-16"
-              >
-                <div className="text-center space-y-3 max-w-2xl mx-auto pt-4">
-                  <div className="inline-flex items-center gap-2 bg-[#FF9EBE]/10 text-[#FF9EBE] px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest border border-[#FF9EBE]/20">
-                    <Sparkles size={14} />
-                    <span>Interaktives KI Studio</span>
-                  </div>
-                  <h2 className="text-2xl sm:text-3xl font-serif font-bold text-brand-primary">
-                    Wunschfrisuren &amp; Farben direkt interaktiv an dir testen
-                  </h2>
-                  <p className="text-xs sm:text-sm text-brand-primary/70 leading-relaxed">
-                    Wähle beliebige Längen, Farben und Färbetechniken aus und sieh die Skizze in Echtzeit auf deiner Gesichtsform.
-                  </p>
-                </div>
-
-                <div className="bg-white rounded-[2.5rem] overflow-hidden border border-black/5 shadow-inner min-h-[650px]">
-                  <StylingStudio 
-                    image={image}
-                    onTryOn={handleStudioTryOn}
-                    isGenerating={isGenerating}
-                    onImageUpload={handleStylingStudioImageUpload}
-                    avatarSketch={avatarSketch}
-                    isPremium={canUseStudio}
-                    preGeneratedSketches={{ ...templateSketches, ...hairstyleSketches }}
-                    onCategoryChange={setActiveCategory}
-                    isGeneratingBackground={isGeneratingBackground}
-                    onCheckout={handleCheckout}
-                    onShowPricing={() => handleShowPricing('styling_studio')}
-                    onOpenLegalModal={setActiveLegalModal}
-                    isAutoGeneratingFromStripe={isAutoGeneratingFromStripe}
-                    stripeGenerationError={stripeGenerationError}
-                    onClearStripeError={() => setStripeGenerationError(null)}
-                    userName={user?.displayName?.split(' ')[0] || null}
-                    isCheckingOut={isCheckingOut}
-                  />
-                </div>
-              </motion.div>
-
-              {customResults.length > 0 && (
-                <div className="space-y-4 pt-6">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary/40">Deine Kreationen</h4>
-                  <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                    {customResults.map((res) => (
-                      <button
-                        key={res.id}
-                        onClick={() => setSelectedResult(res)}
-                        className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 border-white shadow-sm hover:scale-105 transition-transform"
-                      >
-                        <img src={res.imageUrl || undefined} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </motion.div>
           )}
         </AnimatePresence>

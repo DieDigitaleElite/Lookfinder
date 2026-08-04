@@ -287,24 +287,13 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
           }
         } else {
           try {
-            // Attempt 1 for photorealistic is gemini-3.1-flash-image for maximum 1K HD premium quality (extremely snappy and reliable)
-            result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings, {
-              imageConfig: {
-                imageSize: "1K",
-                imageFormat: "image/png"
-              },
-              outputMimeType: "image/png"
-            });
+            // Attempt 1 for photorealistic: gemini-2.5-flash-image (fast, works reliably across free/paid tiers)
+            result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings);
           } catch (err1: any) {
-            console.warn("Attempt 1 with gemini-3.1-flash-image failed, retrying with gemini-2.5-flash-image as fallback...");
+            console.warn("Attempt 1 with gemini-2.5-flash-image failed, retrying with gemini-3.1-flash-image as fallback...", err1);
             try {
-              // Attempt 2: gemini-2.5-flash-image
-              result = await queryGenAIImageWithFallback(ai, "gemini-2.5-flash-image", parts, safetySettings, {
-                imageConfig: {
-                  imageFormat: "image/png"
-                },
-                outputMimeType: "image/png"
-              });
+              // Attempt 2: gemini-3.1-flash-image
+              result = await queryGenAIImageWithFallback(ai, "gemini-3.1-flash-image", parts, safetySettings);
             } catch (err2: any) {
               console.error("All image generation models failed!");
               throw new Error(`Bildgenerierung fehlgeschlagen: ${err2.message || err2}`);
