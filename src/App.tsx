@@ -1409,8 +1409,12 @@ export default function App() {
       
       const selectionSaved = localStorage.getItem('frisurenai_pending_studio_selection');
       if (selectionSaved) {
-        console.log("Found pending studio selection on mount - showing immediate loader in Studio tab");
-        setDashboardTab('studio');
+        console.log("Found pending studio selection on mount - showing immediate loader");
+        if (results.length === 0) {
+          setDashboardTab('studio');
+        } else {
+          setDashboardTab('overview');
+        }
         setIsAutoGeneratingFromStripe(true);
       }
       
@@ -1517,7 +1521,11 @@ export default function App() {
         const tech = HAIR_TECHNOLOGIES.find(t => t.id === techId);
         
         if (style && color) {
-          setDashboardTab('studio');
+          if (results.length === 0) {
+            setDashboardTab('studio');
+          } else {
+            setDashboardTab('overview');
+          }
           setIsAutoGeneratingFromStripe(true);
           setStripeGenerationError(null);
           
@@ -1552,6 +1560,17 @@ export default function App() {
             setIsAutoGeneratingFromStripe(false);
             setPendingStudioSelection(null);
             localStorage.removeItem('frisurenai_pending_studio_selection');
+
+            if (results.length > 0) {
+              setDashboardTab('overview');
+            }
+
+            setTimeout(() => {
+              const studioEl = document.getElementById('interactive-styling-studio');
+              if (studioEl) {
+                studioEl.scrollIntoView({ behavior: 'smooth' });
+              }
+            }, 300);
           } catch (err) {
             console.error("Auto-generation failed:", err);
             setIsAutoGeneratingFromStripe(false);
@@ -1663,7 +1682,11 @@ export default function App() {
         studioCreditsRef.current = Math.max(studioCreditsRef.current, 1);
         localStorage.setItem('frisurenai_pending_studio_credits', '1');
         localStorage.removeItem('frisurenai_guest_is_paid');
-        setDashboardTab('studio');
+        if (results.length === 0) {
+          setDashboardTab('studio');
+        } else {
+          setDashboardTab('overview');
+        }
         
         setAuthMessage({ type: 'success', text: "Zahlung erfolgreich! Dein Einzel-Look wird jetzt im Studio erstellt. ✨" });
         setTimeout(() => setAuthMessage(null), 6000);
@@ -2025,7 +2048,11 @@ export default function App() {
           setTimeout(() => setAuthMessage(null), 5000);
         }
       } else if (image && dashboardTab !== 'studio' && dashboardTab !== 'gallery') {
-        setDashboardTab('studio');
+        if (results.length === 0) {
+          setDashboardTab('studio');
+        } else {
+          setDashboardTab('overview');
+        }
         // Briefly show success message
         setAuthMessage({ type: 'success', text: "Willkommen! Du bist jetzt im Studio. Probiere alle Looks aus! ✨" });
         setTimeout(() => setAuthMessage(null), 5000);
@@ -5045,7 +5072,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 )}
               </UserDashboard>
             </motion.div>
-          ) : dashboardTab === 'studio' ? (
+          ) : (dashboardTab === 'studio' && results.length === 0) ? (
             <motion.div 
               key="studio"
               initial={{ opacity: 0, y: 10 }}
@@ -6173,6 +6200,39 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                               </p>
                             </div>
 
+                            {customResults.length > 0 && (
+                              <div className="space-y-6 bg-[#FF9EBE]/5 border border-[#FF9EBE]/20 p-6 sm:p-8 rounded-[2.5rem]">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h3 className="text-xl sm:text-2xl font-serif font-bold italic text-brand-primary">Deine Studio Ergebnisse ({customResults.length})</h3>
+                                    <p className="text-brand-primary/60 text-xs">Klicke auf ein Bild, um Details und Friseur-Tipps zu sehen.</p>
+                                  </div>
+                                  <button onClick={() => setCustomResults([])} className="text-[10px] font-black text-brand-primary/20 uppercase tracking-[0.2em] hover:text-red-500 transition-colors">Ergebnisse leeren</button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                  {customResults.map((res) => (
+                                    <motion.div 
+                                      key={res.id} 
+                                      initial={{ opacity: 0, scale: 0.9 }}
+                                      animate={{ opacity: 1, scale: 1 }}
+                                      onClick={() => setSelectedResult(res)} 
+                                      className="group cursor-pointer bg-white p-3.5 rounded-[2rem] border border-black/5 shadow-md hover:shadow-xl transition-all"
+                                    >
+                                      <div className="aspect-[3/4] rounded-[1.4rem] overflow-hidden shadow-md bg-black/5 relative">
+                                        <img src={res.imageUrl || undefined} alt={res.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                          <span className="px-4 py-2 bg-white text-brand-primary text-xs font-black rounded-full uppercase tracking-widest shadow-lg">Ansehen</span>
+                                        </div>
+                                      </div>
+                                      <div className="p-3">
+                                        <h4 className="font-black italic text-brand-primary truncate text-base">{res.name}</h4>
+                                      </div>
+                                    </motion.div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-[2.5rem] overflow-hidden border border-black/5 shadow-inner min-h-[650px]">
                               <StylingStudio 
                                 image={image}
@@ -6194,26 +6254,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 isCheckingOut={isCheckingOut}
                               />
                             </div>
-
-                            {customResults.length > 0 && (
-                              <div className="space-y-4 pt-4 border-t border-black/5">
-                                <h4 className="text-xs font-black uppercase tracking-widest text-brand-primary/40">Deine Kreationen ({customResults.length})</h4>
-                                <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
-                                  {customResults.map((res) => (
-                                    <button
-                                      key={res.id}
-                                      onClick={() => setSelectedResult(res)}
-                                      className="w-20 h-20 rounded-xl overflow-hidden shrink-0 border-2 border-[#FF9EBE]/30 shadow-sm hover:scale-105 transition-transform relative group"
-                                    >
-                                      <img src={res.imageUrl || undefined} alt="Custom" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] font-bold">
-                                        Ansehen
-                                      </div>
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </motion.div>
                         </div>
                       )}
