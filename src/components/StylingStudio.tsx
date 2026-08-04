@@ -575,6 +575,98 @@ export default function StylingStudio({
 
                 {/* Plans Selection */}
                 <div className="grid grid-cols-1 gap-4">
+                  {/* Top Option: Complete Style Report + 24h Studio-Tagespass (6,99 €) */}
+                  <div 
+                    onClick={() => {
+                      setSelectedPlanId('single');
+                      setError(null);
+                    }}
+                    className={`p-6 rounded-[2rem] border-4 transition-all relative overflow-hidden flex flex-col text-left group cursor-pointer ${selectedPlanId === 'single' ? 'border-[#FF9EBE] ring-4 ring-[#FF9EBE]/20' : 'border-black/5 bg-gradient-to-br from-pink-50/50 via-white to-purple-50/30'}`}
+                  >
+                    <div className="absolute top-0 right-0 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] text-white text-[9px] font-black px-4 py-1.5 rounded-bl-2xl uppercase tracking-widest shadow-sm">
+                      BELIEBT &amp; TAGESPASS 🔥
+                    </div>
+                    <div className="space-y-4 w-full">
+                      <div>
+                         <h3 className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] mb-1">Complete Style Report &amp; 24h Studio-Pass</h3>
+                         <div className="flex items-baseline gap-2">
+                           <span className="text-3xl font-black text-brand-primary">6,99 €</span>
+                           <span className="text-xs text-brand-primary/50 font-bold uppercase tracking-wider">Einmalig • Kein Abo</span>
+                         </div>
+                         <p className="text-[10px] font-bold text-brand-primary/70 uppercase tracking-wider mt-1">24h Voller Studio-Zugriff + Erstanalyse Complete</p>
+                      </div>
+
+                      <div className="space-y-2 py-3 border-y border-black/5">
+                        <p className="text-[10px] text-brand-primary/80 flex items-center gap-2 font-semibold">
+                           <Check size={12} className="text-[#FF9EBE]" />
+                           <span><strong>24 Stunden Studio-Tagespass:</strong> Alle Längen, Farben &amp; Techniken am eigenen Foto testen</span>
+                        </p>
+                        <p className="text-[10px] text-brand-primary/80 flex items-center gap-2 font-semibold">
+                          <Check size={12} className="text-[#FF9EBE]" />
+                          <span><strong>Alle 8 weiteren HD-Styles</strong> der Erstanalyse freigeschaltet</span>
+                        </p>
+                        <p className="text-[10px] text-brand-primary/80 flex items-center gap-2 font-semibold">
+                          <Check size={12} className="text-[#FF9EBE]" />
+                          <span>Bonus: KI-Haaranalyse, Pflegetipps &amp; 3 Farbtipps inkl. Begründung</span>
+                        </p>
+                      </div>
+
+                      {selectedPlanId === 'single' && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          className="space-y-4 pt-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="space-y-2">
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={agreedToTerms} 
+                                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                              />
+                              <span className="text-[9px] text-brand-primary/60 font-medium">Ich akzeptiere die <button onClick={() => onOpenLegalModal?.('agb')} className="text-[#FF9EBE] underline">AGB</button> und habe die <button onClick={() => onOpenLegalModal?.('datenschutz')} className="text-[#FF9EBE] underline">Datenschutzerklärung</button> gelesen.</span>
+                            </label>
+                            <label className="flex items-start gap-2 cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                checked={agreedToWiderruf} 
+                                onChange={(e) => setAgreedToWiderruf(e.target.checked)}
+                                className="mt-1 w-3 h-3 rounded text-[#FF9EBE]" 
+                              />
+                              <span className="text-[9px] text-brand-primary/60 font-medium">Ich stimme zu, dass Frisuren.ai vor Ablauf der Widerrufsfrist beginnt und ich mein <button onClick={() => onOpenLegalModal?.('widerruf')} className="text-[#FF9EBE] underline">Widerrufsrecht</button> verliere.</span>
+                            </label>
+                          </div>
+                          <button 
+                            disabled={isCheckingOut}
+                            onClick={() => {
+                              if (!agreedToTerms || !agreedToWiderruf) {
+                                setError("Bitte akzeptiere die AGB und die Widerrufsbelehrung.");
+                                return;
+                              }
+                              onCheckout?.('single', {
+                                styleId: selectedStyleId,
+                                colorId: selectedColorId,
+                                techId: selectedTechId
+                              }, true);
+                            }}
+                            className="w-full py-4 bg-[#FF9EBE] hover:bg-[#E88CA9] text-white rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            {isCheckingOut ? (
+                              <Loader2 className="animate-spin" size={16} />
+                            ) : (
+                              <>
+                                <span>Zahlungspflichtig bestellen (6,99 €)</span>
+                                <Zap size={14} />
+                              </>
+                            )}
+                          </button>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Yearly Option - Styling Flatrate */}
                   <div 
                     onClick={() => {

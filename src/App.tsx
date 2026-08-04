@@ -6063,9 +6063,11 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         )}
                         </>
                       )}
+                      </motion.div>
+
                       {/* Place Styling Studio directly under the 1st result card & Bonus-Analyse */}
                       {index === 0 && (
-                        <div className="col-span-1 sm:col-span-2 lg:col-span-3 my-4">
+                        <div onClick={(e) => e.stopPropagation()} className="col-span-1 sm:col-span-2 lg:col-span-3 my-4">
                           <motion.div 
                             id="interactive-styling-studio"
                             initial={{ opacity: 0, y: 30 }}
@@ -6129,10 +6131,9 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                           </motion.div>
                         </div>
                       )}
-                    </motion.div>
-                  </React.Fragment>
-                );
-              })}
+                    </React.Fragment>
+                  );
+                })}
               {results.length < 4 && renderStylingStudioCard()}
               </div>
             </motion.div>
