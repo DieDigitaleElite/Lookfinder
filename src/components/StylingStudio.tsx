@@ -677,7 +677,7 @@ export default function StylingStudio({
                         <div>
                            <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-primary/40 mb-1">Monatsabo</h3>
                            <div className="flex items-baseline gap-2">
-                             <span className="text-2xl font-black text-brand-primary">9,99 €</span>
+                             <span className="text-2xl font-black text-brand-primary">14,99 €</span>
                            </div>
                            <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider mt-1">Monatlich kündbar</p>
                         </div>

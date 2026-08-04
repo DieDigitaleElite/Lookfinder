@@ -1419,7 +1419,7 @@ export default function App() {
         // Track Purchase Event
         ReactGA.event('purchase', {
           transaction_id: sessionId || `trans_${Date.now()}_${uid || 'anon'}`,
-          value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 9.99 : 4.99,
+          value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 14.99 : plan === 'studio-single' ? 1.49 : 6.99,
           currency: 'EUR',
           items: [{ item_id: plan, item_name: `Frisuren AI ${plan}` }]
         });
@@ -3470,7 +3470,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
     
     // Track event
     ReactGA.event('begin_checkout', {
-      value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 9.99 : 4.99,
+      value: plan === 'yearly' ? 39.99 : plan === 'monthly' ? 14.99 : plan === 'studio-single' ? 1.49 : 6.99,
       currency: 'EUR',
       items: [{ item_id: plan, item_name: `Frisuren AI ${plan}` }]
     });
@@ -5605,7 +5605,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             </h3>
                             <div className="space-y-6 text-lg lg:text-xl text-brand-primary/70 font-medium max-w-2xl mx-auto mt-4">
                               <p>
-                                Entdecke jetzt alle <span className="text-[#FF9EBE] font-black">8 weitere personalisierte Styles</span> dieser Analyse – für nur <span className="font-black">2,99 € einmalig</span>. 🚀
+                                Sichere dir jetzt deinen <span className="text-[#FF9EBE] font-black">Complete Style Report (6,99 €)</span> – inkl. allen 8 weiteren HD-Styles, Haaranalyse &amp; <span className="font-black text-brand-primary">24h Tagespass für das KI Styling-Studio</span>! 🚀
                               </p>
                               <p className="text-base lg:text-lg opacity-80 italic">
                                 Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
@@ -5881,7 +5881,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                                 className="w-full mt-2 py-3 px-4 bg-gradient-to-r from-[#FF9EBE] to-[#ff75a0] hover:from-[#ff88af] hover:to-[#ff5c8e] text-white font-black text-xs lg:text-sm uppercase tracking-wider rounded-xl shadow-md shadow-[#FF9EBE]/30 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] group"
                               >
                                 <Sparkles size={15} className="group-hover:rotate-12 transition-transform" />
-                                <span>Entdecke jetzt alle 8 weiteren Styles für nur einmalig 2,99€</span>
+                                <span>Complete Style Report (6,99€) – Inkl. 24h Studio-Tagespass</span>
                                 <ChevronRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
                               </button>
                             )}
@@ -6929,10 +6929,10 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         <Sparkles size={28} />
                       </div>
                       <h3 className="text-xl md:text-2xl font-serif font-black text-brand-primary">
-                        Exklusive Erstanalyse freischalten ✨
+                        Complete Style Report freischalten ✨
                       </h3>
                       <p className="text-xs text-brand-primary/60 max-w-sm mx-auto">
-                        Schalte sofort alle 8 weiteren Frisuren-Styles in HD frei &amp; erhalte deine persönliche Haaranalyse inkl. KI-Pflegetipps.
+                        Erhalte alle 8 weiteren Frisuren-Styles in HD, deine persönliche Haaranalyse inkl. KI-Pflegetipps &amp; 24h vollen Studio-Zugriff.
                       </p>
                     </div>
 
@@ -6940,14 +6940,14 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     <div className="p-4 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-amber-500/10 rounded-2xl border-2 border-[#FF9EBE] flex items-center justify-between">
                       <div>
                         <span className="text-[10px] font-black uppercase tracking-widest text-[#FF9EBE] block">
-                          Einmalige Freischaltung
+                          Vollständiger KI-Style-Report
                         </span>
                         <span className="text-sm font-bold text-brand-primary">
-                          8 weitere Styles + Bonus-Haaranalyse
+                          8 HD-Styles + Haaranalyse + 24h Studio-Pass
                         </span>
                       </div>
                       <div className="text-right">
-                        <span className="text-2xl font-black text-brand-primary">2,99 €</span>
+                        <span className="text-2xl font-black text-brand-primary">6,99 €</span>
                         <span className="text-[10px] text-brand-primary/50 block font-bold">Einmalig • Kein Abo</span>
                       </div>
                     </div>
@@ -6955,12 +6955,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     {/* Included Features List */}
                     <div className="p-4 bg-gray-50 rounded-2xl border border-black/5 space-y-2.5">
                       <span className="text-[11px] font-black text-brand-primary/70 uppercase tracking-wider block mb-1">
-                        In deiner Freischaltung enthalten:
+                        In deinem Complete Style Report enthalten:
                       </span>
                       {[
-                        "Alle 8 weiteren personalisierten Frisuren-Styles freischalten",
+                        "Alle 8 weiteren personalisierten Frisuren-Styles in HD freischalten",
+                        "🔥 24h Studio-Tagespass: Beliebige Frisuren & Farben am eigenen Foto testen",
                         "Bonus: Haarstruktur-Analyse & 3 KI-Pflegetipps",
-                        "Bonus: 3 passende Farbtipps mit Begründung",
+                        "Bonus: 3 passende Farbtipps mit individueller Begründung",
                         "Detaillierte Styling- & Schnittanweisungen für den Friseur",
                         "HD-Downloads ohne Wasserzeichen & Speicherung in der Galerie"
                       ].map((item, idx) => (
@@ -7059,7 +7060,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         </>
                       ) : (
                         <>
-                          <span>Jetzt für 2,99 € kostenpflichtig bestellen</span>
+                          <span>Jetzt für 6,99 € kostenpflichtig bestellen</span>
                           <Zap size={16} />
                         </>
                       )}
@@ -7107,7 +7108,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                     </h2>
                     
                     <p className="text-white/80 mb-6 text-sm lg:text-base">
-                      Entdecke jetzt alle 8 weitere personalisierte Styles dieser Analyse – für nur 2,99 € einmalig. Perfekt, wenn du heute noch deinen Friseurtermin planen möchtest. 📅
+                      Sichere dir jetzt deinen Vollständigen KI-Style-Report für nur 6,99 € einmalig – inkl. aller 8 HD-Styles, Haaranalyse &amp; 24h Tagespass für das Styling-Studio! 📅
                     </p>
                     
                     <p className="text-[#FF9EBE] font-bold mb-4 text-sm lg:text-base">
@@ -7305,7 +7306,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                             <span className="font-black text-lg lg:text-xl text-brand-primary">Monatsabo</span>
                             <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">Max. Flexibilität</p>
                           </div>
-                          <span className="text-xl lg:text-2xl font-black text-brand-primary">9,99 € / Monat</span>
+                          <span className="text-xl lg:text-2xl font-black text-brand-primary">14,99 € / Monat</span>
                         </div>
                         <div className="space-y-4">
                           <p className="text-xs lg:text-sm text-brand-primary/60">Flexibel monatlich kündbar.</p>
@@ -7383,7 +7384,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                         </div>
                       </div>
 
-                      {/* Single Unlock */}
+                      {/* Single Unlock / Complete Style Report */}
                       <div 
                         onClick={() => {
                           setSelectedPlanId('single');
@@ -7393,13 +7394,13 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                       >
                         <div className="flex justify-between items-center mb-1">
                           <div className="flex flex-col">
-                            <span className="font-black text-lg lg:text-xl text-brand-primary">Einmalige Analyse</span>
-                            <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">Perfekt zum Testen</p>
+                            <span className="font-black text-lg lg:text-xl text-brand-primary">Complete Style Report</span>
+                            <p className="text-[10px] font-bold text-brand-primary/40 uppercase tracking-wider">Inkl. 24h Studio-Tagespass</p>
                           </div>
-                          <span className="text-xl lg:text-2xl font-black text-brand-primary">2,99 €</span>
+                          <span className="text-xl lg:text-2xl font-black text-brand-primary">6,99 €</span>
                         </div>
                         <div className="space-y-4">
-                          <p className="text-xs lg:text-sm text-brand-primary/60">Schalte alle 9 Bilder dieser Analyse frei.</p>
+                          <p className="text-xs lg:text-sm text-brand-primary/60">Alle 9 Styles, Haaranalyse &amp; 24h voller Studio-Zugriff.</p>
 
                           {selectedPlanId === 'single' && (
                             <motion.div 

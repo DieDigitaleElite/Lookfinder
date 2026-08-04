@@ -380,7 +380,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         price_data: {
           currency: "eur",
           product_data: { name: "Frisuren.ai - Pro Monatsabo" },
-          unit_amount: 999,
+          unit_amount: 1499,
           recurring: { interval: "month" },
         },
         quantity: 1,
@@ -411,8 +411,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
       lineItems = [{
         price_data: {
           currency: "eur",
-          product_data: { name: "Frisuren.ai - Einmalig" },
-          unit_amount: 299,
+          product_data: { name: "Frisuren.ai - Complete Style Report (inkl. 24h Studio-Tagespass)" },
+          unit_amount: 699,
         },
         quantity: 1,
       }];
