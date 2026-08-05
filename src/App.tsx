@@ -49,6 +49,7 @@ import FreeAppLandingPage from './components/FreeAppLandingPage';
 import HairstyleQuizLandingPage from './components/HairstyleQuizLandingPage';
 import NoAppOnlineTestingLandingPage from './components/NoAppOnlineTestingLandingPage';
 import FreeHairstyleTestingLandingPage from './components/FreeHairstyleTestingLandingPage';
+import PhotoTestingLandingPage from './components/PhotoTestingLandingPage';
 
 declare global {
   interface Window {
@@ -5278,7 +5279,15 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               )}
             </motion.div>
           ) : !image ? (
-            currentPath === '/kostenlos-frisuren-testen' ? (
+            currentPath === '/frisuren-auf-foto-testen' ? (
+              <PhotoTestingLandingPage 
+                onStartAnalysis={() => {
+                  window.history.pushState({}, '', '/');
+                  setCurrentPath('/');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+              />
+            ) : currentPath === '/kostenlos-frisuren-testen' ? (
               <FreeHairstyleTestingLandingPage 
                 onStartAnalysis={() => {
                   window.history.pushState({}, '', '/');
@@ -6389,6 +6398,7 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
           
           <div className="flex flex-wrap justify-center gap-6 md:gap-10">
             <button onClick={() => { setSupportInitialCategory('general'); setShowSupportModal(true); }} className="text-xs font-bold uppercase tracking-widest text-[#FF9EBE] hover:underline transition-colors shrink-0">Support & Kontakt</button>
+            <button onClick={() => { window.history.pushState({}, '', '/frisuren-auf-foto-testen'); setCurrentPath('/frisuren-auf-foto-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Frisuren auf Foto testen</button>
             <button onClick={() => { window.history.pushState({}, '', '/kostenlos-frisuren-testen'); setCurrentPath('/kostenlos-frisuren-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Kostenlos Frisuren testen</button>
             <button onClick={() => { window.history.pushState({}, '', '/frisuren-online-testen-ohne-app'); setCurrentPath('/frisuren-online-testen-ohne-app'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Online testen (Ohne App)</button>
             <button onClick={() => { window.history.pushState({}, '', '/test-welche-frisur-passt-zu-mir'); setCurrentPath('/test-welche-frisur-passt-zu-mir'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Frisuren Test</button>
