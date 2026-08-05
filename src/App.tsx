@@ -313,7 +313,32 @@ export default function App() {
     return pending ? parseInt(pending) : 0;
   });
   const studioCreditsRef = useRef(studioCredits);
-  const isPaid = isPremium || userPlan === 'single' || userPlan === 'monthly' || userPlan === 'yearly' || userPlan === 'upsell' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
+  const checkGuestPaidActive = (): boolean => {
+    const isPaidStr = localStorage.getItem('frisurenai_guest_is_paid');
+    if (isPaidStr !== 'true') return false;
+    
+    const guestPlan = localStorage.getItem('frisurenai_guest_plan') || 'single';
+    const paidAtStr = localStorage.getItem('frisurenai_guest_paid_at');
+    if (!paidAtStr) return true;
+    
+    const paidAt = parseInt(paidAtStr, 10);
+    if (isNaN(paidAt)) return true;
+    
+    const now = Date.now();
+    let durationMs = 24 * 60 * 60 * 1000; // 24 hours for Tagespass (single)
+    if (guestPlan === 'monthly' || guestPlan === 'upsell') durationMs = 30 * 24 * 60 * 60 * 1000;
+    if (guestPlan === 'yearly') durationMs = 365 * 24 * 60 * 60 * 1000;
+    
+    if (now - paidAt > durationMs) {
+      localStorage.removeItem('frisurenai_guest_is_paid');
+      localStorage.removeItem('frisurenai_guest_plan');
+      localStorage.removeItem('frisurenai_guest_paid_at');
+      return false;
+    }
+    return true;
+  };
+
+  const isPaid = isPremium || checkGuestPaidActive();
   const isPro = (isPremium && (userPlan === 'monthly' || userPlan === 'yearly' || userPlan === 'upsell'));
   const canUseStudio = isPaid || studioCredits > 0;
   const [clientIp, setClientIp] = useState<string | null>(null);
@@ -1428,6 +1453,7 @@ export default function App() {
         if (plan !== 'studio-single') {
           localStorage.setItem('frisurenai_guest_is_paid', 'true');
           localStorage.setItem('frisurenai_guest_plan', plan);
+          localStorage.setItem('frisurenai_guest_paid_at', Date.now().toString());
         } else {
           localStorage.removeItem('frisurenai_guest_is_paid');
         }
@@ -1606,7 +1632,9 @@ export default function App() {
         const userDocRef = doc(db, 'users', user.uid);
         
         const expiresAt = new Date();
-        if (pendingPayment.plan === 'monthly' || pendingPayment.plan === 'upsell') {
+        if (pendingPayment.plan === 'single') {
+          expiresAt.setHours(expiresAt.getHours() + 24); // 24h Tagespass
+        } else if (pendingPayment.plan === 'monthly' || pendingPayment.plan === 'upsell') {
           expiresAt.setMonth(expiresAt.getMonth() + 1);
         } else if (pendingPayment.plan === 'yearly') {
           expiresAt.setFullYear(expiresAt.getFullYear() + 1);
@@ -1619,6 +1647,8 @@ export default function App() {
 
         if (pendingPayment.plan !== 'studio-single') {
           updateData.isPremium = true;
+          setIsPremium(true);
+          setUserPlan(pendingPayment.plan === 'upsell' ? 'monthly' : pendingPayment.plan as any);
         }
 
         if (pendingPayment.plan === 'studio-single') {
@@ -1632,8 +1662,9 @@ export default function App() {
           localStorage.removeItem('frisurenai_guest_is_paid');
         }
         
-        if (pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
+        if (pendingPayment.plan === 'single' || pendingPayment.plan === 'monthly' || pendingPayment.plan === 'yearly' || pendingPayment.plan === 'upsell') {
           updateData.premiumExpiresAt = Timestamp.fromDate(expiresAt);
+          setPremiumExpiresAt(Timestamp.fromDate(expiresAt));
         }
 
         if (sessionId) {
@@ -1694,8 +1725,10 @@ export default function App() {
         
         runAutoStudioGeneration();
       } else {
+        const now = Date.now();
         localStorage.setItem('frisurenai_guest_is_paid', 'true');
         localStorage.setItem('frisurenai_guest_plan', pendingPayment.plan);
+        localStorage.setItem('frisurenai_guest_paid_at', now.toString());
         setIsPremium(true);
         setUserPlan(pendingPayment.plan as any);
         
@@ -1758,7 +1791,6 @@ export default function App() {
 
   // Trigger manual generation of missing images for premium/paid users
   const handleGenerateRemaining = async () => {
-    const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
     const activeSourceImg = image || hdImage || localStorage.getItem('frisurenai_pending_image') || localStorage.getItem('frisurenai_pending_hd_image');
 
     if (!isPaid || results.length === 0 || isGenerating || !activeSourceImg) {
@@ -1969,6 +2001,43 @@ export default function App() {
     if (currentSketchRefMime) userProfileData.sketchReferenceMimeType = currentSketchRefMime;
     if (currentFaceAnalysis) userProfileData.faceAnalysis = currentFaceAnalysis;
     if (currentHairAnalysis) userProfileData.hairAnalysis = currentHairAnalysis;
+
+    // Transfer guest paid status or active paid status to Firestore user profile
+    const isGuestPaid = checkGuestPaidActive();
+    const guestPlan = localStorage.getItem('frisurenai_guest_plan') || userPlan || 'single';
+    const guestPaidAtStr = localStorage.getItem('frisurenai_guest_paid_at');
+    const guestPaidAt = guestPaidAtStr ? parseInt(guestPaidAtStr, 10) : Date.now();
+
+    if (isGuestPaid || isPremium) {
+      const expiresAtDate = new Date(guestPaidAt);
+      if (guestPlan === 'single') {
+        expiresAtDate.setHours(expiresAtDate.getHours() + 24); // 24h Tagespass
+      } else if (guestPlan === 'monthly' || guestPlan === 'upsell') {
+        expiresAtDate.setMonth(expiresAtDate.getMonth() + 1);
+      } else if (guestPlan === 'yearly') {
+        expiresAtDate.setFullYear(expiresAtDate.getFullYear() + 1);
+      }
+
+      if (new Date() < expiresAtDate) {
+        userProfileData.isPremium = true;
+        userProfileData.plan = guestPlan === 'upsell' ? 'monthly' : guestPlan;
+        userProfileData.premiumExpiresAt = Timestamp.fromDate(expiresAtDate);
+        userProfileData.premiumSince = Timestamp.fromDate(new Date(guestPaidAt));
+
+        // Update local state immediately so snapshot listener won't flicker
+        setIsPremium(true);
+        setUserPlan(guestPlan === 'upsell' ? 'monthly' : guestPlan as any);
+        setPremiumExpiresAt(Timestamp.fromDate(expiresAtDate));
+      }
+    }
+
+    const guestStudioCredits = localStorage.getItem('frisurenai_pending_studio_credits');
+    if (guestStudioCredits) {
+      const credits = parseInt(guestStudioCredits, 10);
+      if (!isNaN(credits) && credits > 0) {
+        userProfileData.studioCredits = increment(credits);
+      }
+    }
 
     // Await user profile write
     await setDoc(userRef, userProfileData, { merge: true }).catch(err => {
@@ -2877,7 +2946,6 @@ export default function App() {
   const handleGenerateLockedResult = async (result: GeneratedResult, index?: number) => {
     const resultIdx = typeof index === 'number' ? index : results.findIndex(r => r.id === result.id);
     const isFreeSlot = resultIdx !== -1 ? resultIdx < 1 : false;
-    const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
 
     // If not free slot and not paid, show pricing
     if (!isFreeSlot && !isPaid) {
@@ -5687,7 +5755,6 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
                 {results.map((result, index) => {
                   const isFreeSlot = index < 1;
-                  const isPaid = isPremium || userPlan === 'single' || localStorage.getItem('frisurenai_guest_is_paid') === 'true';
                   const isLocked = !isPaid && !isFreeSlot;
                   const isThisItemGenerating = isGenerating && (generatingResultId === result.id || (index === 0 && !result.imageUrl) || (isPremium && !result.imageUrl));
                   
