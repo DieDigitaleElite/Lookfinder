@@ -203,7 +203,7 @@ export default function FreeAppLandingPage({ onStartAnalysis }: FreeAppLandingPa
               <Star size={12} fill="currentColor" />
               <span className="text-brand-primary font-bold text-xs ml-1">4.9/5</span>
             </div>
-            <span className="text-[11px] text-brand-primary/50">Über 50.000+ Frisuren-Analysen durchgeführt</span>
+            <span className="text-[11px] text-brand-primary/50">Über 1000+ Fotos erfolgreich analysiert</span>
           </div>
         </div>
       </motion.section>
