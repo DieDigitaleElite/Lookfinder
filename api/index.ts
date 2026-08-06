@@ -5,15 +5,13 @@ import cors from "cors";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import fs from "fs";
-import { HAIRSTYLE_SEO_DATA } from "../src/data/hairstyleSeoData";
 
 dotenv.config();
 
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '20mb' }));
 
 // Gemini Proxy Implementation
 const getGeminiAI = () => {
@@ -24,8 +22,13 @@ const getGeminiAI = () => {
               process.env.VITE_GEMINI_API_KEY;
   
   if (!key || key === "MY_GEMINI_API_KEY" || key.trim() === "") {
+    const env = process.env.NODE_ENV || "development";
     console.warn("API Key Check Failed. Env keys:", Object.keys(process.env).filter(k => k.toLowerCase().includes('key')));
-    throw new Error("GEMINI_API_KEY fehlt. Bitte stelle sicher, dass der API Key in den AI Studio Secrets hinterlegt ist.");
+    
+    if (env === "production") {
+      throw new Error("CONFIG_ERROR: No valid API\_KEY found in environment.");
+    }
+    throw new Error("GEMINI_API_KEY fehlt. Bitte füge deinen API Key in den AI Studio Secrets unter dem Namen 'GEMINI_API_KEY' hinzu.");
   }
   return new GoogleGenAI({ apiKey: key });
 };
@@ -36,9 +39,9 @@ async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[],
     console.log(`Querying image model ${model}...`);
     const response = await ai.models.generateContent({
       model: model,
-      contents: parts,
+      contents: { parts },
       config: { safetySettings, ...extraConfig }
-    });;
+    });
 
     let imageData = null;
     for (const candidate of response.candidates || []) {
@@ -75,50 +78,6 @@ async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[],
 // --- API GUIDELINES ---
 // Health checks
 app.get("/api/health", (req, res) => res.status(200).send("OK"));
-
-// Dynamic Sitemap Endpoint for Google Search Console
-app.get(["/sitemap.xml", "/sitemap"], (req, res) => {
-  const baseUrl = "https://frisuren.ai";
-  const today = new Date().toISOString().split("T")[0];
-
-  const staticPages = [
-    { url: "", priority: "1.0", changefreq: "daily" },
-    { url: "/frisuren-simulator", priority: "0.9", changefreq: "weekly" },
-    { url: "/frisuren-auf-foto-testen", priority: "0.9", changefreq: "weekly" },
-    { url: "/kostenlos-frisuren-testen", priority: "0.9", changefreq: "weekly" },
-    { url: "/frisuren-online-testen-ohne-app", priority: "0.8", changefreq: "weekly" },
-    { url: "/test-welche-frisur-passt-zu-mir", priority: "0.8", changefreq: "weekly" },
-    { url: "/kostenlose-frisuren-app", priority: "0.8", changefreq: "weekly" },
-    { url: "/frisuren-am-bildschirm-ausprobieren", priority: "0.8", changefreq: "weekly" },
-  ];
-
-  const hairstylePages = Object.values(HAIRSTYLE_SEO_DATA).map((item) => ({
-    url: `/${item.slug}`,
-    priority: "0.85",
-    changefreq: "weekly",
-  }));
-
-  const allUrls = [...staticPages, ...hairstylePages];
-
-  const urlEntries = allUrls
-    .map(
-      (p) => `  <url>
-    <loc>${baseUrl}${p.url}</loc>
-    <lastmod>${today}</lastmod>
-    <changefreq>${p.changefreq}</changefreq>
-    <priority>${p.priority}</priority>
-  </url>`
-    )
-    .join("\n");
-
-  const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urlEntries}
-</urlset>`;
-
-  res.header("Content-Type", "application/xml; charset=utf-8");
-  res.status(200).send(sitemapXml);
-});
 
 // Gemini Endpoint
 app.post("/api/gemini", async (req, res) => {
@@ -186,10 +145,12 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
 
         const response = await ai.models.generateContent({
           model: "gemini-3.6-flash",
-          contents: [
-            { inlineData: { data: base64Image, mimeType } },
-            { text: prompt }
-          ],
+          contents: {
+            parts: [
+              { inlineData: { data: base64Image, mimeType } },
+              { text: prompt }
+            ]
+          },
           config: {
             responseMimeType: "application/json"
           }
@@ -302,14 +263,10 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
-        if (baseSketch && typeof baseSketch === "string" && baseSketch.includes(",")) {
-           try {
-             const sketchMimeType = baseSketch.includes(";") ? baseSketch.split(";")[0].split(":")[1] || "image/png" : "image/png";
-             const sketchData = baseSketch.split(",")[1] || baseSketch;
-             parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
-           } catch (sketchErr) {
-             console.warn("Failed to parse baseSketch, continuing with primary image only:", sketchErr);
-           }
+        if (baseSketch) {
+           const sketchMimeType = baseSketch.split(";")[0].split(":")[1];
+           const sketchData = baseSketch.split(",")[1];
+           parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
         }
         parts.push({ text: promptSnippet });
 
@@ -660,17 +617,6 @@ app.post("/api/usage/increment", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: "Internal Error" });
   }
-});
-
-// Global Express Error Handling Middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error("Global Express Error Handler:", err);
-  const status = err.status || err.statusCode || 500;
-  const message = err.type === "entity.too.large" 
-    ? "Das hochgeladene Bild ist zu groß. Bitte wähle ein kleineres Bild oder komprimiere es."
-    : (err.message || "Ein unerwarteter Serverfehler ist aufgetreten.");
-    
-  res.status(status).json({ error: message });
 });
 
 export default app;

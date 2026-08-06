@@ -13,36 +13,11 @@ const callGeminiProxy = async (action: string, payload: any, maxRetries = 4): Pr
       });
 
       if (!response.ok) {
-        let serverMsg = "";
-        try {
-          const text = await response.text();
-          try {
-            const data = JSON.parse(text);
-            if (data && data.error) serverMsg = data.error;
-          } catch (_) {
-            if (text && text.trim().length > 0 && !text.includes("<!DOCTYPE")) {
-              serverMsg = text.substring(0, 150);
-            }
-          }
-        } catch (_) {}
-
-        if (!serverMsg) {
-          if (response.status === 413) {
-            serverMsg = "Das hochgeladene Foto ist zu groß. Bitte wähle ein kleineres Bild.";
-          } else if (response.status === 504 || response.status === 502) {
-            serverMsg = "Die KI-Verbindung benötigte zu lange (Timeout). Bitte versuche es erneut.";
-          } else {
-            serverMsg = `Ein interner Serverfehler (${response.status}) ist aufgetreten. Bitte versuche es erneut.`;
-          }
-        }
-        throw new Error(serverMsg);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server responded with ${response.status}`);
       }
 
-      const resData = await response.json();
-      if (resData && resData.error) {
-        throw new Error(resData.error);
-      }
-      return resData;
+      return await response.json();
     } catch (error: any) {
       lastError = error;
       const errorMsg = (error.message || "").toLowerCase();
