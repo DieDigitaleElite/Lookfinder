@@ -5,6 +5,7 @@ import cors from "cors";
 import { GoogleGenAI } from "@google/genai";
 import dotenv from "dotenv";
 import fs from "fs";
+import { HAIRSTYLE_SEO_DATA } from "../src/data/hairstyleSeoData";
 
 dotenv.config();
 
@@ -78,6 +79,50 @@ async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[],
 // --- API GUIDELINES ---
 // Health checks
 app.get("/api/health", (req, res) => res.status(200).send("OK"));
+
+// Dynamic Sitemap Endpoint for Google Search Console
+app.get(["/sitemap.xml", "/sitemap"], (req, res) => {
+  const baseUrl = "https://frisuren.ai";
+  const today = new Date().toISOString().split("T")[0];
+
+  const staticPages = [
+    { url: "", priority: "1.0", changefreq: "daily" },
+    { url: "/frisuren-simulator", priority: "0.9", changefreq: "weekly" },
+    { url: "/frisuren-auf-foto-testen", priority: "0.9", changefreq: "weekly" },
+    { url: "/kostenlos-frisuren-testen", priority: "0.9", changefreq: "weekly" },
+    { url: "/frisuren-online-testen-ohne-app", priority: "0.8", changefreq: "weekly" },
+    { url: "/test-welche-frisur-passt-zu-mir", priority: "0.8", changefreq: "weekly" },
+    { url: "/kostenlose-frisuren-app", priority: "0.8", changefreq: "weekly" },
+    { url: "/frisuren-am-bildschirm-ausprobieren", priority: "0.8", changefreq: "weekly" },
+  ];
+
+  const hairstylePages = Object.values(HAIRSTYLE_SEO_DATA).map((item) => ({
+    url: `/${item.slug}`,
+    priority: "0.85",
+    changefreq: "weekly",
+  }));
+
+  const allUrls = [...staticPages, ...hairstylePages];
+
+  const urlEntries = allUrls
+    .map(
+      (p) => `  <url>
+    <loc>${baseUrl}${p.url}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${p.changefreq}</changefreq>
+    <priority>${p.priority}</priority>
+  </url>`
+    )
+    .join("\n");
+
+  const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urlEntries}
+</urlset>`;
+
+  res.header("Content-Type", "application/xml; charset=utf-8");
+  res.status(200).send(sitemapXml);
+});
 
 // Gemini Endpoint
 app.post("/api/gemini", async (req, res) => {
