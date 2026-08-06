@@ -51,6 +51,8 @@ import NoAppOnlineTestingLandingPage from './components/NoAppOnlineTestingLandin
 import FreeHairstyleTestingLandingPage from './components/FreeHairstyleTestingLandingPage';
 import PhotoTestingLandingPage from './components/PhotoTestingLandingPage';
 import HairstyleSimulatorLandingPage from './components/HairstyleSimulatorLandingPage';
+import HairstyleDetailLandingPage from './components/HairstyleDetailLandingPage';
+import { HAIRSTYLE_SEO_DATA } from './data/hairstyleSeoData';
 
 declare global {
   interface Window {
@@ -5280,64 +5282,111 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
               )}
             </motion.div>
           ) : !image ? (
-            currentPath === '/frisuren-simulator' ? (
-              <HairstyleSimulatorLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : currentPath === '/frisuren-auf-foto-testen' ? (
-              <PhotoTestingLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : currentPath === '/kostenlos-frisuren-testen' ? (
-              <FreeHairstyleTestingLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : currentPath === '/frisuren-online-testen-ohne-app' ? (
-              <NoAppOnlineTestingLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : currentPath === '/test-welche-frisur-passt-zu-mir' ? (
-              <HairstyleQuizLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : currentPath === '/kostenlose-frisuren-app' ? (
-              <FreeAppLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : currentPath === '/frisuren-am-bildschirm-ausprobieren' ? (
-              <SeoLandingPage 
-                onStartAnalysis={() => {
-                  window.history.pushState({}, '', '/');
-                  setCurrentPath('/');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-              />
-            ) : (
-              <div className="space-y-16 md:space-y-40 pb-24">
+            (() => {
+              const cleanCurrentPath = currentPath.replace(/^\//, '');
+              const matchedHairstyleKey = Object.keys(HAIRSTYLE_SEO_DATA).find(key => {
+                const item = HAIRSTYLE_SEO_DATA[key];
+                return item.slug === cleanCurrentPath || (item.aliases && item.aliases.includes(cleanCurrentPath));
+              });
+
+              if (matchedHairstyleKey) {
+                return (
+                  <HairstyleDetailLandingPage 
+                    slug={cleanCurrentPath}
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    onNavigateToSlug={(targetSlug) => {
+                      window.history.pushState({}, '', `/${targetSlug}`);
+                      setCurrentPath(`/${targetSlug}`);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+
+              if (currentPath === '/frisuren-simulator') {
+                return (
+                  <HairstyleSimulatorLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+              if (currentPath === '/frisuren-auf-foto-testen') {
+                return (
+                  <PhotoTestingLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+              if (currentPath === '/kostenlos-frisuren-testen') {
+                return (
+                  <FreeHairstyleTestingLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+              if (currentPath === '/frisuren-online-testen-ohne-app') {
+                return (
+                  <NoAppOnlineTestingLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+              if (currentPath === '/test-welche-frisur-passt-zu-mir') {
+                return (
+                  <HairstyleQuizLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+              if (currentPath === '/kostenlose-frisuren-app') {
+                return (
+                  <FreeAppLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+              if (currentPath === '/frisuren-am-bildschirm-ausprobieren') {
+                return (
+                  <SeoLandingPage 
+                    onStartAnalysis={() => {
+                      window.history.pushState({}, '', '/');
+                      setCurrentPath('/');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  />
+                );
+              }
+
+              return (
+                <div className="space-y-16 md:space-y-40 pb-24">
               <motion.div 
                 key="upload"
                 initial={{ opacity: 0, y: 20 }}
@@ -5602,7 +5651,8 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
                 </section>
               </section>
             </div>
-            )
+                );
+              })()
           ) : results.length === 0 ? (
             <motion.div 
               key="processing"
@@ -6410,6 +6460,19 @@ WICHTIGSTE GEBOTE FÜR DIE ERSTELLUNG:
             <button onClick={() => { window.history.pushState({}, '', '/frisuren-simulator'); setCurrentPath('/frisuren-simulator'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Frisuren Simulator</button>
             <button onClick={() => { window.history.pushState({}, '', '/frisuren-auf-foto-testen'); setCurrentPath('/frisuren-auf-foto-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Frisuren auf Foto testen</button>
             <button onClick={() => { window.history.pushState({}, '', '/kostenlos-frisuren-testen'); setCurrentPath('/kostenlos-frisuren-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Kostenlos Frisuren testen</button>
+            <button onClick={() => { window.history.pushState({}, '', '/bob-frisuren-testen'); setCurrentPath('/bob-frisuren-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Bob Frisuren</button>
+            <button onClick={() => { window.history.pushState({}, '', '/pixie-testen'); setCurrentPath('/pixie-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Pixie Cut</button>
+            <button onClick={() => { window.history.pushState({}, '', '/wolf-cut-testen'); setCurrentPath('/wolf-cut-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Wolf Cut</button>
+            <button onClick={() => { window.history.pushState({}, '', '/curtain-bangs-testen'); setCurrentPath('/curtain-bangs-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Curtain Bangs</button>
+            <button onClick={() => { window.history.pushState({}, '', '/mittelscheitel-testen'); setCurrentPath('/mittelscheitel-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Mittelscheitel</button>
+            <button onClick={() => { window.history.pushState({}, '', '/lob-testen'); setCurrentPath('/lob-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Long Bob</button>
+            <button onClick={() => { window.history.pushState({}, '', '/butterfly-cut-testen'); setCurrentPath('/butterfly-cut-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Butterfly Cut</button>
+            <button onClick={() => { window.history.pushState({}, '', '/buzz-cut-testen'); setCurrentPath('/buzz-cut-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Buzz Cut</button>
+            <button onClick={() => { window.history.pushState({}, '', '/shag-cut-testen'); setCurrentPath('/shag-cut-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Shag Cut</button>
+            <button onClick={() => { window.history.pushState({}, '', '/french-girl-bob-testen'); setCurrentPath('/french-girl-bob-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">French Bob</button>
+            <button onClick={() => { window.history.pushState({}, '', '/italian-bob-testen'); setCurrentPath('/italian-bob-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Italian Bob</button>
+            <button onClick={() => { window.history.pushState({}, '', '/beach-waves-testen'); setCurrentPath('/beach-waves-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Beach Waves</button>
+            <button onClick={() => { window.history.pushState({}, '', '/fade-cut-testen'); setCurrentPath('/fade-cut-testen'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Männer Fade Cut</button>
             <button onClick={() => { window.history.pushState({}, '', '/frisuren-online-testen-ohne-app'); setCurrentPath('/frisuren-online-testen-ohne-app'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Online testen (Ohne App)</button>
             <button onClick={() => { window.history.pushState({}, '', '/test-welche-frisur-passt-zu-mir'); setCurrentPath('/test-welche-frisur-passt-zu-mir'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Frisuren Test</button>
             <button onClick={() => { window.history.pushState({}, '', '/kostenlose-frisuren-app'); setCurrentPath('/kostenlose-frisuren-app'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-xs font-bold uppercase tracking-widest text-brand-primary/60 hover:text-[#FF9EBE] transition-colors">Kostenlose Frisuren App</button>
