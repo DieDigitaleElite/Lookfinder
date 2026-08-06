@@ -12,7 +12,8 @@ dotenv.config();
 const app = express();
 
 app.use(cors());
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Gemini Proxy Implementation
 const getGeminiAI = () => {
@@ -23,13 +24,8 @@ const getGeminiAI = () => {
               process.env.VITE_GEMINI_API_KEY;
   
   if (!key || key === "MY_GEMINI_API_KEY" || key.trim() === "") {
-    const env = process.env.NODE_ENV || "development";
     console.warn("API Key Check Failed. Env keys:", Object.keys(process.env).filter(k => k.toLowerCase().includes('key')));
-    
-    if (env === "production") {
-      throw new Error("CONFIG_ERROR: No valid API\_KEY found in environment.");
-    }
-    throw new Error("GEMINI_API_KEY fehlt. Bitte füge deinen API Key in den AI Studio Secrets unter dem Namen 'GEMINI_API_KEY' hinzu.");
+    throw new Error("GEMINI_API_KEY fehlt. Bitte stelle sicher, dass der API Key in den AI Studio Secrets hinterlegt ist.");
   }
   return new GoogleGenAI({ apiKey: key });
 };
@@ -40,9 +36,9 @@ async function queryGenAIImageWithFallback(ai: any, model: string, parts: any[],
     console.log(`Querying image model ${model}...`);
     const response = await ai.models.generateContent({
       model: model,
-      contents: { parts },
+      contents: parts,
       config: { safetySettings, ...extraConfig }
-    });
+    });;
 
     let imageData = null;
     for (const candidate of response.candidates || []) {
@@ -190,12 +186,10 @@ Antworte ausschließlich im JSON-Format mit folgendem Wurzel-Objekt:
 
         const response = await ai.models.generateContent({
           model: "gemini-3.6-flash",
-          contents: {
-            parts: [
-              { inlineData: { data: base64Image, mimeType } },
-              { text: prompt }
-            ]
-          },
+          contents: [
+            { inlineData: { data: base64Image, mimeType } },
+            { text: prompt }
+          ],
           config: {
             responseMimeType: "application/json"
           }
@@ -308,10 +302,14 @@ You are an advanced digital photo editor and hairstyle specialist. Your ONLY tas
         }
 
         const parts: any[] = [{ inlineData: { data: base64Image, mimeType } }];
-        if (baseSketch) {
-           const sketchMimeType = baseSketch.split(";")[0].split(":")[1];
-           const sketchData = baseSketch.split(",")[1];
-           parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
+        if (baseSketch && typeof baseSketch === "string" && baseSketch.includes(",")) {
+           try {
+             const sketchMimeType = baseSketch.includes(";") ? baseSketch.split(";")[0].split(":")[1] || "image/png" : "image/png";
+             const sketchData = baseSketch.split(",")[1] || baseSketch;
+             parts.push({ inlineData: { data: sketchData, mimeType: sketchMimeType } });
+           } catch (sketchErr) {
+             console.warn("Failed to parse baseSketch, continuing with primary image only:", sketchErr);
+           }
         }
         parts.push({ text: promptSnippet });
 
@@ -662,6 +660,17 @@ app.post("/api/usage/increment", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: "Internal Error" });
   }
+});
+
+// Global Express Error Handling Middleware
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("Global Express Error Handler:", err);
+  const status = err.status || err.statusCode || 500;
+  const message = err.type === "entity.too.large" 
+    ? "Das hochgeladene Bild ist zu groß. Bitte wähle ein kleineres Bild oder komprimiere es."
+    : (err.message || "Ein unerwarteter Serverfehler ist aufgetreten.");
+    
+  res.status(status).json({ error: message });
 });
 
 export default app;
