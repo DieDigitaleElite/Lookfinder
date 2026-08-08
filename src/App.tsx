@@ -2311,73 +2311,54 @@ export default function App() {
     setIsDeletingAccount(true);
     try {
       // 1. Delete all results from subcollection
-      const resultsRef = collection(db, 'users', user.uid, 'results');
-      const resultsSnap = await getDocs(resultsRef).catch(err => {
-        handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/results`);
-        throw err;
-      });
-      const deleteResultsPromises = resultsSnap.docs.map(d => 
-        deleteDoc(d.ref).catch(err => {
-          handleFirestoreError(err, OperationType.DELETE, d.ref.path);
-          throw err;
-        })
-      );
-      await Promise.all(deleteResultsPromises);
+      try {
+        const resultsRef = collection(db, 'users', user.uid, 'results');
+        const resultsSnap = await getDocs(resultsRef);
+        const deleteResultsPromises = resultsSnap.docs.map(d => deleteDoc(d.ref).catch(() => null));
+        await Promise.all(deleteResultsPromises);
+      } catch (err) {
+        console.warn("Error deleting user results subcollection:", err);
+      }
 
       // 2. Delete all sketches from subcollection
-      const sketchesRef = collection(db, 'users', user.uid, 'sketches');
-      const sketchesSnap = await getDocs(sketchesRef).catch(err => {
-        handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/sketches`);
-        throw err;
-      });
-      const deleteSketchesPromises = sketchesSnap.docs.map(d => 
-        deleteDoc(d.ref).catch(err => {
-          handleFirestoreError(err, OperationType.DELETE, d.ref.path);
-          throw err;
-        })
-      );
-      await Promise.all(deleteSketchesPromises);
+      try {
+        const sketchesRef = collection(db, 'users', user.uid, 'sketches');
+        const sketchesSnap = await getDocs(sketchesRef);
+        const deleteSketchesPromises = sketchesSnap.docs.map(d => deleteDoc(d.ref).catch(() => null));
+        await Promise.all(deleteSketchesPromises);
+      } catch (err) {
+        console.warn("Error deleting user sketches subcollection:", err);
+      }
 
       // 2b. Delete all drafts from subcollection (e.g., studio draft)
-      const draftsRef = collection(db, 'users', user.uid, 'drafts');
-      const draftsSnap = await getDocs(draftsRef).catch(err => {
-        // Ignore error if drafts collection doesn't exist or permissions
-        return null;
-      });
-      if (draftsSnap && !draftsSnap.empty) {
-        const deleteDraftsPromises = draftsSnap.docs.map(d => 
-          deleteDoc(d.ref).catch(err => {
-            console.warn("Could not delete draft doc:", d.ref.path, err);
-          })
-        );
+      try {
+        const draftsRef = collection(db, 'users', user.uid, 'drafts');
+        const draftsSnap = await getDocs(draftsRef);
+        const deleteDraftsPromises = draftsSnap.docs.map(d => deleteDoc(d.ref).catch(() => null));
         await Promise.all(deleteDraftsPromises);
+      } catch (err) {
+        console.warn("Error deleting user drafts subcollection:", err);
       }
       
       // 3. Delete all polls created by this user
-      const pollsRef = collection(db, 'polls');
-      const pollsQ = query(pollsRef, where('creatorId', '==', user.uid));
-      const pollsSnap = await getDocs(pollsQ).catch(err => {
-        handleFirestoreError(err, OperationType.LIST, 'polls');
-        throw err;
-      });
-      const deletePollsPromises = pollsSnap.docs.map(d => 
-        deleteDoc(d.ref).catch(err => {
-          handleFirestoreError(err, OperationType.DELETE, d.ref.path);
-          throw err;
-        })
-      );
-      await Promise.all(deletePollsPromises);
+      try {
+        const pollsRef = collection(db, 'polls');
+        const pollsQ = query(pollsRef, where('creatorId', '==', user.uid));
+        const pollsSnap = await getDocs(pollsQ);
+        const deletePollsPromises = pollsSnap.docs.map(d => deleteDoc(d.ref).catch(() => null));
+        await Promise.all(deletePollsPromises);
+      } catch (err) {
+        console.warn("Error deleting user polls:", err);
+      }
 
-      // 4. Delete user usage tracking
+      // 4. Delete user usage tracking (ignore missing permissions or missing doc)
       await deleteDoc(doc(db, 'usage', user.uid)).catch(err => {
-        handleFirestoreError(err, OperationType.DELETE, `usage/${user.uid}`);
-        throw err;
+        console.warn("Error deleting usage doc:", err);
       });
 
-      // 5. Delete the main user document
+      // 5. Delete the main user document (ignore missing permissions or missing doc)
       await deleteDoc(doc(db, 'users', user.uid)).catch(err => {
-        handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}`);
-        throw err;
+        console.warn("Error deleting main user doc:", err);
       });
       
       // 6. Delete the Auth user
@@ -2397,7 +2378,7 @@ export default function App() {
         // Force logout to allow re-login
         await signOut(auth);
       } else {
-        setAuthMessage({ type: 'error', text: "Fehler beim Löschen des Kontos. Bitte versuche es später erneut." });
+        setAuthMessage({ type: 'error', text: err?.message || "Fehler beim Löschen des Kontos. Bitte versuche es später erneut." });
       }
     } finally {
       setIsDeletingAccount(false);
