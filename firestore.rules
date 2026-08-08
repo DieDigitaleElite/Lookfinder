@@ -111,6 +111,11 @@ service cloud.firestore {
       allow delete: if isOwner(userId);
     }
 
+    // User Studio Drafts
+    match /users/{userId}/drafts/{draftId} {
+      allow list, get, create, update, delete: if isOwner(userId) || isAdmin();
+    }
+
     // Shared Template Sketches
     match /sketches_template/{sketchId} {
       allow read: if true;

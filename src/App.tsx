@@ -2337,6 +2337,21 @@ export default function App() {
         })
       );
       await Promise.all(deleteSketchesPromises);
+
+      // 2b. Delete all drafts from subcollection (e.g., studio draft)
+      const draftsRef = collection(db, 'users', user.uid, 'drafts');
+      const draftsSnap = await getDocs(draftsRef).catch(err => {
+        // Ignore error if drafts collection doesn't exist or permissions
+        return null;
+      });
+      if (draftsSnap && !draftsSnap.empty) {
+        const deleteDraftsPromises = draftsSnap.docs.map(d => 
+          deleteDoc(d.ref).catch(err => {
+            console.warn("Could not delete draft doc:", d.ref.path, err);
+          })
+        );
+        await Promise.all(deleteDraftsPromises);
+      }
       
       // 3. Delete all polls created by this user
       const pollsRef = collection(db, 'polls');
